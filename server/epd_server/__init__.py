@@ -2,7 +2,7 @@
 
 The pieces a project composes:
 
-- :mod:`epd_server.config`     resolve config values with env-var override
+- :mod:`epd_server.config`     env-var-overridable lookups + typed core settings
 - :mod:`epd_server.registry`   name -> class plugin registry
 - :mod:`epd_server.cache`      JSON disk cache with per-key TTL
 - :mod:`epd_server.page`       HTML page -> quantised PNG
@@ -16,6 +16,15 @@ The pieces a project composes:
 
 __version__ = "0.1.0"
 
+from .config import (  # noqa: E402
+    ConfigError,
+    CoreConfig,
+    ImageSettings,
+    MqttSettings,
+    ServerSettings,
+    load_core_config,
+    load_yaml,
+)
 from .page import Page, SkipPage  # noqa: E402
 from .pipeline import regenerate, select_pages  # noqa: E402
 from .source import CompositeSource, DataSource, StaticSource  # noqa: E402
@@ -29,6 +38,8 @@ from .quantise import (  # noqa: E402
 from .render import ChromiumRenderer, Renderer  # noqa: E402
 
 __all__ = [
+    "ConfigError", "CoreConfig", "ServerSettings", "ImageSettings", "MqttSettings",
+    "load_core_config", "load_yaml",
     "Page", "SkipPage",
     "DataSource", "StaticSource", "CompositeSource",
     "regenerate", "select_pages",

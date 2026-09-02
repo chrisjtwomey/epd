@@ -30,7 +30,7 @@ instead of `@main` for releases.
 
 | Module | Provides |
 |---|---|
-| `epd_server.config` | `get_prop`, `get_prop_by_keys` — env var > YAML > default, with type coercion |
+| `epd_server.config` | `get_prop`, `get_prop_by_keys` — env var > YAML > default, with type coercion. `load_core_config()` validates the `server`, `image`, `mqtt`, `display_schedule` and `debug` blocks into typed settings; `load_yaml()` reads the file |
 | `epd_server.registry` | `Registry` — name → class, `create()` forwards only declared kwargs |
 | `epd_server.cache` | `DiskCache` — JSON file cache with per-key TTL, datetimes round-trip |
 | `epd_server.page` | `Page` — build HTML with Airium, then `save()` renders and quantises it. Both steps are pluggable. |
@@ -51,6 +51,53 @@ pytest
 Nothing here needs Chromium: `Page.save()` is tested with a fake `Renderer`,
 and `GreyscaleQuantiser(levels=4)` is checked byte-for-byte against the
 algorithm it replaced.
+
+## Config
+
+Every epd server shares the same generic blocks. Validate them once, then
+read your own keys with the same env-overridable lookups:
+
+```python
+from epd_server import ConfigError, load_core_config, load_yaml
+from epd_server.config import get_prop_by_keys
+
+raw = load_yaml("config.yaml")
+try:
+    core = load_core_config(raw, default_schedule={"08:00:00": "now.png"})
+    broker = get_prop_by_keys(raw, "sensors", "broker", required=True)   # SENSORS_BROKER env works too
+except (ConfigError, KeyError) as exc:
+    sys.exit(f"config: {exc.args[0]}")
+
+core.server.port, core.server.timezone, core.server.display_schedule
+core.image.page_kwargs()          # -> kwargs for Page(...)
+core.mqtt.enabled, core.mqtt.host, core.mqtt.port, core.mqtt.topic
+```
+
+```yaml
+server:
+  port: 8080
+  timezone: Europe/Dublin        # IANA; default is the host's zone
+  regen_lead_seconds: 120        # regenerate this long before each wake
+display_schedule:                # HH:MM:SS in server.timezone -> image to serve
+  "08:00:00": now.png
+  "20:00:00": trend.png
+image:
+  width: 825
+  height: 1200
+  innerWidth: 825                # content box, <= width
+  innerHeight: 1200
+  innerAlignX: center            # left | center | right
+  innerAlignY: center            # top | center | bottom
+mqtt:                            # relay the client's log topic
+  enabled: false
+  host: localhost
+  port: 1883
+  topic: mqtt/epd-client
+debug: false
+```
+
+Every key can be overridden by an env var named from its path:
+`SERVER_PORT`, `IMAGE_INNERWIDTH`, `MQTT_ENABLED`, `DEBUG`.
 
 ## Wiring a project
 

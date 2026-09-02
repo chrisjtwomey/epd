@@ -15,6 +15,7 @@ dependencies = [
     "Pillow>=10",
     "selenium>=4.10",
     "paho-mqtt>=2.0",
+    "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]
