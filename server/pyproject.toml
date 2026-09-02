@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "epd-server"
+version = "0.1.0"
+description = "Scheduled HTML-to-PNG rendering for battery-powered e-paper clients."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Chris Twomey" }]
+requires-python = ">=3.11"
+dependencies = [
+    "airium>=0.2.7",
+    "Pillow>=10",
+    "selenium>=4.10",
+    "paho-mqtt>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "freezegun>=1.4",
+]
+
+[project.urls]
+Repository = "https://github.com/chrisjtwomey/epd"
+
+[tool.setuptools.packages.find]
+include = ["epd_server*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

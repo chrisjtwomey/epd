@@ -121,9 +121,9 @@ pio test -e native_integration  # the full run_app() control flow
 `platformio.ini` here is a host-only test project. It is excluded from the
 published library, so consumers never see it.
 
-## Server
+## Server — `server/`
 
-Not yet extracted — see the extraction plan for the design.
+The `epd_server` Python package: config resolution, plugin registry, disk cache, `Page` (HTML → quantised PNG), scheduling maths, and the MQTT client-log relay. See [server/README.md](server/README.md).
 
 ## License
 
