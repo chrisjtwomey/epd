@@ -22,6 +22,12 @@ Two directories are involved, and they are usually different:
 Layout is expressed as an *outer* canvas (the PNG size) and an *inner* box
 the content is constrained to, aligned within the outer canvas. Pages read
 the result as CSS custom properties from :meth:`Page.layout_css_variables`.
+
+A page declares the datasets its :meth:`Page.template` needs in
+:attr:`Page.requires`; :func:`epd_server.pipeline.regenerate` fetches them
+from a :class:`~epd_server.source.DataSource` and passes them as keyword
+arguments. ``template()`` may raise :class:`SkipPage` to leave the existing
+PNG untouched — for example when the data for that page is not available.
 """
 from __future__ import annotations
 
@@ -34,7 +40,15 @@ from .quantise import GreyscaleQuantiser, Quantiser
 from .render import ChromiumRenderer, Renderer
 
 
+class SkipPage(Exception):
+    """Raise from ``Page.template()`` to skip rendering this page this time."""
+
+
 class Page:
+    #: Dataset names this page's template() needs, in the order it wants them.
+    #: The pipeline passes each one as a keyword argument of the same name.
+    requires: tuple[str, ...] = ()
+
     def __init__(
         self,
         name: str,
@@ -70,6 +84,11 @@ class Page:
         return logging.getLogger(self.name)
 
     # ── Paths ────────────────────────────────────────────────────────────
+
+    @property
+    def png_filename(self) -> str:
+        """The file the server serves for this page, e.g. ``"today.png"``."""
+        return self.name + ".png"
 
     @property
     def html_path(self) -> str:

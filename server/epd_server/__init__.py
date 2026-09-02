@@ -10,11 +10,15 @@ The pieces a project composes:
 - :mod:`epd_server.quantise`   Quantiser protocol; greyscale / palette / identity
 - :mod:`epd_server.scheduling` DST-correct next-wake / next-regen maths
 - :mod:`epd_server.mqtt`       subscribe to the client's remote log topic
+- :mod:`epd_server.source`     DataSource protocol; Static / Composite helpers
+- :mod:`epd_server.pipeline`   regenerate(): fetch what pages need, render, save
 """
 
 __version__ = "0.1.0"
 
-from .page import Page  # noqa: E402
+from .page import Page, SkipPage  # noqa: E402
+from .pipeline import regenerate, select_pages  # noqa: E402
+from .source import CompositeSource, DataSource, StaticSource  # noqa: E402
 from .quantise import (  # noqa: E402
     GreyscaleQuantiser,
     IdentityQuantiser,
@@ -25,7 +29,9 @@ from .quantise import (  # noqa: E402
 from .render import ChromiumRenderer, Renderer  # noqa: E402
 
 __all__ = [
-    "Page",
+    "Page", "SkipPage",
+    "DataSource", "StaticSource", "CompositeSource",
+    "regenerate", "select_pages",
     "Renderer", "ChromiumRenderer",
     "Quantiser", "GreyscaleQuantiser", "PaletteQuantiser", "IdentityQuantiser",
     "grey_levels",
