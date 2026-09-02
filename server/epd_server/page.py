@@ -1,8 +1,15 @@
 """Render an HTML page to a quantised PNG sized for an e-paper panel.
 
 Subclass :class:`Page`, build the document into ``self.airium`` in
-:meth:`Page.template`, then call :meth:`Page.save` to write the HTML and
-screenshot it with headless Chromium.
+:meth:`Page.template`, then call :meth:`Page.save` to write the HTML,
+screenshot it, and reduce it to the panel's colours.
+
+Two collaborators are pluggable, both with sensible defaults:
+
+- ``renderer`` — a :class:`~epd_server.render.Renderer`; default
+  :class:`~epd_server.render.ChromiumRenderer`.
+- ``quantiser`` — a :class:`~epd_server.quantise.Quantiser`; default
+  :class:`~epd_server.quantise.GreyscaleQuantiser` with four levels.
 
 Two directories are involved, and they are usually different:
 
@@ -20,14 +27,11 @@ from __future__ import annotations
 
 import logging
 import os
-from time import sleep
 
 from airium import Airium
-from PIL import Image
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.support.ui import WebDriverWait
+
+from .quantise import GreyscaleQuantiser, Quantiser
+from .render import ChromiumRenderer, Renderer
 
 
 class Page:
@@ -42,6 +46,8 @@ class Page:
         inner_align_y: str = "center",
         html_dir: str | os.PathLike | None = None,
         png_dir: str | os.PathLike | None = None,
+        renderer: Renderer | None = None,
+        quantiser: Quantiser | None = None,
     ):
         self.name = name
         self.image_width = width
@@ -52,6 +58,10 @@ class Page:
         self.image_inner_align_y = inner_align_y
         self.html_dir = os.fspath(html_dir) if html_dir is not None else None
         self.png_dir = os.fspath(png_dir) if png_dir is not None else None
+        # Defaults are created lazily in save(), so constructing a Page stays
+        # cheap and side-effect free.
+        self.renderer = renderer
+        self.quantiser = quantiser
 
         self.airium = Airium()
 
@@ -83,6 +93,7 @@ class Page:
         )
 
     def save(self):
+        """Write the HTML, render it, quantise it, and write the PNG."""
         html_fp = self.html_path
         png_fp = self.png_path
 
@@ -91,65 +102,14 @@ class Page:
         with open(html_fp, "wb") as f:
             f.write(bytes(self.airium))
 
-        driver = self._get_chromedriver()
-        driver.get("file://" + html_fp)
-        # Wait until window.onload has fired (any JS drawing done) or up to 10s
-        WebDriverWait(driver, 10).until(
-            lambda d: d.execute_script("return document.readyState") == "complete"
-        )
-        sleep(1)
-        driver.get_screenshot_as_file(png_fp)
-        driver.quit()
+        renderer = self.renderer if self.renderer is not None else ChromiumRenderer()
+        quantiser = self.quantiser if self.quantiser is not None else GreyscaleQuantiser(levels=4)
 
-        img = Image.open(png_fp)
-        pal_img = Image.new("P", (1, 1))
-        pal: list[int] = []
-        for v in (0, 85, 170, 255):
-            pal += [v, v, v]
-        pal += [0] * (768 - len(pal))
-        pal_img.putpalette(pal)
-        img.convert("RGB").quantize(
-            colors=4, palette=pal_img, dither=Image.Dither.FLOYDSTEINBERG
-        ).convert("L").save(png_fp, format="png", optimize=True)
+        img = renderer.render(html_fp, self.image_width, self.image_height)
+        img = quantiser.apply(img)
+        img.save(png_fp, format="png", optimize=True)
 
-        self.log.info("Screenshot captured and saved to file.")
-
-    def _get_chromedriver(self):
-        opts = Options()
-        opts.add_argument("--headless")
-        opts.add_argument("--hide-scrollbars")
-        opts.add_argument("--window-size={},{}".format(self.image_width, self.image_height))
-        opts.add_argument("--force-device-scale-factor=1")
-        # Required in containers: Chromium can't set up its sandbox without
-        # extra kernel capabilities, and /dev/shm defaults to 64MB which it
-        # exhausts immediately (manifests as "DevToolsActivePort doesn't exist").
-        opts.add_argument("--no-sandbox")
-        opts.add_argument("--disable-dev-shm-usage")
-        opts.add_argument("--disable-gpu")
-
-        # In Docker we have apt-installed chromium + matching chromium-driver.
-        # Selenium 4.10+'s Selenium Manager only auto-discovers google-chrome,
-        # so we point at the binary explicitly via binary_location and pass an
-        # explicit Service for the system driver. Outside Docker (no system
-        # driver), fall through to Selenium Manager's bootstrap.
-        opts.binary_location = os.environ.get("CHROME_BIN", "/usr/bin/chromium")
-        if os.path.exists("/usr/bin/chromedriver"):
-            driver = webdriver.Chrome(service=Service("/usr/bin/chromedriver"), options=opts)
-        else:
-            driver = webdriver.Chrome(options=opts)
-
-        driver.set_window_rect(width=self.image_width, height=self.image_height)
-        driver.execute_cdp_cmd(
-            "Emulation.setDeviceMetricsOverride",
-            {
-                "mobile": False,
-                "width": self.image_width,
-                "height": self.image_height,
-                "deviceScaleFactor": 1,
-            },
-        )
-
-        return driver
+        self.log.info("Rendered %s -> %s", os.path.basename(html_fp), os.path.basename(png_fp))
 
     # ── Layout ───────────────────────────────────────────────────────────
 
