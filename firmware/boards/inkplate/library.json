@@ -1,0 +1,19 @@
+{
+  "name": "EpdBoardInkplate",
+  "version": "0.1.0",
+  "description": "IBoard implementation for Soldered/e-radionica Inkplate panels. Kept separate from EpdClient so projects on other hardware never pull in InkplateLibrary.",
+  "keywords": "epaper, eink, inkplate",
+  "license": "MIT",
+  "authors": [{ "name": "Chris Twomey" }],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chrisjtwomey/epd.git"
+  },
+  "frameworks": "arduino",
+  "platforms": "espressif32",
+  "headers": ["InkplateBoard.h"],
+  "dependencies": [
+    { "name": "EpdClient" },
+    { "owner": "e-radionicacom", "name": "InkplateLibrary", "version": "^11.0.0" }
+  ]
+}

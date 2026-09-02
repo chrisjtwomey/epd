@@ -1,0 +1,35 @@
+name: PlatformIO CI
+
+on: [push, pull_request]
+
+jobs:
+  client-tests:
+    name: Client tests (host)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: firmware
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio/.cache
+          key: ${{ runner.os }}-pio-native
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install PlatformIO Core
+        run: pip install --upgrade platformio
+
+      - name: Run native unit tests
+        run: pio test -e native
+
+      - name: Run native_mock tests
+        run: pio test -e native_mock
+
+      - name: Run native_integration tests
+        run: pio test -e native_integration

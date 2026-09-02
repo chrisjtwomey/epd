@@ -1,0 +1,17 @@
+# PlatformIO
+.pio/
+.vscode/
+
+# Python (server package, added in step 3)
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+
+# mac junk
+.DS_Store

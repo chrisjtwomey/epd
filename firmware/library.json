@@ -1,0 +1,56 @@
+{
+  "name": "EpdClient",
+  "version": "0.1.0",
+  "description": "Battery-powered e-paper client firmware: wake, fetch a PNG over HTTP, draw it, deep sleep. Hardware-agnostic behind the IBoard interface.",
+  "keywords": "epaper, eink, esp32, inkplate, deep-sleep",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Chris Twomey"
+    }
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chrisjtwomey/epd.git"
+  },
+  "frameworks": "arduino",
+  "platforms": "espressif32",
+  "headers": [
+    "app.h",
+    "IBoard.h"
+  ],
+  "dependencies": [
+    {
+      "owner": "androbi",
+      "name": "MqttLogger",
+      "version": "^0.2.3"
+    },
+    {
+      "owner": "knolleary",
+      "name": "PubSubClient",
+      "version": "^2.8"
+    },
+    {
+      "owner": "bblanchon",
+      "name": "ArduinoJson",
+      "version": "^7.4.0"
+    },
+    {
+      "owner": "ropg",
+      "name": "ezTime",
+      "version": "^0.8.3"
+    },
+    {
+      "owner": "smfsw",
+      "name": "Queue",
+      "version": "^1.11"
+    }
+  ],
+  "export": {
+    "exclude": [
+      "test",
+      "platformio.ini",
+      "boards"
+    ]
+  }
+}
