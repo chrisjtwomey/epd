@@ -12,10 +12,12 @@ The pieces a project composes:
 - :mod:`epd_server.mqtt`       subscribe to the client's remote log topic
 - :mod:`epd_server.source`     DataSource protocol; Static / Composite helpers
 - :mod:`epd_server.pipeline`   regenerate(): fetch what pages need, render, save
+- :mod:`epd_server.app`        DisplayServer: routes, X-Next-* headers, regen loop
 """
 
 __version__ = "0.1.0"
 
+from .app import DisplayServer, align_process_timezone  # noqa: E402
 from .config import (  # noqa: E402
     ConfigError,
     CoreConfig,
@@ -38,6 +40,7 @@ from .quantise import (  # noqa: E402
 from .render import ChromiumRenderer, Renderer  # noqa: E402
 
 __all__ = [
+    "DisplayServer", "align_process_timezone",
     "ConfigError", "CoreConfig", "ServerSettings", "ImageSettings", "MqttSettings",
     "load_core_config", "load_yaml",
     "Page", "SkipPage",

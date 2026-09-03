@@ -40,6 +40,7 @@ instead of `@main` for releases.
 | `epd_server.mqtt` | `client_log_subscriber` — relay the client's MQTT log topic into Python logging |
 | `epd_server.source` | `DataSource` — named, lazily fetched datasets; `StaticSource` for constants; `CompositeSource` to merge |
 | `epd_server.pipeline` | `regenerate(pages, source, only=, force_refresh=)` — fetch what the selected pages need, once each; render; save |
+| `epd_server.app` | `DisplayServer(pages, source, schedule, tz, …).run()` — routes, `X-Next-*` headers, regen loop, client log relay, signals. `align_process_timezone()` |
 
 ## Tests
 
@@ -48,9 +49,41 @@ pip install -e '.[dev]'
 pytest
 ```
 
-Nothing here needs Chromium: `Page.save()` is tested with a fake `Renderer`,
+Nothing here needs Chromium or a network: `Page.save()` is tested with a fake `Renderer`,
+`DisplayServer` with Flask's test client and a stand-in shutdown event,
 and `GreyscaleQuantiser(levels=4)` is checked byte-for-byte against the
 algorithm it replaced.
+
+## A whole server
+
+```python
+from epd_server import DisplayServer, align_process_timezone, load_core_config, load_yaml
+from epd_server.config import MqttSettings
+
+raw  = load_yaml("config.yaml")
+core = load_core_config(raw, default_schedule={"08:00:00": "now.png"})
+align_process_timezone(core.server.timezone)
+
+DisplayServer(
+    pages=[NowPage("now", **core.image.page_kwargs(), html_dir=..., png_dir=...)],
+    source=Sensors(),
+    schedule=core.server.display_schedule,
+    tz=core.server.timezone,
+    regen_lead_seconds=core.server.regen_lead_seconds,
+    port=core.server.port,
+    mqtt=core.mqtt,
+).run(once="--once" in sys.argv)
+```
+
+`run()` regenerates every page, starts the HTTP server on a thread, relays
+the client's MQTT log topic if enabled, and then sleeps until
+`regen_lead_seconds` before each scheduled wake, regenerating that wake's
+page with a fresh fetch. `SIGTERM` / `SIGINT` stop it cleanly.
+
+Routes come from the page list — `/<page>.png` for each — plus `/`, which
+returns the page list, the schedule and the next wake as JSON. The schedule
+is checked against the pages at construction, so a typo in `config.yaml`
+fails at startup instead of silently regenerating nothing.
 
 ## Config
 
