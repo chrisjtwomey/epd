@@ -5,9 +5,9 @@ fetcher so nothing is fetched until a page actually needs it. Pages declare
 the names they need in ``Page.requires``; the pipeline fetches each needed
 dataset once per regeneration and hands it to every page that asked for it.
 
-The names are the project's to choose. A weather project might expose
-``daily_summary`` and ``hourly_forecasts``; an environment monitor might
-expose ``sensor_readings`` and ``history_24h``.
+The names are the project's to choose: whatever its pages ask for. This
+module never interprets them, and two projects on the same kit need not
+agree on any of them.
 """
 from __future__ import annotations
 

@@ -3,7 +3,7 @@
 Precedence for every lookup: **env var > YAML value > default**.
 
 The env-var name is derived from the key path, upper-cased and joined with
-underscores: ``("weather", "apikey")`` -> ``WEATHER_APIKEY``. Env strings are
+underscores: ``("server", "timezone")`` -> ``SERVER_TIMEZONE``. Env strings are
 coerced to the type of the YAML value they replace (or of the default when
 the YAML key is absent), so ``MQTT_ENABLED=true`` yields ``True`` and
 ``SERVER_PORT=9090`` yields ``9090``.
@@ -22,7 +22,7 @@ def get_by_path(root, items):
 
 
 def _env_name(keys) -> str:
-    """``("weather", "apikey")`` -> ``"WEATHER_APIKEY"``."""
+    """``("server", "timezone")`` -> ``"SERVER_TIMEZONE"``."""
     return "_".join(str(k).upper() for k in keys)
 
 
@@ -82,7 +82,7 @@ def get_prop(config, prop, default=None, required=True) -> Any:
 # Typed settings for the blocks every epd server has
 # ═══════════════════════════════════════════════════════════════════════════
 #
-# A project validates its own keys (a weather API key, a sensor topic, ...)
+# A project validates its own keys (an API key, a broker topic, a location)
 # and calls load_core_config() for the rest. Every check raises ConfigError
 # with a message meant for the person editing config.yaml; the caller
 # decides whether that means "log and exit".

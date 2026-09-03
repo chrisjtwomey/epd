@@ -1,9 +1,9 @@
 """Regenerate pages from a data source.
 
-This is the loop the server runs on a schedule. It is generic: it knows
-nothing about weather, sensors or any particular page. Pages say what they
-need via ``Page.requires``; the source says what it has via
-``DataSource.datasets()``; this function joins the two.
+This is the loop the server runs on a schedule. It knows nothing about
+where the content comes from or what any page draws: pages say what they
+need via ``Page.requires``, the source says what it has via
+``DataSource.datasets()``, and this function joins the two.
 """
 from __future__ import annotations
 

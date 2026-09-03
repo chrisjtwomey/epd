@@ -5,12 +5,12 @@ pages independently::
 
     sources = Registry("data source")
 
-    @sources.register("accuweather")
-    class AccuweatherSource:
-        def __init__(self, *, apikey, location, metric=True): ...
+    @sources.register("myservice")
+    class MySource:
+        def __init__(self, *, apikey, location): ...
 
-    svc = sources.create("accuweather", apikey="...", location="Dublin",
-                         num_hours=9)   # num_hours is dropped: not in __init__
+    src = sources.create("myservice", apikey="...", location="Dublin",
+                         interval=60)   # interval is dropped: not in __init__
 
 ``create()`` forwards only the keyword arguments a constructor declares, so
 implementations need not accept parameters they do not use. A constructor
