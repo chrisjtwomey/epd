@@ -10,7 +10,27 @@ InkplateBoard::InkplateBoard() : _inkplate(INKPLATE_3BIT) {}
 // -----------------------------------------------------------------------------
 
 const char* InkplateBoard::deviceName() const {
+    // The board define the Inkplate library was compiled with. Adding a panel
+    // here is cosmetic: it only changes the boot log.
+#if defined(ARDUINO_INKPLATE10)
     return "Inkplate10";
+#elif defined(ARDUINO_INKPLATE5V2)
+    return "Inkplate5V2";
+#elif defined(ARDUINO_INKPLATE5)
+    return "Inkplate5";
+#elif defined(ARDUINO_INKPLATE6PLUS)
+    return "Inkplate6PLUS";
+#elif defined(ARDUINO_INKPLATE6FLICK)
+    return "Inkplate6FLICK";
+#elif defined(ARDUINO_INKPLATE6)
+    return "Inkplate6";
+#elif defined(ARDUINO_INKPLATE4)
+    return "Inkplate4";
+#elif defined(ARDUINO_INKPLATE2)
+    return "Inkplate2";
+#else
+    return "Inkplate";
+#endif
 }
 
 void InkplateBoard::begin() {

@@ -24,7 +24,7 @@ public:
     // Lifecycle
     // -------------------------------------------------------------------------
 
-    /** Return a human-readable name for this board (e.g. "Inkplate10"). */
+    /** Return a human-readable name for this board, used in the boot log. */
     virtual const char* deviceName() const = 0;
 
     /** Initialise the hardware. Called once at startup before any other method. */

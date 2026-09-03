@@ -4,7 +4,7 @@
 /**
  * Manually define config params.
  *
- * Only use this if you are not using the SD card (Inkplate10 V1).
+ * Only use this if you are not loading config from an SD card.
  * Otherwise add USE_SDCARD flag to load from SD card config.yaml
  *
  * These parameters are overriden by the config.yaml if SD card is enabled.

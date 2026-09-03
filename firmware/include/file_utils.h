@@ -1,8 +1,8 @@
 #ifndef __FILE_H__
 #define __FILE_H__
 #include "error_utils.h"
-// The path on SD card where calendar images are downloaded to and read from.
-#define CALENDAR_RW_PATH "/calendar.png"
+// The path on SD card where the downloaded image is stored.
+#define IMAGE_RW_PATH "/image.png"
 // The file path on SD card to load config.
 #define CONFIG_FILE_PATH "/config.yaml"
 

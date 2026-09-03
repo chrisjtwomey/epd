@@ -89,12 +89,12 @@ void test_happy_path_calls_board_display() {
     TEST_ASSERT_GREATER_THAN(0, mockBoard.displayCount);
 }
 
-void test_happy_path_saves_calendar_cache() {
+void test_happy_path_saves_image_cache() {
     happyPathStubs();
 
     run_app();
 
-    TEST_ASSERT_TRUE(dispStubs.saveCalendarCacheCalled);
+    TEST_ASSERT_TRUE(dispStubs.saveImageCacheCalled);
 }
 
 void test_happy_path_resets_backoff_step() {
@@ -233,7 +233,7 @@ void test_no_refresh_header_backs_off_instead_of_sleeping_zero() {
     // nextRefreshSeconds == 0, so app takes the backoff branch
     TEST_ASSERT_EQUAL_UINT32(computeBackoffSeconds(1), sleepStubs.lastSleepForSecs);
     // cache is still saved (image was drawn successfully)
-    TEST_ASSERT_TRUE(dispStubs.saveCalendarCacheCalled);
+    TEST_ASSERT_TRUE(dispStubs.saveImageCacheCalled);
 }
 
 // ---------------------------------------------------------------------------
@@ -277,7 +277,7 @@ void test_load_image_failure_backs_off_without_caching() {
     TEST_ASSERT_TRUE(sleepStubs.sleepForCalled);
     TEST_ASSERT_EQUAL_UINT32(computeBackoffSeconds(1), sleepStubs.lastSleepForSecs);
     // Cache must NOT be saved when the draw failed
-    TEST_ASSERT_FALSE(dispStubs.saveCalendarCacheCalled);
+    TEST_ASSERT_FALSE(dispStubs.saveImageCacheCalled);
 }
 
 // ---------------------------------------------------------------------------
@@ -287,7 +287,7 @@ void test_load_image_failure_backs_off_without_caching() {
 void test_cache_save_failure_still_sleeps_for_refresh_seconds() {
     happyPathStubs();
     netStubs.downloadNextRefresh      = 1800;
-    dispStubs.saveCalendarCacheResult = false;
+    dispStubs.saveImageCacheResult = false;
 
     run_app();
 
@@ -329,7 +329,7 @@ int main(int argc, char** argv) {
     RUN_TEST(test_happy_path_sleeps_for_server_refresh_seconds);
     RUN_TEST(test_happy_path_displays_battery_status);
     RUN_TEST(test_happy_path_calls_board_display);
-    RUN_TEST(test_happy_path_saves_calendar_cache);
+    RUN_TEST(test_happy_path_saves_image_cache);
     RUN_TEST(test_happy_path_resets_backoff_step);
 
     // URL routing

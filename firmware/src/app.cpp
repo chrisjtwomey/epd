@@ -66,9 +66,9 @@ void run_app() {
     Serial.begin(115200);
     // Init inkplate board.
     board.begin();
-    // Init SPIFFS for calendar image cache (preserves calendar behind banners).
+    // Init SPIFFS for image cache (preserves the image behind banners).
     if (!SPIFFS.begin(true)) {
-        log(LOG_WARNING, "SPIFFS mount failed - calendar cache unavailable");
+        log(LOG_WARNING, "SPIFFS mount failed - image cache unavailable");
     }
     // Set board to portrait mode.
     board.setRotation(1);
@@ -77,7 +77,7 @@ void run_app() {
     time_t bootTime = board.rtcGetEpoch();
     setTime(bootTime);
 
-    logf(LOG_NOTICE, "##### %s Weather Calendar boot #%d #####", board.deviceName(), bootCount);
+    logf(LOG_NOTICE, "##### %s boot #%d #####", board.deviceName(), bootCount);
     logf(LOG_NOTICE, "############ Client version: %s ############", CLIENT_VERSION);
     esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
     switch (wakeup_reason) {
@@ -277,7 +277,7 @@ void run_app() {
     int32_t defaultLen = board.getWidth() * board.getHeight() * 8 + 100;
     uint8_t *buf = nullptr;
     do {
-        logf(LOG_DEBUG, "calendar download attempt #%d", attempts + 1);
+        logf(LOG_DEBUG, "image download attempt #%d", attempts + 1);
 
         const char* fetchURL =
             (nextServerURL[0] != '\0') ? nextServerURL : activeServerURL;
@@ -294,7 +294,7 @@ void run_app() {
          nextRefreshSeconds ? nextRefreshSeconds
                 : activeServerDefaultRefreshSeconds);
 #if defined(USE_SDCARD)
-        err = writeFile(buf, defaultLen, CALENDAR_RW_PATH);
+        err = writeFile(buf, defaultLen, IMAGE_RW_PATH);
         if (err != ESP_OK) {
             errMsg = "file write error";
             log(LOG_ERROR, errMsg);
@@ -322,11 +322,11 @@ void run_app() {
     err = ESP_FAIL;
     attempts = 0;
     do {
-        logf(LOG_DEBUG, "calendar draw attempt #%d", attempts + 1);
+        logf(LOG_DEBUG, "image draw attempt #%d", attempts + 1);
 
         board.clearDisplay();
 #if defined(USE_SDCARD)
-        err = loadImage(CALENDAR_RW_PATH);
+        err = loadImage(IMAGE_RW_PATH);
 #else
         err = loadImage(buf, defaultLen);
 #endif
@@ -354,10 +354,10 @@ void run_app() {
     }
 
     // Cache the drawn image so displayMessage can overlay it as a backdrop.
-    if (saveCalendarCache(buf, defaultLen)) {
-        log(LOG_DEBUG, "calendar cache saved to SPIFFS");
+    if (saveImageCache(buf, defaultLen)) {
+        log(LOG_DEBUG, "image cache saved to SPIFFS");
     } else {
-        log(LOG_WARNING, "failed to save calendar cache to SPIFFS");
+        log(LOG_WARNING, "failed to save image cache to SPIFFS");
     }
 
     if (nextRefreshSeconds > 0) {

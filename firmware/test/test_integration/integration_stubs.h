@@ -49,12 +49,12 @@ extern NetworkStubs netStubs;
 
 // ---------------------------------------------------------------------------
 // Display stubs (loadImage / displayBatteryStatus / displayMessage /
-//                saveCalendarCache)
+//                saveImageCache)
 // ---------------------------------------------------------------------------
 struct DisplayStubs {
     // --- inputs ---
     esp_err_t loadImageResult         = ESP_OK;
-    bool      saveCalendarCacheResult = true;
+    bool      saveImageCacheResult = true;
 
     // --- observations ---
     bool        displayMessageCalled    = false;
@@ -63,18 +63,18 @@ struct DisplayStubs {
     int         lastBatteryPercent      = -1;
     bool        lastBatteryInvert       = false;
     int         loadImageCallCount      = 0;
-    bool        saveCalendarCacheCalled = false;
+    bool        saveImageCacheCalled = false;
 
     void reset() {
         loadImageResult = ESP_OK;
-        saveCalendarCacheResult = true;
+        saveImageCacheResult = true;
         displayMessageCalled = false;
         lastDisplayMsg = nullptr;
         displayBatteryCallCount = 0;
         lastBatteryPercent = -1;
         lastBatteryInvert = false;
         loadImageCallCount = 0;
-        saveCalendarCacheCalled = false;
+        saveImageCacheCalled = false;
     }
 };
 extern DisplayStubs dispStubs;

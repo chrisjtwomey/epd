@@ -1,5 +1,5 @@
 // SPIFFS.h stub for native host builds.
-// display_utils.cpp calls SPIFFS.open() for calendar cache. On the host the
+// display_utils.cpp calls SPIFFS.open() for image cache. On the host the
 // cache is always a miss (open returns a falsy File), which is fine for the
 // tests we care about (battery icon selection, sleep alarm arithmetic).
 #ifndef __STUB_SPIFFS_H__

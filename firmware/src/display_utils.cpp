@@ -11,12 +11,12 @@
 // The board driver instance.
 extern IBoard& board;
 
-#define CALENDAR_CACHE_PATH "/calendar.png"
+#define IMAGE_CACHE_PATH "/image.png"
 
-bool saveCalendarCache(const uint8_t* buf, int32_t len) {
-    File f = SPIFFS.open(CALENDAR_CACHE_PATH, FILE_WRITE);
+bool saveImageCache(const uint8_t* buf, int32_t len) {
+    File f = SPIFFS.open(IMAGE_CACHE_PATH, FILE_WRITE);
     if (!f) {
-        log(LOG_WARNING, "saveCalendarCache: failed to open file");
+        log(LOG_WARNING, "saveImageCache: failed to open file");
         return false;
     }
     size_t written = f.write(buf, (size_t)len);
@@ -24,8 +24,8 @@ bool saveCalendarCache(const uint8_t* buf, int32_t len) {
     return (int32_t)written == len;
 }
 
-bool loadCalendarCache() {
-    File f = SPIFFS.open(CALENDAR_CACHE_PATH, FILE_READ);
+bool loadImageCache() {
+    File f = SPIFFS.open(IMAGE_CACHE_PATH, FILE_READ);
     if (!f || f.size() == 0) return false;
     int32_t len = (int32_t)f.size();
     uint8_t* buf = (uint8_t*)boardMalloc(len);
@@ -103,12 +103,12 @@ esp_err_t loadImage(uint8_t* buf, int x, int y, int w, int h) {
   error.
 */
 void displayMessage(const char* msg, int batteryRemainingPercent) {
-    // Restore the cached calendar so the banner overlays it rather than
+    // Restore the cached image so the banner overlays it rather than
     // replacing the whole screen with white. drawPngFromBuffer writes every
     // pixel of the full-size PNG, so no board.clearDisplay() is needed before
-    // or after — it either fills the buffer with the calendar, or the buffer
+    // or after — it either fills the buffer with the image, or the buffer
     // stays as-is (white from board.begin()) if no cache exists yet.
-    loadCalendarCache();
+    loadImageCache();
 
     int cX = board.getHeight() / 2;
     int cY = 16;  // 16pt font

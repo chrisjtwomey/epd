@@ -15,7 +15,7 @@
 #include "log_utils.h"        // log(), logf(), configureMQTT()
 #include "network_utils.h"    // configureWiFi(), configureTime(), downloadFile()
 #include "display_utils.h"    // loadImage(), displayBatteryStatus(), displayMessage(),
-                              // saveCalendarCache()
+                              // saveImageCache()
 #include "sleep_utils.h"      // sleep_for(), sleep(), deepSleep()
 #include "battery.h"          // getBatteryCapacity()
 #include "time_utils.h"       // nowTzFmt()
@@ -125,9 +125,9 @@ void displayMessage(const char* msg, int) {
     dispStubs.lastDisplayMsg       = msg;
 }
 
-bool saveCalendarCache(const uint8_t*, int32_t) {
-    dispStubs.saveCalendarCacheCalled = true;
-    return dispStubs.saveCalendarCacheResult;
+bool saveImageCache(const uint8_t*, int32_t) {
+    dispStubs.saveImageCacheCalled = true;
+    return dispStubs.saveImageCacheResult;
 }
 
 // ---------------------------------------------------------------------------
