@@ -17,7 +17,7 @@ extern IBoard& board;
  * @return String the RFC3339 formatted string of the current time.
  */
 String nowTzFmt() {
-    return dateTime(myTz.now(), RFC3339);
+    return myTz.dateTime(RFC3339);   // local time with its real offset, UTC until the zone is known
 }
 
 /**
@@ -35,17 +35,25 @@ esp_err_t configureTime(const char* ntpHost, const char* timezoneName) {
 
     setServer(ntpHost);
 
-    if (!waitForSync()) {
+    // One query, judged by its own result. waitForSync() would be satisfied
+    // by the clock the RTC seeded at boot, synced or not.
+    time_t t;
+    unsigned long measuredAt;
+    if (!queryNTP(String(ntpHost), t, measuredAt)) {
+        logf(LOG_WARNING, "NTP query to %s failed: %s", ntpHost, errorString().c_str());
         return ESP_ERR_ENTP;
     }
-    myTz.setLocation(F(timezoneName));
+    setTime(t);
+    updateNTP();   // refines the clock and schedules the periodic re-sync events() runs
 
-    updateNTP();
-    // Sync RTC with NTP time
-    // time_t nowTime = now();
-    time_t nowTime = myTz.now();
-    board.rtcSetEpoch(nowTime);
-    logf(LOG_DEBUG, "RTC synced to %s", dateTime(nowTime, RFC3339).c_str());
+    if (!myTz.setLocation(F(timezoneName))) {
+        logf(LOG_WARNING, "timezone lookup for %s failed: %s; times are shown in UTC",
+             timezoneName, errorString().c_str());
+    }
+
+    // The RTC holds UTC. Local time is a display format, from myTz.
+    board.rtcSetEpoch(now());
+    logf(LOG_DEBUG, "RTC synced to %s", myTz.dateTime(RFC3339).c_str());
 
     return ESP_OK;
 }
