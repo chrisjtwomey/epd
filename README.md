@@ -73,9 +73,14 @@ lib_deps =
 build_flags =
 	-DARDUINO_INKPLATE10          ; or -DARDUINO_INKPLATE5V2, etc.
 	-DBOARD_HAS_PSRAM
+	-DCLIENT_NAME='"my-display"'   ; product token of the User-Agent
 	-DCLIENT_VERSION='"v1.0.0"'
 	-DLOG_LEVEL=4
 ```
+
+Every download carries `User-Agent: my-display/v1.0.0 (Inkplate10)`: the
+name, the version, and the board's `deviceName()`. Without `CLIENT_NAME`
+the product is `EpdClient`; without `CLIENT_VERSION` the version is `dev`.
 
 Enabling `-DUSE_SDCARD` also needs `tobozo/YAMLDuino` and
 `bblanchon/ArduinoStreamUtils` in your `lib_deps`: the YAML config path is

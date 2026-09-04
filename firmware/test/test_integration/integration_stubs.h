@@ -32,6 +32,7 @@ struct NetworkStubs {
     // --- observations ---
     int         downloadCallCount = 0;
     const char* lastDownloadURL   = nullptr;
+    const char* lastUserAgent     = nullptr;
 
     void reset() {
         wifiResult = ESP_OK;
@@ -43,6 +44,7 @@ struct NetworkStubs {
         downloadNextURL = "";
         downloadCallCount = 0;
         lastDownloadURL = nullptr;
+        lastUserAgent = nullptr;
     }
 };
 extern NetworkStubs netStubs;

@@ -130,6 +130,16 @@ void test_subsequent_boot_uses_server_provided_next_url() {
     TEST_ASSERT_EQUAL_STRING("http://alt.server/next.png", netStubs.lastDownloadURL);
 }
 
+void test_download_sends_the_client_user_agent() {
+    happyPathStubs();
+
+    run_app();
+
+    // Neither CLIENT_NAME nor CLIENT_VERSION is set in this build, so the
+    // defaults apply; the board name is MockBoard's.
+    TEST_ASSERT_EQUAL_STRING("EpdClient/dev (MockBoard)", netStubs.lastUserAgent);
+}
+
 void test_download_response_persists_next_url_for_next_boot() {
     happyPathStubs();
     netStubs.downloadNextURL = "http://server/scheduled-next.png";
@@ -335,6 +345,7 @@ int main(int argc, char** argv) {
     // URL routing
     RUN_TEST(test_first_boot_downloads_from_default_server_url);
     RUN_TEST(test_subsequent_boot_uses_server_provided_next_url);
+    RUN_TEST(test_download_sends_the_client_user_agent);
     RUN_TEST(test_download_response_persists_next_url_for_next_boot);
 
     // WiFi failure

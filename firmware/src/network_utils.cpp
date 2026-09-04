@@ -55,8 +55,8 @@ esp_err_t configureWiFi(const char* ssid, const char* pass, int retries) {
   - ESP_OK if successful.
   - ESP_ERR_TIMEOUT if number of retries is exceeded without success.
 */
-uint8_t* downloadFile(const char* url, uint32_t* nextRefreshSeconds, int32_t* defaultLen,
-                      char* nextURL, size_t nextURLSize) {
+uint8_t* downloadFile(const char* url, const char* userAgent, uint32_t* nextRefreshSeconds,
+                      int32_t* defaultLen, char* nextURL, size_t nextURLSize) {
     logf(LOG_INFO, "downloading file at URL %s", url);
 
     bool sleep = WiFi.getSleep();
@@ -72,6 +72,9 @@ uint8_t* downloadFile(const char* url, uint32_t* nextRefreshSeconds, int32_t* de
     };
     const size_t numberOfHeaders = 2;
     http.collectHeaders(headersToCollect, numberOfHeaders);
+
+    if (userAgent && userAgent[0])
+        http.setUserAgent(userAgent);
 
     // Connect with HTTP
     http.begin(url);

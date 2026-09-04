@@ -15,18 +15,10 @@
 esp_err_t configureWiFi(const char* ssid, const char* pass, int retries);
 
 /**
-  Download a file at a given URL. Store the file on disk at a given path.
+  Download a file at the given URL into a buffer the caller frees.
 
-  @param url the URL of the file to download.
-  @param size the size of the file to download.
-  @param retries the number of download attempts to make before returning an
-  error.
-  @returns the esp_err_t code:
-  - ESP_OK if successful.
-  - ESP_ERR_TIMEOUT if number of retries is exceeded without success.
-*/
-/**
-  Download a file at the given URL.
+  userAgent is sent as the User-Agent header; null or empty keeps the
+  HTTP library's default.
 
   If the server sends the X-Next-Refresh-Seconds header, its integer value
   (seconds until the next refresh) is written to `*nextRefreshSeconds`. On a
@@ -35,6 +27,6 @@ esp_err_t configureWiFi(const char* ssid, const char* pass, int retries);
   If the server sends an X-Next-URL header, up to nextURLSize-1 bytes of the
   value are written into nextURL (null-terminated). Pass nullptr / 0 to ignore.
 */
-uint8_t* downloadFile(const char* url, uint32_t* nextRefreshSeconds, int32_t* size,
-                      char* nextURL, size_t nextURLSize);
+uint8_t* downloadFile(const char* url, const char* userAgent, uint32_t* nextRefreshSeconds,
+                      int32_t* size, char* nextURL, size_t nextURLSize);
 #endif

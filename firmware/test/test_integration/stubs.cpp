@@ -79,10 +79,11 @@ esp_err_t configureTime(const char*, const char*) {
     return netStubs.timeResult;
 }
 
-uint8_t* downloadFile(const char* url, uint32_t* nextRefreshSecs,
+uint8_t* downloadFile(const char* url, const char* userAgent, uint32_t* nextRefreshSecs,
                       int32_t* size, char* nextURL, size_t nextURLSize) {
     netStubs.downloadCallCount++;
     netStubs.lastDownloadURL = url;
+    netStubs.lastUserAgent = userAgent;
     if (netStubs.downloadBuf != nullptr) {
         *nextRefreshSecs = netStubs.downloadNextRefresh;
         *size = netStubs.downloadBufLen;

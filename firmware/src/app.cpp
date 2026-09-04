@@ -21,6 +21,7 @@
 #include "log_utils.h"
 #include "network_utils.h"
 #include "version.h"
+#include "user_agent.h"
 #include "sleep_utils.h"
 #include "time_utils.h"
 
@@ -79,6 +80,7 @@ void run_app() {
 
     logf(LOG_NOTICE, "##### %s boot #%d #####", board.deviceName(), bootCount);
     logf(LOG_NOTICE, "############ Client version: %s ############", CLIENT_VERSION);
+    logf(LOG_INFO, "User-Agent: %s", clientUserAgent(board.deviceName()));
     esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
     switch (wakeup_reason) {
         case ESP_SLEEP_WAKEUP_EXT0:
@@ -281,7 +283,8 @@ void run_app() {
 
         const char* fetchURL =
             (nextServerURL[0] != '\0') ? nextServerURL : activeServerURL;
-        buf = downloadFile(fetchURL, &nextRefreshSeconds, &defaultLen,
+        buf = downloadFile(fetchURL, clientUserAgent(board.deviceName()),
+                           &nextRefreshSeconds, &defaultLen,
                            nextServerURL, sizeof(nextServerURL));
         if (!buf) {
             errMsg = "file download error";

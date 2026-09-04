@@ -14,4 +14,15 @@
 #define CLIENT_VERSION "dev"
 #endif
 
+/**
+ * Product token of the User-Agent the client sends, set the same way:
+ *
+ *     build_flags = -DCLIENT_NAME='"inkplate10-weather-cal"'
+ *
+ * The request then carries: inkplate10-weather-cal/v1.4.0 (Inkplate10).
+ */
+#ifndef CLIENT_NAME
+#define CLIENT_NAME "EpdClient"
+#endif
+
 #endif // __VERSION_H__
