@@ -94,7 +94,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
 
-from .scheduling import PoolSchedule, Schedule, WakeSchedule, validate_time_list
+from .scheduling import IntervalSchedule, Pools, TimesSchedule, WakeSchedule
 
 
 class ConfigError(ValueError):
@@ -116,7 +116,7 @@ def load_yaml(path) -> dict:
 class ServerSettings:
     port: int
     timezone: _tzinfo
-    display_schedule: Schedule | WakeSchedule   # (HH:MM:SS, page) pairs, or a pool schedule
+    schedule: WakeSchedule          # from the display block: pools, and when they show
     regen_lead_seconds: int         # regenerate this long before each wake
     debug: bool
 
@@ -157,80 +157,87 @@ class CoreConfig:
     mqtt: MqttSettings
 
 
-SECONDS_PER_DAY = 86400
-
-
 def _positive_int(key: str, value) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         raise ConfigError(f"{key} must be a positive integer (got {value!r})")
     return value
 
 
-def expand_interval_schedule(raw: dict) -> dict:
-    """The ``every`` form of display_schedule as the HH:MM:SS mapping.
+_DISPLAY_MOVED = ("display_schedule has moved: put the images under display.pools and the "
+                  "wake times under display.schedule with a type of times or interval; see the README")
+_SCHEDULE_COMMON = {"type", "reshuffle_hours", "seed"}
 
-    ``every`` is the period in seconds and must divide a day, so the slots
-    land on the same wall-clock times each day. ``pages`` (or one ``page``)
-    are served in turn, one per slot.
+
+def parse_display(config: dict, tz: _tzinfo, default_display: dict | None = None) -> WakeSchedule:
+    """The ``display`` block: ``pools`` of images, and a ``schedule`` of one type.
+
+    ``times`` names a pool at each HH:MM:SS; ``interval`` visits the pools in
+    ``order`` every ``every`` seconds. Either may set ``reshuffle_hours`` and
+    ``seed`` for the pools' random starts.
     """
-    every = _positive_int("display_schedule.every", raw.get("every"))
-    if SECONDS_PER_DAY % every:
-        raise ConfigError(
-            f"display_schedule.every must divide a day of {SECONDS_PER_DAY} seconds (got {every})"
-        )
-    pages = raw.get("pages")
-    if pages is None and raw.get("page") is not None:
-        pages = [raw["page"]]
-    if not isinstance(pages, list) or not pages:
-        raise ConfigError("display_schedule with every needs page (one) or pages (a non-empty list)")
-    unknown = set(raw) - {"every", "page", "pages"}
+    if "display_schedule" in config:
+        raise ConfigError(_DISPLAY_MOVED)
+    raw = get_prop_by_keys(config, "display", default=default_display, required=False)
+    if raw is None:
+        raise ConfigError("display is required: pools of images and a schedule with a type")
+    if not isinstance(raw, dict):
+        raise ConfigError("display must be a mapping with pools and schedule")
+    unknown = sorted(set(raw) - {"pools", "schedule"})
     if unknown:
-        raise ConfigError(f"display_schedule with every takes only page or pages (got {sorted(unknown)})")
-    pages = [str(p).strip() for p in pages]
-    schedule = {}
-    for k in range(SECONDS_PER_DAY // every):
-        t = k * every
-        schedule[f"{t // 3600:02d}:{t % 3600 // 60:02d}:{t % 60:02d}"] = pages[k % len(pages)]
-    return schedule
+        raise ConfigError(f"display takes pools and schedule (got {unknown})")
 
-
-def parse_pool_schedule(raw: dict, tz: _tzinfo) -> PoolSchedule:
-    """The ``pools`` form of display_schedule.
-
-    ``every`` seconds per page; ``pools`` is an ordered mapping of name to
-    page list, visited round-robin, each pool round-robin on its own count
-    from a random start that changes every ``reshuffle_hours``.
-    """
-    every = _positive_int("display_schedule.every", raw.get("every"))
-    pools = raw.get("pools")
-    if not isinstance(pools, dict) or not pools:
-        raise ConfigError("display_schedule.pools must be a non-empty mapping of pool name to page list")
-    clean: dict[str, list[str]] = {}
-    for name, pages in pools.items():
+    pools_raw = raw.get("pools")
+    if not isinstance(pools_raw, dict) or not pools_raw:
+        raise ConfigError("display.pools must be a non-empty mapping of pool name to image list")
+    pools_clean: dict[str, list[str]] = {}
+    for name, pages in pools_raw.items():
         if isinstance(pages, str):
             pages = [pages]
-        if not isinstance(pages, list) or not pages:
-            raise ConfigError(f"display_schedule.pools.{name} must be a non-empty list of pages")
-        clean[str(name)] = [str(p).strip() for p in pages]
-    hours = raw.get("reshuffle_hours", 3)
+        if (not isinstance(pages, list) or not pages
+                or not all(isinstance(p, str) and p.strip() for p in pages)):
+            raise ConfigError(f"display.pools.{name} must be a non-empty list of image filenames")
+        pools_clean[str(name)] = [p.strip() for p in pages]
+
+    sched = raw.get("schedule")
+    if not isinstance(sched, dict) or not sched:
+        raise ConfigError("display.schedule must be a mapping with a type of times or interval")
+    kind = sched.get("type")
+    hours = sched.get("reshuffle_hours", 3)
     if isinstance(hours, bool) or not isinstance(hours, (int, float)) or hours <= 0:
-        raise ConfigError("display_schedule.reshuffle_hours must be a positive number of hours")
-    seed = raw.get("seed", 0)
+        raise ConfigError("display.schedule.reshuffle_hours must be a positive number of hours")
+    seed = sched.get("seed", 0)
     if isinstance(seed, bool) or not isinstance(seed, int):
-        raise ConfigError("display_schedule.seed must be an integer")
-    unknown = set(raw) - {"every", "pools", "reshuffle_hours", "seed"}
-    if unknown:
-        raise ConfigError(f"display_schedule with pools takes every, reshuffle_hours and seed (got {sorted(unknown)})")
+        raise ConfigError("display.schedule.seed must be an integer")
+
     try:
-        return PoolSchedule(every, clean, tz, reshuffle_hours=float(hours), seed=seed)
+        pools = Pools(pools_clean, reshuffle_hours=float(hours), seed=seed)
+        if kind == "times":
+            times = [(str(t), str(n).strip()) for t, n in sched.items() if t not in _SCHEDULE_COMMON]
+            if not times:
+                raise ConfigError("display.schedule of type times needs at least one HH:MM:SS: pool entry")
+            return TimesSchedule(times, pools, tz)
+        if kind == "interval":
+            extra = sorted(set(sched) - _SCHEDULE_COMMON - {"every", "order"})
+            if extra:
+                raise ConfigError(
+                    f"display.schedule of type interval takes every, order, reshuffle_hours and seed (got {extra})")
+            every = _positive_int("display.schedule.every", sched.get("every"))
+            order = sched.get("order")
+            if order is not None and (not isinstance(order, list) or not all(isinstance(o, str) for o in order)):
+                raise ConfigError("display.schedule.order must be a list of pool names")
+            return IntervalSchedule(every, pools, tz, order=order)
     except ValueError as exc:
-        raise ConfigError(f"display_schedule: {exc}") from None
+        if isinstance(exc, ConfigError):
+            raise
+        msg = str(exc)
+        raise ConfigError(msg if msg.startswith("display.") else f"display.schedule: {msg}") from None
+    raise ConfigError(f"display.schedule.type must be times or interval (got {kind!r})")
 
 
 def parse_server(
     config: dict,
     *,
-    default_schedule: dict | None = None,
+    default_display: dict | None = None,
     default_port: int = 8080,
     default_regen_lead_seconds: int = 120,
 ) -> ServerSettings:
@@ -253,33 +260,13 @@ def parse_server(
                 f"server.timezone '{tz_name}' is not a valid IANA zone (e.g. Europe/Dublin)"
             ) from None
 
-    raw_schedule = get_prop_by_keys(config, "display_schedule",
-                                    default=default_schedule, required=False)
-    if raw_schedule is None:
-        raise ConfigError("display_schedule is required: a mapping of HH:MM:SS times to image filenames")
-    if not isinstance(raw_schedule, dict) or not raw_schedule:
-        raise ConfigError("display_schedule must be a non-empty mapping of HH:MM:SS times to image filenames")
-    schedule: Schedule | WakeSchedule
-    if "pools" in raw_schedule:
-        schedule = parse_pool_schedule(raw_schedule, tz)
-    else:
-        if "every" in raw_schedule:
-            raw_schedule = expand_interval_schedule(raw_schedule)
-        try:
-            validate_time_list("display_schedule", list(raw_schedule.keys()))
-        except ValueError as exc:
-            raise ConfigError(str(exc)) from None
-        schedule = sorted(
-            ((str(t).strip(), str(p).strip()) for t, p in raw_schedule.items()),
-            key=lambda x: x[0],
-        )
-
+    schedule = parse_display(config, tz, default_display)
     debug = bool(get_prop(config, "debug", default=False, required=False))
 
     return ServerSettings(
         port=port,
         timezone=tz,
-        display_schedule=schedule,
+        schedule=schedule,
         regen_lead_seconds=regen_lead,
         debug=debug,
     )
@@ -322,7 +309,7 @@ def parse_mqtt(config: dict, *, default_topic: str = "mqtt/epd-client") -> MqttS
 def load_core_config(
     config: dict,
     *,
-    default_schedule: dict | None = None,
+    default_display: dict | None = None,
     default_port: int = 8080,
     default_regen_lead_seconds: int = 120,
     default_width: int = 825,
@@ -336,7 +323,7 @@ def load_core_config(
     keys separately and decides how to report — typically log and exit.
     """
     return CoreConfig(
-        server=parse_server(config, default_schedule=default_schedule, default_port=default_port,
+        server=parse_server(config, default_display=default_display, default_port=default_port,
                             default_regen_lead_seconds=default_regen_lead_seconds),
         image=parse_image(config, default_width=default_width, default_height=default_height),
         mqtt=parse_mqtt(config, default_topic=default_mqtt_topic),

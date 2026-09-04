@@ -82,13 +82,51 @@ def next_regen(schedule: Schedule, tz: _tzinfo, lead_seconds: int = 120,
 # ── Schedule objects ──────────────────────────────────────────────────────
 #
 # DisplayServer asks a schedule two things: when the client wakes next and
-# for which page, and when to regenerate ahead of that. A time list answers
-# from its fixed slots; a pool schedule decides at the moment it is asked.
+# for which page, and when to regenerate ahead of that. What shows is a
+# pool of images read in turn; when it shows is the schedule's type.
 
 import random
 from typing import Mapping, Sequence
 
 SECONDS_PER_DAY = 86400
+
+
+class Pools:
+    """Named pools of images.
+
+    Each pool is read in turn on its own count, from a random start that
+    moves every ``reshuffle_hours``, so a pass over several pools is never
+    all of one shape. The starts come from the clock and a seed, so every
+    process agrees and a restart changes nothing.
+    """
+
+    def __init__(self, pools: Mapping[str, Sequence[str]], reshuffle_hours: float = 3.0, seed: int = 0):
+        if not pools:
+            raise ValueError("at least one pool is needed")
+        for name, pages in pools.items():
+            if not pages:
+                raise ValueError(f"pool {name!r} is empty")
+        if reshuffle_hours <= 0:
+            raise ValueError("reshuffle_hours must be positive")
+        self.names = list(pools)
+        self.pools = {name: list(pages) for name, pages in pools.items()}
+        self.reshuffle_seconds = int(reshuffle_hours * 3600)
+        self.seed = seed
+
+    def page(self, name: str, visit: int, at: int) -> str:
+        """The image for the ``visit``th reading of ``name``, at epoch ``at``."""
+        pool = self.pools[name]
+        block = at // self.reshuffle_seconds
+        i = self.names.index(name)
+        offset = random.Random(self.seed * 1_000_003 + block * 1_009 + i).randrange(len(pool))
+        return pool[(visit + offset) % len(pool)]
+
+    def pages(self, names=None) -> set[str]:
+        names = self.names if names is None else names
+        return {p for n in names for p in self.pools[n]}
+
+    def describe(self) -> dict:
+        return {name: list(pages) for name, pages in self.pools.items()}
 
 
 class WakeSchedule:
@@ -103,78 +141,75 @@ class WakeSchedule:
         raise NotImplementedError
 
     def pages(self) -> set[str]:
-        """Every page the schedule can name."""
+        """Every image the schedule can name."""
         raise NotImplementedError
 
-    def describe(self) -> list[dict]:
+    def describe(self) -> dict:
         """For the index route."""
         raise NotImplementedError
 
 
-class TimeListSchedule(WakeSchedule):
-    """Fixed wall-clock slots: the ``(HH:MM:SS, page)`` list."""
+class TimesSchedule(WakeSchedule):
+    """Fixed wall-clock wake times, each naming a pool."""
 
-    def __init__(self, schedule: Schedule, tz: _tzinfo):
-        if not schedule:
-            raise ValueError("a time list schedule needs at least one slot")
-        self.schedule = list(schedule)
+    def __init__(self, times: Schedule, pools: Pools, tz: _tzinfo):
+        if not times:
+            raise ValueError("a times schedule needs at least one wake time")
+        validate_time_list("display.schedule", [t for t, _ in times])
+        unknown = sorted({n for _, n in times} - set(pools.names))
+        if unknown:
+            raise ValueError(f"schedule names pools {unknown} that display.pools does not define")
+        self.times = sorted(times, key=lambda x: x[0])
+        self.pools = pools
         self.tz = tz
+
+    def _page(self, wake_dt: datetime, name: str) -> str:
+        slots = [t for t, n in self.times if n == name]
+        idx = slots.index(wake_dt.strftime("%H:%M:%S"))
+        visit = wake_dt.date().toordinal() * len(slots) + idx
+        return self.pools.page(name, visit, int(wake_dt.timestamp()))
 
     def next_wake(self, now=None):
-        return next_wake(self.schedule, self.tz, now=now)
+        wake_dt, name = next_wake(self.times, self.tz, now=now)
+        return wake_dt, self._page(wake_dt, name)
 
     def next_regen(self, lead_seconds=120, now=None):
-        return next_regen(self.schedule, self.tz, lead_seconds=lead_seconds, now=now)
+        regen_dt, wake_dt, name = next_regen(self.times, self.tz, lead_seconds=lead_seconds, now=now)
+        return regen_dt, wake_dt, self._page(wake_dt, name)
 
     def pages(self):
-        return {p for _, p in self.schedule}
+        return self.pools.pages({n for _, n in self.times})
 
     def describe(self):
-        return [{"time": t, "page": p} for t, p in self.schedule]
+        return {"type": "times", "times": [{"time": t, "pool": n} for t, n in self.times],
+                "pools": self.pools.describe()}
 
     def __iter__(self):
-        return iter(self.schedule)
+        return iter(self.times)
 
     def __len__(self):
-        return len(self.schedule)
+        return len(self.times)
 
 
-class PoolSchedule(WakeSchedule):
-    """A page every ``every`` seconds, round-robin over the pools, and
-    round-robin inside each pool on its own count.
+class IntervalSchedule(WakeSchedule):
+    """A page every ``every`` seconds, visiting the pools in ``order``."""
 
-    Each pool starts at a random place in its list, so one pass is never
-    all of one shape, and the starting places change every
-    ``reshuffle_hours``. The randomness is seeded from the wall clock, so
-    every process agrees and a restart changes nothing.
-    """
-
-    def __init__(self, every: int, pools: Mapping[str, Sequence[str]], tz: _tzinfo,
-                 reshuffle_hours: float = 3.0, seed: int = 0):
+    def __init__(self, every: int, pools: Pools, tz: _tzinfo, order: Sequence[str] | None = None):
         if every <= 0 or SECONDS_PER_DAY % every:
             raise ValueError(f"every must divide a day of {SECONDS_PER_DAY} seconds (got {every})")
-        if not pools:
-            raise ValueError("a pool schedule needs at least one pool")
-        for name, pages in pools.items():
-            if not pages:
-                raise ValueError(f"pool {name!r} is empty")
-        if reshuffle_hours <= 0:
-            raise ValueError("reshuffle_hours must be positive")
+        order = list(order) if order else list(pools.names)
+        unknown = sorted(set(order) - set(pools.names))
+        if unknown:
+            raise ValueError(f"order names pools {unknown} that display.pools does not define")
         self.every = every
-        self.names = list(pools)
-        self.pools = {name: list(pages) for name, pages in pools.items()}
+        self.pools = pools
         self.tz = tz
-        self.reshuffle_seconds = int(reshuffle_hours * 3600)
-        self.seed = seed
+        self.order = order
 
     def page_for_slot(self, slot: int) -> str:
         """The page for the ``slot``th interval since the epoch."""
-        i = slot % len(self.names)
-        pool = self.pools[self.names[i]]
-        visit = slot // len(self.names)
-        block = (slot * self.every) // self.reshuffle_seconds
-        offset = random.Random(self.seed * 1_000_003 + block * 1_009 + i).randrange(len(pool))
-        return pool[(visit + offset) % len(pool)]
+        name = self.order[slot % len(self.order)]
+        return self.pools.page(name, slot // len(self.order), slot * self.every)
 
     def _now(self, now):
         return now if now is not None else datetime.now(tz=self.tz)
@@ -191,7 +226,8 @@ class PoolSchedule(WakeSchedule):
         return wake - timedelta(seconds=lead_seconds), wake, self.page_for_slot(slot)
 
     def pages(self):
-        return {p for pages in self.pools.values() for p in pages}
+        return self.pools.pages(set(self.order))
 
     def describe(self):
-        return [{"pool": name, "pages": self.pools[name]} for name in self.names]
+        return {"type": "interval", "every": self.every, "order": list(self.order),
+                "pools": self.pools.describe()}

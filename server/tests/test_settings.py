@@ -14,7 +14,13 @@ from epd_server.config import (
     parse_server,
 )
 
-SCHEDULE = {"09:00:00": "today.png"}
+from epd_server.scheduling import IntervalSchedule, TimesSchedule  # noqa: E402
+
+DISPLAY = {"pools": {"today": ["today.png"]}, "schedule": {"type": "times", "09:00:00": "today"}}
+
+
+def display(pools: dict, **schedule) -> dict:
+    return {"display": {"pools": pools, "schedule": schedule}}
 
 
 @pytest.fixture(autouse=True)
@@ -26,11 +32,13 @@ def isolate_env(monkeypatch):
 
 # ---------- load_core_config: defaults ----------
 
-def test_defaults_with_only_a_schedule():
-    cfg = load_core_config({}, default_schedule=SCHEDULE)
+def test_defaults_with_only_a_display():
+    cfg = load_core_config({}, default_display=DISPLAY)
     assert cfg.server.port == 8080
     assert cfg.server.regen_lead_seconds == 120
-    assert cfg.server.display_schedule == [("09:00:00", "today.png")]
+    assert isinstance(cfg.server.schedule, TimesSchedule)
+    assert list(cfg.server.schedule) == [("09:00:00", "today")]
+    assert cfg.server.schedule.pages() == {"today.png"}
     assert cfg.server.debug is False
     assert cfg.server.timezone == datetime.now().astimezone().tzinfo
     assert (cfg.image.width, cfg.image.height) == (825, 1200)
@@ -42,108 +50,118 @@ def test_defaults_with_only_a_schedule():
 
 def test_project_can_change_every_default():
     cfg = load_core_config(
-        {}, default_schedule={"07:00:00": "a.png"}, default_port=9000,
-        default_regen_lead_seconds=30, default_width=600, default_height=448,
+        {}, default_display=display({"a": ["a.png"]}, type="times", **{"07:00:00": "a"})["display"],
+        default_port=9000, default_regen_lead_seconds=30, default_width=600, default_height=448,
         default_mqtt_topic="mqtt/x",
     )
     assert cfg.server.port == 9000 and cfg.server.regen_lead_seconds == 30
-    assert cfg.server.display_schedule == [("07:00:00", "a.png")]
+    assert list(cfg.server.schedule) == [("07:00:00", "a")]
     assert (cfg.image.width, cfg.image.height) == (600, 448)
     assert cfg.mqtt.topic == "mqtt/x"
 
 
-def test_schedule_is_required_when_no_default():
-    with pytest.raises(ConfigError, match="display_schedule is required"):
+def test_display_is_required_when_no_default():
+    with pytest.raises(ConfigError, match="display is required"):
         load_core_config({})
 
 
-# ---------- parse_server ----------
-
-def test_schedule_is_sorted_and_values_stripped():
-    # Keys are validated as-is (a padded time is an error, as before);
-    # the image filenames are stripped.
-    s = parse_server({"display_schedule": {"21:00:00": " b.png ", "09:00:00": "a.png"}})
-    assert s.display_schedule == [("09:00:00", "a.png"), ("21:00:00", "b.png")]
+def test_the_old_display_schedule_key_is_refused_with_directions():
+    with pytest.raises(ConfigError, match="display_schedule has moved"):
+        load_core_config({"display_schedule": {"09:00:00": "today.png"}, "display": DISPLAY})
 
 
-def test_schedule_key_is_not_stripped_before_validation():
+# ---------- parse_display: times ----------
+
+def test_times_schedule_is_sorted_and_pool_names_stripped():
+    s = parse_server(display({"a": ["a.png"], "b": [" b.png "]}, type="times",
+                             **{"21:00:00": " b ", "09:00:00": "a"})).schedule
+    assert isinstance(s, TimesSchedule)
+    assert list(s) == [("09:00:00", "a"), ("21:00:00", "b")]
+    assert s.pages() == {"a.png", "b.png"}
+
+
+def test_times_key_is_not_stripped_before_validation():
     with pytest.raises(ConfigError, match="' 21:00:00' is not a valid time"):
-        parse_server({"display_schedule": {" 21:00:00": "b.png"}})
+        parse_server(display({"b": ["b.png"]}, type="times", **{" 21:00:00": "b"}))
 
 
-@pytest.mark.parametrize("bad", [[], {}, "09:00:00", 5])
-def test_schedule_must_be_a_non_empty_mapping(bad):
-    with pytest.raises(ConfigError, match="non-empty mapping"):
-        parse_server({"display_schedule": bad})
-
-
-def test_schedule_rejects_malformed_time():
+def test_times_rejects_malformed_time():
     with pytest.raises(ConfigError, match="'9:00' is not a valid time"):
-        parse_server({"display_schedule": {"9:00": "a.png"}})
+        parse_server(display({"a": ["a.png"]}, type="times", **{"9:00": "a"}))
 
 
-# ---------- the interval form ----------
-
-def test_interval_schedule_expands_to_wall_clock_slots_taking_pages_in_turn():
-    raw = {"display_schedule": {"every": 21600, "pages": ["a.png", "b.png", "c.png"]}}
-    schedule = parse_server(raw).display_schedule
-    assert schedule == [
-        ("00:00:00", "a.png"), ("06:00:00", "b.png"),
-        ("12:00:00", "c.png"), ("18:00:00", "a.png"),
-    ]
+def test_times_must_name_a_defined_pool():
+    with pytest.raises(ConfigError, match="names pools \\['x'\\]"):
+        parse_server(display({"a": ["a.png"]}, type="times", **{"09:00:00": "x"}))
 
 
-def test_interval_schedule_with_one_page():
-    schedule = parse_server({"display_schedule": {"every": 300, "page": "now.png"}}).display_schedule
-    assert len(schedule) == 288
-    assert schedule[0] == ("00:00:00", "now.png")
-    assert schedule[1] == ("00:05:00", "now.png")
-    assert schedule[-1] == ("23:55:00", "now.png")
-    assert {p for _, p in schedule} == {"now.png"}
+def test_times_needs_at_least_one_entry():
+    with pytest.raises(ConfigError, match="at least one"):
+        parse_server(display({"a": ["a.png"]}, type="times"))
+
+
+# ---------- parse_display: interval ----------
+
+def test_interval_schedule_visits_the_pools_in_order():
+    raw = display({"co2": ["a.png", "b.png"], "day": "day.png"}, type="interval",
+                  every=300, reshuffle_hours=2, order=["day", "co2"])
+    s = parse_server(raw).schedule
+    assert isinstance(s, IntervalSchedule)
+    assert s.every == 300 and s.order == ["day", "co2"] and s.pools.reshuffle_seconds == 7200
+    assert s.pools.pools["day"] == ["day.png"]
+    assert s.pages() == {"a.png", "b.png", "day.png"}
+
+
+def test_interval_order_defaults_to_every_pool():
+    s = parse_server(display({"x": ["x.png"], "y": ["y.png"]}, type="interval", every=60)).schedule
+    assert s.order == ["x", "y"]
 
 
 @pytest.mark.parametrize("bad, match", [
-    ({"every": 7, "page": "a.png"}, "must divide a day"),
-    ({"every": 0, "page": "a.png"}, "positive integer"),
-    ({"every": "300", "page": "a.png"}, "positive integer"),
-    ({"every": 300}, "needs page"),
-    ({"every": 300, "pages": []}, "needs page"),
-    ({"every": 300, "pages": "a.png"}, "needs page"),
-    ({"every": 300, "page": "a.png", "08:00:00": "b.png"}, "takes only page or pages"),
+    ({"pools": {}, "schedule": {"type": "times", "09:00:00": "a"}}, "display.pools must be"),
+    ({"pools": {"a": []}, "schedule": {"type": "times", "09:00:00": "a"}}, "non-empty list"),
+    ({"pools": {"a": ["a.png"]}}, "display.schedule must be"),
+    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "daily"}}, "type must be times or interval"),
+    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "interval", "every": 7}}, "divide a day"),
+    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "interval", "every": 300, "pages": ["a.png"]}}, "takes every, order"),
+    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "interval", "every": 300, "order": ["zz"]}}, "names pools \\['zz'\\]"),
+    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "interval", "every": 300, "reshuffle_hours": 0}}, "positive number"),
+    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "times", "09:00:00": "a"}, "extra": 1}, "display takes pools and schedule"),
+    ("nope", "display must be a mapping"),
 ])
-def test_interval_schedule_rejects_bad_shapes(bad, match):
+def test_display_rejects_bad_shapes(bad, match):
     with pytest.raises(ConfigError, match=match):
-        parse_server({"display_schedule": bad})
+        parse_server({"display": bad})
 
 
 def test_timezone_valid_and_invalid():
-    s = parse_server({"display_schedule": SCHEDULE, "server": {"timezone": "Europe/Dublin"}})
+    s = parse_server({"display": DISPLAY, "server": {"timezone": "Europe/Dublin"}})
     assert s.timezone == ZoneInfo("Europe/Dublin")
     with pytest.raises(ConfigError, match="not a valid IANA zone"):
-        parse_server({"display_schedule": SCHEDULE, "server": {"timezone": "Mars/Olympus"}})
+        parse_server({"display": DISPLAY, "server": {"timezone": "Mars/Olympus"}})
 
 
 @pytest.mark.parametrize("bad", [-1, 1.5, "120", True])
 def test_regen_lead_must_be_non_negative_int(bad):
     with pytest.raises(ConfigError, match="regen_lead_seconds"):
-        parse_server({"display_schedule": SCHEDULE, "server": {"regen_lead_seconds": bad}})
+        parse_server({"display": DISPLAY, "server": {"regen_lead_seconds": bad}})
 
 
 @pytest.mark.parametrize("bad", [0, -8080, 70000, True, "8080"])
 def test_port_must_be_a_valid_tcp_port(bad):
     with pytest.raises(ConfigError, match="server.port"):
-        parse_server({"display_schedule": SCHEDULE, "server": {"port": bad}})
+        parse_server({"display": DISPLAY, "server": {"port": bad}})
 
 
 def test_env_overrides_server_port(monkeypatch):
     monkeypatch.setenv("SERVER_PORT", "9090")
-    assert parse_server({"display_schedule": SCHEDULE}).port == 9090
+    assert parse_server({"display": DISPLAY}).port == 9090
 
 
 def test_debug_is_top_level(monkeypatch):
-    assert parse_server({"display_schedule": SCHEDULE, "debug": True}).debug is True
+    assert parse_server({"display": DISPLAY, "debug": True}).debug is True
     monkeypatch.setenv("DEBUG", "true")
-    assert parse_server({"display_schedule": SCHEDULE}).debug is True
+    assert parse_server({"display": DISPLAY}).debug is True
 
 
 # ---------- parse_image ----------
@@ -214,29 +232,3 @@ def test_load_yaml_rejects_non_mapping(tmp_path):
         load_yaml(f)
 
 
-# ---------- the pools form ----------
-
-from epd_server.scheduling import PoolSchedule  # noqa: E402
-
-
-def test_pools_schedule_is_parsed_into_a_pool_schedule():
-    raw = {"server": {"timezone": "Europe/Dublin"},
-           "display_schedule": {"every": 300, "reshuffle_hours": 2,
-                                "pools": {"co2": ["a.png", "b.png"], "day": "day.png"}}}
-    sched = parse_server(raw).display_schedule
-    assert isinstance(sched, PoolSchedule)
-    assert sched.every == 300 and sched.reshuffle_seconds == 7200
-    assert sched.names == ["co2", "day"] and sched.pools["day"] == ["day.png"]
-    assert str(sched.tz) == "Europe/Dublin"
-
-
-@pytest.mark.parametrize("bad, match", [
-    ({"every": 300, "pools": {}}, "non-empty mapping"),
-    ({"every": 300, "pools": {"x": []}}, "non-empty list"),
-    ({"every": 7, "pools": {"x": ["a.png"]}}, "divide a day"),
-    ({"every": 300, "pools": {"x": ["a.png"]}, "reshuffle_hours": 0}, "positive number"),
-    ({"every": 300, "pools": {"x": ["a.png"]}, "pages": ["a.png"]}, "takes every"),
-])
-def test_pools_schedule_rejects_bad_shapes(bad, match):
-    with pytest.raises(ConfigError, match=match):
-        parse_server({"display_schedule": bad})

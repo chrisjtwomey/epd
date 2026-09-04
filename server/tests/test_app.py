@@ -85,8 +85,10 @@ def test_unknown_route_is_404(client):
 def test_index_lists_pages_schedule_and_next_wake(client):
     body = client.get("/").get_json()
     assert body["pages"] == ["today.png", "hourly.png"]
-    assert body["schedule"] == [{"time": "09:00:00", "page": "today.png"},
-                                {"time": "15:00:00", "page": "hourly.png"}]
+    assert body["schedule"]["type"] == "times"
+    assert body["schedule"]["times"] == [{"time": "09:00:00", "pool": "today.png"},
+                                         {"time": "15:00:00", "pool": "hourly.png"}]
+    assert body["schedule"]["pools"] == {"today.png": ["today.png"], "hourly.png": ["hourly.png"]}
     assert body["next_wake_seconds"] >= 0
     assert body["next_page"] in ("today.png", "hourly.png")
 
@@ -259,15 +261,15 @@ def test_ingest_route_is_post_only_and_cannot_shadow_a_page(tmp_path):
         make(tmp_path, ingest={"today.png": lambda doc: None})
 
 
-# ---------- pool schedules ----------
+# ---------- interval schedules ----------
 
-from epd_server.scheduling import PoolSchedule  # noqa: E402
+from epd_server.scheduling import IntervalSchedule, Pools  # noqa: E402
 
 
-def test_pool_schedule_drives_the_headers_and_the_index(tmp_path):
+def test_interval_schedule_drives_the_headers_and_the_index(tmp_path):
     (tmp_path / "today.png").write_bytes(PNG)
     (tmp_path / "hourly.png").write_bytes(PNG)
-    sched = PoolSchedule(300, {"a": ["today.png"], "b": ["hourly.png"]}, UTC, seed=1)
+    sched = IntervalSchedule(300, Pools({"a": ["today.png"], "b": ["hourly.png"]}, seed=1), UTC)
     server = make(tmp_path, schedule=sched)
     client = server._build_app().test_client()
 
@@ -276,7 +278,7 @@ def test_pool_schedule_drives_the_headers_and_the_index(tmp_path):
     assert 0 < int(rsp.headers["X-Next-Refresh-Seconds"]) <= 300
     assert rsp.headers["X-Next-URL"].rsplit("/", 1)[1] in {"today.png", "hourly.png"}
     index = client.get("/").get_json()
-    assert index["schedule"] == [{"pool": "a", "pages": ["today.png"]}, {"pool": "b", "pages": ["hourly.png"]}]
+    assert index["schedule"]["type"] == "interval" and index["schedule"]["order"] == ["a", "b"]
 
     with pytest.raises(ValueError, match="nope.png"):
-        make(tmp_path, schedule=PoolSchedule(300, {"a": ["nope.png"]}, UTC))
+        make(tmp_path, schedule=IntervalSchedule(300, Pools({"a": ["nope.png"]}), UTC))

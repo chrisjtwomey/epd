@@ -117,6 +117,12 @@ display_schedule:                # HH:MM:SS in server.timezone -> image to serve
 # display_schedule:              # or a page every N seconds on the wall clock;
 #   every: 300                   # N must divide a day
 #   pages: [now.png, trend.png]  # served in turn (`page: now.png` for one)
+# display_schedule:              # or pools: round-robin over the pools, and
+#   every: 300                   # round-robin inside each on its own count,
+#   reshuffle_hours: 3           # from a random start that moves every 3 h
+#   pools:
+#     co2: [now.png, trend.png]
+#     air: [air.png]
 image:
   width: 825
   height: 1200

@@ -154,84 +154,109 @@ def test_next_regen_single_slot_wraps():
 # ============================================================
 
 def test_validate_time_list_accepts_hhmmss():
-    validate_time_list("display_schedule", ["00:00:00", "09:30:00", "23:59:59"])
+    validate_time_list("display.schedule", ["00:00:00", "09:30:00", "23:59:59"])
 
 
 @pytest.mark.parametrize("bad", ["9:00", "09:00", "25:00:00", "09:60:00", "nine", ""])
 def test_validate_time_list_rejects_malformed(bad):
-    with pytest.raises(ValueError, match="display_schedule"):
-        validate_time_list("display_schedule", ["09:00:00", bad])
+    with pytest.raises(ValueError, match="display.schedule"):
+        validate_time_list("display.schedule", ["09:00:00", bad])
 
 
-# ---------- schedule objects ----------
+# ---------- pools and schedule objects ----------
 
-from epd_server.scheduling import PoolSchedule, TimeListSchedule  # noqa: E402
+from epd_server.scheduling import IntervalSchedule, Pools, TimesSchedule  # noqa: E402
 
 DUB = ZoneInfo("Europe/Dublin")
-POOLS = {"co2": ["breathe.png", "co2-trace.png", "co2-delta.png"],
-         "air": ["air.png", "air-trace.png"],
-         "day": ["day.png"]}
+POOL_LISTS = {"co2": ["breathe.png", "co2-trace.png", "co2-delta.png"],
+              "air": ["air.png", "air-trace.png"],
+              "day": ["day.png"]}
+POOLS = Pools(POOL_LISTS, reshuffle_hours=3, seed=1)
+BLOCK = 3 * 3600
 
 
-def test_time_list_object_matches_the_functions():
-    sched = [("09:00:00", "a.png"), ("15:00:00", "b.png")]
-    obj = TimeListSchedule(sched, DUB)
-    now = datetime(2026, 9, 4, 10, 0, tzinfo=DUB)
-    assert obj.next_wake(now) == next_wake(sched, DUB, now)
-    assert obj.next_regen(120, now) == next_regen(sched, DUB, 120, now)
-    assert obj.pages() == {"a.png", "b.png"}
-    assert obj.describe() == [{"time": "09:00:00", "page": "a.png"}, {"time": "15:00:00", "page": "b.png"}]
+def test_pools_are_read_in_turn_from_a_start_that_holds_within_a_block():
+    at = 100 * BLOCK
+    pages = [POOLS.page("co2", v, at + v * 300) for v in range(6)]
+    pool = POOL_LISTS["co2"]
+    start = pool.index(pages[0])
+    assert pages == [pool[(start + k) % 3] for k in range(6)]
+    assert POOLS.page("day", 5, at) == "day.png"
+    assert POOLS.pages({"day", "air"}) == {"day.png", "air.png", "air-trace.png"}
+    assert POOLS.describe() == POOL_LISTS
+
+
+def test_pool_starts_move_between_blocks_and_agree_between_processes():
+    def starts(pools):
+        return [POOL_LISTS["co2"].index(pools.page("co2", 0, b * BLOCK)) for b in range(40)]
+    assert len(set(starts(POOLS))) > 1
+    assert starts(POOLS) == starts(Pools(POOL_LISTS, reshuffle_hours=3, seed=1))
+    assert starts(POOLS) != starts(Pools(POOL_LISTS, reshuffle_hours=3, seed=2))
+
+
+@pytest.mark.parametrize("pools, hours", [({}, 3), ({"x": []}, 3), ({"x": ["a.png"]}, 0)])
+def test_pools_reject_bad_shapes(pools, hours):
     with pytest.raises(ValueError):
-        TimeListSchedule([], DUB)
+        Pools(pools, reshuffle_hours=hours)
 
 
-def test_pool_schedule_visits_pools_round_robin_and_each_pool_on_its_own_count():
-    ps = PoolSchedule(300, POOLS, DUB, reshuffle_hours=3, seed=1)
-    block = 3 * 3600 // 300              # slots per reshuffle block
-    slots = list(range(28 * block, 28 * block + 12))   # inside one block
-    pools = [ps.names[s % 3] for s in slots]
-    assert pools == ["co2", "air", "day"] * 4
-    pages = [ps.page_for_slot(s) for s in slots]
-    for name in POOLS:
-        seen = [p for p, n in zip(pages, pools) if n == name]
-        pool = POOLS[name]
+def test_times_schedule_names_pools_and_reads_each_in_turn():
+    steady = Pools(POOL_LISTS, reshuffle_hours=24 * 365, seed=1)   # one block: no reshuffle
+    ts = TimesSchedule([("21:00:00", "co2"), ("09:00:00", "co2"), ("15:00:00", "air")], steady, DUB)
+    assert list(ts) == [("09:00:00", "co2"), ("15:00:00", "air"), ("21:00:00", "co2")]
+    seq = [ts.next_wake(datetime(2026, 9, d, h, 0, tzinfo=DUB) - timedelta(minutes=1))[1]
+           for d, h in ((4, 9), (4, 21), (5, 9), (5, 21))]
+    pool = POOL_LISTS["co2"]
+    start = pool.index(seq[0])
+    assert seq == [pool[(start + k) % 3] for k in range(4)]
+    wake, page = ts.next_wake(datetime(2026, 9, 4, 10, 0, tzinfo=DUB))
+    assert wake == datetime(2026, 9, 4, 15, 0, tzinfo=DUB) and page in POOL_LISTS["air"]
+    regen, wake2, page2 = ts.next_regen(120, datetime(2026, 9, 4, 8, 0, tzinfo=DUB))
+    assert (regen, wake2, page2) == (datetime(2026, 9, 4, 8, 58, tzinfo=DUB), datetime(2026, 9, 4, 9, 0, tzinfo=DUB), seq[0])
+    assert ts.pages() == set(pool) | set(POOL_LISTS["air"])
+    assert ts.describe()["type"] == "times" and ts.describe()["times"][0] == {"time": "09:00:00", "pool": "co2"}
+
+
+def test_times_schedule_rejects_unknown_pools_and_bad_times():
+    with pytest.raises(ValueError, match="names pools \\['zz'\\]"):
+        TimesSchedule([("09:00:00", "zz")], POOLS, DUB)
+    with pytest.raises(ValueError, match="not a valid time"):
+        TimesSchedule([("9:00", "co2")], POOLS, DUB)
+    with pytest.raises(ValueError):
+        TimesSchedule([], POOLS, DUB)
+
+
+def test_interval_schedule_visits_pools_in_order_each_on_its_own_count():
+    it = IntervalSchedule(300, POOLS, DUB, order=["co2", "air", "day"])
+    block = BLOCK // 300
+    slots = list(range(28 * block, 28 * block + 12))          # inside one block
+    names = [it.order[s % 3] for s in slots]
+    assert names == ["co2", "air", "day"] * 4
+    pages = [it.page_for_slot(s) for s in slots]
+    for name, pool in POOL_LISTS.items():
+        seen = [p for p, n in zip(pages, names) if n == name]
         start = pool.index(seen[0])
         assert seen == [pool[(start + k) % len(pool)] for k in range(len(seen))], name
-    assert ps.pages() == set(sum(POOLS.values(), []))
-    assert ps.describe()[0] == {"pool": "co2", "pages": POOLS["co2"]}
+    assert it.pages() == POOLS.pages()
+    assert it.describe()["order"] == ["co2", "air", "day"] and it.describe()["type"] == "interval"
 
 
-def test_pool_schedule_starts_change_between_blocks_but_not_between_processes():
-    ps = PoolSchedule(300, POOLS, DUB, reshuffle_hours=3, seed=7)
-    same = PoolSchedule(300, POOLS, DUB, reshuffle_hours=3, seed=7)
-    assert [ps.page_for_slot(s) for s in range(5000)] == [same.page_for_slot(s) for s in range(5000)]
-    # the co2 pool's phase within a block is constant; across blocks it is not always
-    block = 3 * 3600 // 300     # slots per block
-    phases = []
-    for b in range(40):
-        first = next(s for s in range(b * block, (b + 1) * block) if s % 3 == 0)
-        phases.append((POOLS["co2"].index(ps.page_for_slot(first)) - first // 3) % 3)
-    assert len(set(phases)) > 1
-    other = PoolSchedule(300, POOLS, DUB, reshuffle_hours=3, seed=8)
-    assert [ps.page_for_slot(s) for s in range(300)] != [other.page_for_slot(s) for s in range(300)]
-
-
-def test_pool_schedule_wake_and_regen_land_on_slot_boundaries():
-    ps = PoolSchedule(300, POOLS, DUB, seed=1)
+def test_interval_schedule_wake_and_regen_land_on_slot_boundaries():
+    it = IntervalSchedule(300, POOLS, DUB)
     now = datetime(2026, 9, 4, 10, 2, 30, tzinfo=DUB)
-    wake, page = ps.next_wake(now)
-    assert wake == datetime(2026, 9, 4, 10, 5, tzinfo=DUB) and page in ps.pages()
-    assert ps.next_wake(datetime(2026, 9, 4, 10, 5, tzinfo=DUB))[0] == datetime(2026, 9, 4, 10, 10, tzinfo=DUB)
-    regen, wake2, page2 = ps.next_regen(60, now)
+    wake, page = it.next_wake(now)
+    assert wake == datetime(2026, 9, 4, 10, 5, tzinfo=DUB) and page in it.pages()
+    assert it.next_wake(datetime(2026, 9, 4, 10, 5, tzinfo=DUB))[0] == datetime(2026, 9, 4, 10, 10, tzinfo=DUB)
+    regen, wake2, page2 = it.next_regen(60, now)
     assert (regen, wake2, page2) == (datetime(2026, 9, 4, 10, 4, tzinfo=DUB), wake, page)
-    # at the regen moment the following slot is chosen, as the time list does
-    regen3, wake3, _ = ps.next_regen(60, datetime(2026, 9, 4, 10, 4, tzinfo=DUB))
+    regen3, wake3, _ = it.next_regen(60, datetime(2026, 9, 4, 10, 4, tzinfo=DUB))
     assert wake3 == datetime(2026, 9, 4, 10, 10, tzinfo=DUB) and regen3 == datetime(2026, 9, 4, 10, 9, tzinfo=DUB)
 
 
-@pytest.mark.parametrize("every, pools, hours", [
-    (7, POOLS, 3), (0, POOLS, 3), (300, {}, 3), (300, {"x": []}, 3), (300, POOLS, 0),
-])
-def test_pool_schedule_rejects_bad_shapes(every, pools, hours):
-    with pytest.raises(ValueError):
-        PoolSchedule(every, pools, DUB, reshuffle_hours=hours)
+def test_interval_schedule_order_can_leave_a_pool_out_and_is_checked():
+    it = IntervalSchedule(300, POOLS, DUB, order=["co2"])
+    assert it.pages() == set(POOL_LISTS["co2"])
+    with pytest.raises(ValueError, match="names pools"):
+        IntervalSchedule(300, POOLS, DUB, order=["nope"])
+    with pytest.raises(ValueError, match="divide a day"):
+        IntervalSchedule(7, POOLS, DUB)

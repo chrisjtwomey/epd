@@ -35,7 +35,7 @@ from .config import MqttSettings
 from .mqtt import client_log_subscriber
 from .page import Page
 from .pipeline import regenerate as _regenerate
-from .scheduling import Schedule, TimeListSchedule, WakeSchedule, seconds_until
+from .scheduling import Pools, Schedule, TimesSchedule, WakeSchedule, seconds_until
 from .source import DataSource
 
 log = logging.getLogger(__name__)
@@ -81,11 +81,11 @@ class DisplayServer:
         pages: every page the server offers. Each is served at
             ``/<page.png_filename>`` from ``page.png_path``.
         source: where the pages' content comes from.
-        schedule: sorted ``(HH:MM:SS, png_filename)`` pairs, or a
-            :class:`~epd_server.scheduling.WakeSchedule` such as a pool
-            schedule; both come from
-            :attr:`~epd_server.config.ServerSettings.display_schedule`.
-            Every filename it can name must belong to one of ``pages``.
+        schedule: a :class:`~epd_server.scheduling.WakeSchedule`, from
+            :attr:`~epd_server.config.ServerSettings.schedule`; or, for
+            convenience, ``(HH:MM:SS, png_filename)`` pairs, which become a
+            times schedule of one-image pools. Every filename it can name
+            must belong to one of ``pages``.
         tz: the timezone the schedule times are in.
         regen_lead_seconds: regenerate this long before each wake.
         host, port: where to listen.
@@ -119,7 +119,8 @@ class DisplayServer:
         else:
             if not schedule:
                 raise ValueError("DisplayServer needs a non-empty schedule")
-            self.schedule = TimeListSchedule(list(schedule), tz)
+            times = list(schedule)
+            self.schedule = TimesSchedule(times, Pools({p: [p] for _, p in times}), tz)
         self.regen_lead_seconds = regen_lead_seconds
         self.host = host
         self.port = port
@@ -133,7 +134,7 @@ class DisplayServer:
         unknown = sorted(self.schedule.pages() - served)
         if unknown:
             raise ValueError(
-                f"display_schedule names {unknown}, but the pages only produce "
+                f"display.schedule names {unknown}, but the pages only produce "
                 f"{sorted(served)}"
             )
         clash = sorted(set(self.ingest) & served)
