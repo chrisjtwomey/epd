@@ -35,7 +35,7 @@ from .config import MqttSettings
 from .mqtt import client_log_subscriber
 from .page import Page
 from .pipeline import regenerate as _regenerate
-from .scheduling import Schedule, next_regen, next_wake, seconds_until
+from .scheduling import Schedule, TimeListSchedule, WakeSchedule, seconds_until
 from .source import DataSource
 
 log = logging.getLogger(__name__)
@@ -81,9 +81,11 @@ class DisplayServer:
         pages: every page the server offers. Each is served at
             ``/<page.png_filename>`` from ``page.png_path``.
         source: where the pages' content comes from.
-        schedule: sorted ``(HH:MM:SS, png_filename)`` pairs, e.g. from
+        schedule: sorted ``(HH:MM:SS, png_filename)`` pairs, or a
+            :class:`~epd_server.scheduling.WakeSchedule` such as a pool
+            schedule; both come from
             :attr:`~epd_server.config.ServerSettings.display_schedule`.
-            Every filename must belong to one of ``pages``.
+            Every filename it can name must belong to one of ``pages``.
         tz: the timezone the schedule times are in.
         regen_lead_seconds: regenerate this long before each wake.
         host, port: where to listen.
@@ -100,7 +102,7 @@ class DisplayServer:
         *,
         pages: Iterable[Page],
         source: DataSource,
-        schedule: Schedule,
+        schedule: Schedule | WakeSchedule,
         tz,
         regen_lead_seconds: int = 120,
         host: str = "0.0.0.0",
@@ -111,8 +113,13 @@ class DisplayServer:
     ):
         self.pages = list(pages)
         self.source = source
-        self.schedule = list(schedule)
         self.tz = tz
+        if isinstance(schedule, WakeSchedule):
+            self.schedule = schedule
+        else:
+            if not schedule:
+                raise ValueError("DisplayServer needs a non-empty schedule")
+            self.schedule = TimeListSchedule(list(schedule), tz)
         self.regen_lead_seconds = regen_lead_seconds
         self.host = host
         self.port = port
@@ -122,10 +129,8 @@ class DisplayServer:
 
         if not self.pages:
             raise ValueError("DisplayServer needs at least one page")
-        if not self.schedule:
-            raise ValueError("DisplayServer needs a non-empty schedule")
         served = {p.png_filename for p in self.pages}
-        unknown = sorted({path for _, path in self.schedule} - served)
+        unknown = sorted(self.schedule.pages() - served)
         if unknown:
             raise ValueError(
                 f"display_schedule names {unknown}, but the pages only produce "
@@ -150,7 +155,7 @@ class DisplayServer:
         """``(seconds_until_next_wake, png_filename)`` — what the headers carry."""
         if now is None:
             now = datetime.now(tz=self.tz)
-        wake_dt, path = next_wake(self.schedule, self.tz, now=now)
+        wake_dt, path = self.schedule.next_wake(now=now)
         return seconds_until(now, wake_dt), path
 
     # ── Regeneration ──────────────────────────────────────────────────────
@@ -174,7 +179,7 @@ class DisplayServer:
             seconds, path = self.next_wake()
             return jsonify(
                 pages=[p.png_filename for p in self.pages],
-                schedule=[{"time": t, "page": p} for t, p in self.schedule],
+                schedule=self.schedule.describe(),
                 next_wake_seconds=seconds,
                 next_page=path,
             )
@@ -275,8 +280,8 @@ class DisplayServer:
     def _loop(self) -> None:
         while not self.shutdown_event.is_set():
             now = datetime.now(tz=self.tz)
-            regen_dt, wake_dt, path = next_regen(
-                self.schedule, self.tz, lead_seconds=self.regen_lead_seconds, now=now,
+            regen_dt, wake_dt, path = self.schedule.next_regen(
+                lead_seconds=self.regen_lead_seconds, now=now,
             )
             # Timestamp arithmetic, never `regen_dt - now`: datetime subtraction
             # is naive wall-clock when both sides share a tzinfo and silently

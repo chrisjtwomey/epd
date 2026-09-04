@@ -94,7 +94,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
 
-from .scheduling import Schedule, validate_time_list
+from .scheduling import PoolSchedule, Schedule, WakeSchedule, validate_time_list
 
 
 class ConfigError(ValueError):
@@ -116,7 +116,7 @@ def load_yaml(path) -> dict:
 class ServerSettings:
     port: int
     timezone: _tzinfo
-    display_schedule: Schedule      # sorted (HH:MM:SS, url_path) pairs
+    display_schedule: Schedule | WakeSchedule   # (HH:MM:SS, page) pairs, or a pool schedule
     regen_lead_seconds: int         # regenerate this long before each wake
     debug: bool
 
@@ -194,6 +194,39 @@ def expand_interval_schedule(raw: dict) -> dict:
     return schedule
 
 
+def parse_pool_schedule(raw: dict, tz: _tzinfo) -> PoolSchedule:
+    """The ``pools`` form of display_schedule.
+
+    ``every`` seconds per page; ``pools`` is an ordered mapping of name to
+    page list, visited round-robin, each pool round-robin on its own count
+    from a random start that changes every ``reshuffle_hours``.
+    """
+    every = _positive_int("display_schedule.every", raw.get("every"))
+    pools = raw.get("pools")
+    if not isinstance(pools, dict) or not pools:
+        raise ConfigError("display_schedule.pools must be a non-empty mapping of pool name to page list")
+    clean: dict[str, list[str]] = {}
+    for name, pages in pools.items():
+        if isinstance(pages, str):
+            pages = [pages]
+        if not isinstance(pages, list) or not pages:
+            raise ConfigError(f"display_schedule.pools.{name} must be a non-empty list of pages")
+        clean[str(name)] = [str(p).strip() for p in pages]
+    hours = raw.get("reshuffle_hours", 3)
+    if isinstance(hours, bool) or not isinstance(hours, (int, float)) or hours <= 0:
+        raise ConfigError("display_schedule.reshuffle_hours must be a positive number of hours")
+    seed = raw.get("seed", 0)
+    if isinstance(seed, bool) or not isinstance(seed, int):
+        raise ConfigError("display_schedule.seed must be an integer")
+    unknown = set(raw) - {"every", "pools", "reshuffle_hours", "seed"}
+    if unknown:
+        raise ConfigError(f"display_schedule with pools takes every, reshuffle_hours and seed (got {sorted(unknown)})")
+    try:
+        return PoolSchedule(every, clean, tz, reshuffle_hours=float(hours), seed=seed)
+    except ValueError as exc:
+        raise ConfigError(f"display_schedule: {exc}") from None
+
+
 def parse_server(
     config: dict,
     *,
@@ -210,23 +243,6 @@ def parse_server(
     if isinstance(regen_lead, bool) or not isinstance(regen_lead, int) or regen_lead < 0:
         raise ConfigError("server.regen_lead_seconds must be a non-negative integer (seconds)")
 
-    raw_schedule = get_prop_by_keys(config, "display_schedule",
-                                    default=default_schedule, required=False)
-    if raw_schedule is None:
-        raise ConfigError("display_schedule is required: a mapping of HH:MM:SS times to image filenames")
-    if not isinstance(raw_schedule, dict) or not raw_schedule:
-        raise ConfigError("display_schedule must be a non-empty mapping of HH:MM:SS times to image filenames")
-    if "every" in raw_schedule:
-        raw_schedule = expand_interval_schedule(raw_schedule)
-    try:
-        validate_time_list("display_schedule", list(raw_schedule.keys()))
-    except ValueError as exc:
-        raise ConfigError(str(exc)) from None
-    schedule: Schedule = sorted(
-        ((str(t).strip(), str(p).strip()) for t, p in raw_schedule.items()),
-        key=lambda x: x[0],
-    )
-
     tz: _tzinfo = _datetime.now().astimezone().tzinfo  # type: ignore[assignment]
     tz_name = get_prop_by_keys(config, "server", "timezone", default=None, required=False)
     if tz_name:
@@ -236,6 +252,27 @@ def parse_server(
             raise ConfigError(
                 f"server.timezone '{tz_name}' is not a valid IANA zone (e.g. Europe/Dublin)"
             ) from None
+
+    raw_schedule = get_prop_by_keys(config, "display_schedule",
+                                    default=default_schedule, required=False)
+    if raw_schedule is None:
+        raise ConfigError("display_schedule is required: a mapping of HH:MM:SS times to image filenames")
+    if not isinstance(raw_schedule, dict) or not raw_schedule:
+        raise ConfigError("display_schedule must be a non-empty mapping of HH:MM:SS times to image filenames")
+    schedule: Schedule | WakeSchedule
+    if "pools" in raw_schedule:
+        schedule = parse_pool_schedule(raw_schedule, tz)
+    else:
+        if "every" in raw_schedule:
+            raw_schedule = expand_interval_schedule(raw_schedule)
+        try:
+            validate_time_list("display_schedule", list(raw_schedule.keys()))
+        except ValueError as exc:
+            raise ConfigError(str(exc)) from None
+        schedule = sorted(
+            ((str(t).strip(), str(p).strip()) for t, p in raw_schedule.items()),
+            key=lambda x: x[0],
+        )
 
     debug = bool(get_prop(config, "debug", default=False, required=False))
 

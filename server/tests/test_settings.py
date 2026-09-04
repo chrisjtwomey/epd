@@ -212,3 +212,31 @@ def test_load_yaml_rejects_non_mapping(tmp_path):
     f.write_text("- just\n- a list\n")
     with pytest.raises(ConfigError, match="top level must be a mapping"):
         load_yaml(f)
+
+
+# ---------- the pools form ----------
+
+from epd_server.scheduling import PoolSchedule  # noqa: E402
+
+
+def test_pools_schedule_is_parsed_into_a_pool_schedule():
+    raw = {"server": {"timezone": "Europe/Dublin"},
+           "display_schedule": {"every": 300, "reshuffle_hours": 2,
+                                "pools": {"co2": ["a.png", "b.png"], "day": "day.png"}}}
+    sched = parse_server(raw).display_schedule
+    assert isinstance(sched, PoolSchedule)
+    assert sched.every == 300 and sched.reshuffle_seconds == 7200
+    assert sched.names == ["co2", "day"] and sched.pools["day"] == ["day.png"]
+    assert str(sched.tz) == "Europe/Dublin"
+
+
+@pytest.mark.parametrize("bad, match", [
+    ({"every": 300, "pools": {}}, "non-empty mapping"),
+    ({"every": 300, "pools": {"x": []}}, "non-empty list"),
+    ({"every": 7, "pools": {"x": ["a.png"]}}, "divide a day"),
+    ({"every": 300, "pools": {"x": ["a.png"]}, "reshuffle_hours": 0}, "positive number"),
+    ({"every": 300, "pools": {"x": ["a.png"]}, "pages": ["a.png"]}, "takes every"),
+])
+def test_pools_schedule_rejects_bad_shapes(bad, match):
+    with pytest.raises(ConfigError, match=match):
+        parse_server({"display_schedule": bad})
