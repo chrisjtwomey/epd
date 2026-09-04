@@ -82,6 +82,40 @@ def test_schedule_rejects_malformed_time():
         parse_server({"display_schedule": {"9:00": "a.png"}})
 
 
+# ---------- the interval form ----------
+
+def test_interval_schedule_expands_to_wall_clock_slots_taking_pages_in_turn():
+    raw = {"display_schedule": {"every": 21600, "pages": ["a.png", "b.png", "c.png"]}}
+    schedule = parse_server(raw).display_schedule
+    assert schedule == [
+        ("00:00:00", "a.png"), ("06:00:00", "b.png"),
+        ("12:00:00", "c.png"), ("18:00:00", "a.png"),
+    ]
+
+
+def test_interval_schedule_with_one_page():
+    schedule = parse_server({"display_schedule": {"every": 300, "page": "now.png"}}).display_schedule
+    assert len(schedule) == 288
+    assert schedule[0] == ("00:00:00", "now.png")
+    assert schedule[1] == ("00:05:00", "now.png")
+    assert schedule[-1] == ("23:55:00", "now.png")
+    assert {p for _, p in schedule} == {"now.png"}
+
+
+@pytest.mark.parametrize("bad, match", [
+    ({"every": 7, "page": "a.png"}, "must divide a day"),
+    ({"every": 0, "page": "a.png"}, "positive integer"),
+    ({"every": "300", "page": "a.png"}, "positive integer"),
+    ({"every": 300}, "needs page"),
+    ({"every": 300, "pages": []}, "needs page"),
+    ({"every": 300, "pages": "a.png"}, "needs page"),
+    ({"every": 300, "page": "a.png", "08:00:00": "b.png"}, "takes only page or pages"),
+])
+def test_interval_schedule_rejects_bad_shapes(bad, match):
+    with pytest.raises(ConfigError, match=match):
+        parse_server({"display_schedule": bad})
+
+
 def test_timezone_valid_and_invalid():
     s = parse_server({"display_schedule": SCHEDULE, "server": {"timezone": "Europe/Dublin"}})
     assert s.timezone == ZoneInfo("Europe/Dublin")

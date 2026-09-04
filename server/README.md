@@ -114,6 +114,9 @@ server:
 display_schedule:                # HH:MM:SS in server.timezone -> image to serve
   "08:00:00": now.png
   "20:00:00": trend.png
+# display_schedule:              # or a page every N seconds on the wall clock;
+#   every: 300                   # N must divide a day
+#   pages: [now.png, trend.png]  # served in turn (`page: now.png` for one)
 image:
   width: 825
   height: 1200

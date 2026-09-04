@@ -157,10 +157,41 @@ class CoreConfig:
     mqtt: MqttSettings
 
 
+SECONDS_PER_DAY = 86400
+
+
 def _positive_int(key: str, value) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         raise ConfigError(f"{key} must be a positive integer (got {value!r})")
     return value
+
+
+def expand_interval_schedule(raw: dict) -> dict:
+    """The ``every`` form of display_schedule as the HH:MM:SS mapping.
+
+    ``every`` is the period in seconds and must divide a day, so the slots
+    land on the same wall-clock times each day. ``pages`` (or one ``page``)
+    are served in turn, one per slot.
+    """
+    every = _positive_int("display_schedule.every", raw.get("every"))
+    if SECONDS_PER_DAY % every:
+        raise ConfigError(
+            f"display_schedule.every must divide a day of {SECONDS_PER_DAY} seconds (got {every})"
+        )
+    pages = raw.get("pages")
+    if pages is None and raw.get("page") is not None:
+        pages = [raw["page"]]
+    if not isinstance(pages, list) or not pages:
+        raise ConfigError("display_schedule with every needs page (one) or pages (a non-empty list)")
+    unknown = set(raw) - {"every", "page", "pages"}
+    if unknown:
+        raise ConfigError(f"display_schedule with every takes only page or pages (got {sorted(unknown)})")
+    pages = [str(p).strip() for p in pages]
+    schedule = {}
+    for k in range(SECONDS_PER_DAY // every):
+        t = k * every
+        schedule[f"{t // 3600:02d}:{t % 3600 // 60:02d}:{t % 60:02d}"] = pages[k % len(pages)]
+    return schedule
 
 
 def parse_server(
@@ -185,6 +216,8 @@ def parse_server(
         raise ConfigError("display_schedule is required: a mapping of HH:MM:SS times to image filenames")
     if not isinstance(raw_schedule, dict) or not raw_schedule:
         raise ConfigError("display_schedule must be a non-empty mapping of HH:MM:SS times to image filenames")
+    if "every" in raw_schedule:
+        raw_schedule = expand_interval_schedule(raw_schedule)
     try:
         validate_time_list("display_schedule", list(raw_schedule.keys()))
     except ValueError as exc:
