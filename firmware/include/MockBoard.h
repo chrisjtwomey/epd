@@ -22,6 +22,7 @@ public:
     MockBoard()
         : epochReturn(0),
           batteryReturn(4.0),
+          panelTempReturn(25),
           widthReturn(1200),
           heightReturn(825),
           drawBitmapReturn(true),
@@ -52,6 +53,7 @@ public:
 
     time_t   epochReturn;
     double   batteryReturn;
+    int      panelTempReturn;
     int16_t  widthReturn;
     int16_t  heightReturn;
     bool     drawBitmapReturn;
@@ -140,6 +142,7 @@ public:
     void fillRect(int16_t, int16_t, int16_t, int16_t, uint16_t) override {}
 
     double readBattery() override { return batteryReturn; }
+    int readPanelTemperature() override { return panelTempReturn; }
 
     void   rtcGetData()          override { rtcGetDataCalled = true; }
     time_t rtcGetEpoch()         override { return epochReturn; }

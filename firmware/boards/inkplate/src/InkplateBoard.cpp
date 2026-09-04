@@ -136,6 +136,10 @@ double InkplateBoard::readBattery() {
     return _inkplate.readBattery();
 }
 
+int InkplateBoard::readPanelTemperature() {
+    return _inkplate.readTemperature();
+}
+
 // -----------------------------------------------------------------------------
 // RTC
 // -----------------------------------------------------------------------------

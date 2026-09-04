@@ -56,6 +56,9 @@ public:
     // Battery
     double readBattery() override;
 
+    // Panel
+    int readPanelTemperature() override;
+
     // RTC
     void rtcGetData() override;
     time_t rtcGetEpoch() override;

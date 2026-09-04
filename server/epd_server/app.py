@@ -26,7 +26,7 @@ import signal
 import threading
 import time
 from datetime import datetime
-from typing import Iterable
+from typing import Callable, Iterable, Mapping
 
 from flask import Flask, abort, jsonify, make_response, request, send_file
 from werkzeug.serving import make_server
@@ -90,6 +90,9 @@ class DisplayServer:
         mqtt: if given and ``enabled``, relay the client's log topic into
             the ``client`` logger while running.
         mqtt_client_id: the id this server connects to the broker with.
+        ingest: routes that accept a JSON object by POST, as
+            ``{name: handler}``. ``POST /<name>`` parses the body and calls
+            ``handler(doc)``; a ``ValueError`` from the handler is a 400.
     """
 
     def __init__(
@@ -104,6 +107,7 @@ class DisplayServer:
         port: int = 8080,
         mqtt: MqttSettings | None = None,
         mqtt_client_id: str = "epd-server",
+        ingest: Mapping[str, Callable[[dict], None]] | None = None,
     ):
         self.pages = list(pages)
         self.source = source
@@ -114,6 +118,7 @@ class DisplayServer:
         self.port = port
         self.mqtt = mqtt
         self.mqtt_client_id = mqtt_client_id
+        self.ingest = dict(ingest or {})
 
         if not self.pages:
             raise ValueError("DisplayServer needs at least one page")
@@ -126,6 +131,9 @@ class DisplayServer:
                 f"display_schedule names {unknown}, but the pages only produce "
                 f"{sorted(served)}"
             )
+        clash = sorted(set(self.ingest) & served)
+        if clash:
+            raise ValueError(f"ingest routes {clash} collide with page filenames")
 
         # Serialises PNG writes (regenerate) against reads (HTTP handlers) so
         # a client never receives a partially written file.
@@ -177,7 +185,27 @@ class DisplayServer:
                 endpoint=page.name,
                 view_func=self._make_view(page),
             )
+        for name, handler in self.ingest.items():
+            app.add_url_rule(
+                "/" + name,
+                endpoint=f"ingest_{name}",
+                view_func=self._make_ingest(name, handler),
+                methods=["POST"],
+            )
         return app
+
+    def _make_ingest(self, name: str, handler: Callable[[dict], None]):
+        def accept():
+            doc = request.get_json(silent=True)
+            if not isinstance(doc, dict):
+                abort(400, "expected a JSON object")
+            try:
+                handler(doc)
+            except ValueError as exc:
+                abort(400, str(exc))
+            return "", 204
+        accept.__name__ = f"ingest_{name}"
+        return accept
 
     def _make_view(self, page: Page):
         def serve():

@@ -125,6 +125,16 @@ public:
     virtual double readBattery() = 0;
 
     // -------------------------------------------------------------------------
+    // Panel
+    // -------------------------------------------------------------------------
+
+    /**
+     * Temperature at the panel's power controller, in whole degrees C.
+     * It reads the board, not the room: a diagnostic.
+     */
+    virtual int readPanelTemperature() = 0;
+
+    // -------------------------------------------------------------------------
     // RTC
     // -------------------------------------------------------------------------
 

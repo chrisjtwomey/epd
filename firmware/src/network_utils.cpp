@@ -154,3 +154,15 @@ uint8_t* downloadFile(const char* url, const char* userAgent, uint32_t* nextRefr
 
     return buffer;
 }
+int postJson(const char* url, const char* userAgent, const char* body) {
+    HTTPClient http;
+    if (userAgent && userAgent[0])
+        http.setUserAgent(userAgent);
+    http.begin(url);
+    http.addHeader("Content-Type", "application/json");
+    int code = http.POST((uint8_t*)body, strlen(body));
+    http.end();
+    if (code < 0)
+        logf(LOG_ERROR, "POST %s failed: %s", url, HTTPClient::errorToString(code).c_str());
+    return code;
+}

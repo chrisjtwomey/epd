@@ -211,3 +211,49 @@ def test_align_process_timezone_ignores_zones_without_a_key(monkeypatch):
     monkeypatch.setenv("TZ", "UTC")
     align_process_timezone(timezone(timedelta(hours=2)))
     assert os.environ["TZ"] == "UTC"
+
+
+# ---------- ingest ----------
+
+def test_ingest_route_parses_json_and_calls_the_handler(tmp_path):
+    seen = []
+    server = make(tmp_path, ingest={"readings": seen.append})
+    client = server._build_app().test_client()
+
+    rsp = client.post("/readings", json={"ts": 1, "co2_ppm": 640})
+
+    assert rsp.status_code == 204 and rsp.data == b""
+    assert seen == [{"ts": 1, "co2_ppm": 640}]
+
+
+@pytest.mark.parametrize("data, content_type", [
+    (b"not json", "application/json"),
+    (b"[1, 2]", "application/json"),
+    (b'{"ts": 1}', "text/plain"),
+])
+def test_ingest_rejects_anything_but_a_json_object(tmp_path, data, content_type):
+    seen = []
+    server = make(tmp_path, ingest={"readings": seen.append})
+    client = server._build_app().test_client()
+
+    rsp = client.post("/readings", data=data, content_type=content_type)
+
+    assert rsp.status_code == 400 and seen == []
+
+
+def test_ingest_handler_value_error_is_a_400_with_its_message(tmp_path):
+    def reject(doc):
+        raise ValueError("ts is required")
+    server = make(tmp_path, ingest={"readings": reject})
+    client = server._build_app().test_client()
+
+    rsp = client.post("/readings", json={})
+
+    assert rsp.status_code == 400 and b"ts is required" in rsp.data
+
+
+def test_ingest_route_is_post_only_and_cannot_shadow_a_page(tmp_path):
+    server = make(tmp_path, ingest={"readings": lambda doc: None})
+    assert server._build_app().test_client().get("/readings").status_code == 405
+    with pytest.raises(ValueError, match="collide"):
+        make(tmp_path, ingest={"today.png": lambda doc: None})

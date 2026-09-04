@@ -29,4 +29,12 @@ esp_err_t configureWiFi(const char* ssid, const char* pass, int retries);
 */
 uint8_t* downloadFile(const char* url, const char* userAgent, uint32_t* nextRefreshSeconds,
                       int32_t* size, char* nextURL, size_t nextURLSize);
+
+/**
+  POST body to url as application/json.
+
+  @returns the HTTP status code, or a negative HTTPClient error code when
+  no response arrived.
+*/
+int postJson(const char* url, const char* userAgent, const char* body);
 #endif

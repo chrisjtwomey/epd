@@ -82,6 +82,11 @@ Every download carries `User-Agent: my-display/v1.0.0 (Inkplate10)`: the
 name, the version, and the board's `deviceName()`. Without `CLIENT_NAME`
 the product is `EpdClient`; without `CLIENT_VERSION` the version is `dev`.
 
+An awake client can send data back with `postJson(url, userAgent, body)`,
+which returns the HTTP status. The server side is `DisplayServer(ingest=
+{"readings": handler})`: `POST /readings` parses a JSON object and hands it
+to the handler.
+
 Enabling `-DUSE_SDCARD` also needs `tobozo/YAMLDuino` and
 `bblanchon/ArduinoStreamUtils` in your `lib_deps`: the YAML config path is
 optional, so those are not hard dependencies of EpdClient.
