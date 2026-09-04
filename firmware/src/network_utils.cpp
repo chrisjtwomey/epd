@@ -63,8 +63,6 @@ uint8_t* downloadFile(const char* url, const char* userAgent, uint32_t* nextRefr
     WiFi.setSleep(false);
 
     HTTPClient http;
-    http.getStream().setNoDelay(true);
-    http.getStream().setTimeout(5);
 
     const char* headersToCollect[] = {
         "X-Next-Refresh-Seconds",
@@ -103,6 +101,10 @@ uint8_t* downloadFile(const char* url, const char* userAgent, uint32_t* nextRefr
         WiFi.setSleep(sleep);
         return nullptr;
     }
+
+    // The socket exists only after GET() has connected.
+    http.getStream().setNoDelay(true);
+    http.getStream().setTimeout(5);
 
     if (http.hasHeader("X-Next-Refresh-Seconds")) {
         // Server is authoritative for *when* to refresh next; we just count
