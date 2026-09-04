@@ -32,6 +32,30 @@ GET /<page>.png
 The server is the single source of truth for *when* to wake and *what* to show.
 The client does no timezone maths and holds no schedule of its own.
 
+Every request carries the client's identity, so the server knows what each
+board runs:
+
+```
+User-Agent: inkplate10-weather-cal/v1.5.1 (Inkplate10)
+```
+
+A server that holds a newer image for that product adds two headers to the
+page response, and serves the image on a route of its own:
+
+```
+GET /<page>.png
+  X-Firmware-Version: v1.6.0
+  X-Firmware-URL: http://host/firmware.bin
+
+GET /firmware.bin
+  200 application/octet-stream, Content-Length, x-MD5
+  304 when the request's x-ESP32-version is the version held
+  404 when the server holds no image
+```
+
+The board fetches the image only after it has drawn its page, so a failed
+update costs nothing on the panel.
+
 ## Firmware
 
 | Library | What it is |

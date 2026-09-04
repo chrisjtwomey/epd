@@ -282,3 +282,106 @@ def test_interval_schedule_drives_the_headers_and_the_index(tmp_path):
 
     with pytest.raises(ValueError, match="nope.png"):
         make(tmp_path, schedule=IntervalSchedule(300, Pools({"a": ["nope.png"]}), UTC))
+
+
+# ---------- firmware ----------
+
+from epd_server.config import FirmwareSettings  # noqa: E402
+
+BIN = b"\xe9" + b"\x00" * 63
+CAL_UA = "weather-cal/v1.5.1 (Inkplate10)"
+
+
+def with_firmware(tmp_path, version="v1.6.0", **kw):
+    """A server whose firmware directory holds one image."""
+    fw_dir = tmp_path / "fw"
+    fw_dir.mkdir(exist_ok=True)
+    if version:
+        (fw_dir / f"{version}.bin").write_bytes(BIN)
+    settings = FirmwareSettings(enabled=True, dir=str(fw_dir), product="weather-cal",
+                                offer_dev_builds=False, **kw)
+    (tmp_path / "today.png").write_bytes(PNG)
+    (tmp_path / "hourly.png").write_bytes(PNG)
+    server = make(tmp_path, firmware=settings)
+    server.app.config["TESTING"] = True
+    return server, server.app.test_client()
+
+
+def test_a_page_offers_the_update_to_the_board_it_is_for(tmp_path):
+    _, client = with_firmware(tmp_path)
+
+    rsp = client.get("/today.png", headers={"User-Agent": CAL_UA})
+
+    assert rsp.headers["X-Firmware-Version"] == "v1.6.0"
+    assert rsp.headers["X-Firmware-URL"] == "http://localhost/firmware.bin"
+    assert rsp.data == PNG          # still the page
+
+
+@pytest.mark.parametrize("ua", [
+    "env-monitor/v1.5.1 (Inkplate5V2)",     # another product
+    "weather-cal/v1.6.0 (Inkplate10)",      # already on it
+    "weather-cal/dev (Inkplate10)",         # a developer build
+    "Mozilla/5.0 (Macintosh)",              # a browser
+])
+def test_a_page_offers_nothing_to_anyone_else(tmp_path, ua):
+    _, client = with_firmware(tmp_path)
+
+    rsp = client.get("/today.png", headers={"User-Agent": ua})
+
+    assert "X-Firmware-Version" not in rsp.headers
+    assert "X-Firmware-URL" not in rsp.headers
+
+
+def test_no_firmware_headers_and_no_route_without_the_block(client):
+    rsp = client.get("/today.png", headers={"User-Agent": CAL_UA})
+    assert "X-Firmware-Version" not in rsp.headers
+    assert client.get("/firmware.bin").status_code == 404
+
+
+def test_the_image_is_served_with_its_length_and_md5(tmp_path):
+    import hashlib
+    _, client = with_firmware(tmp_path)
+
+    rsp = client.get("/firmware.bin", headers={"User-Agent": CAL_UA})
+
+    assert rsp.status_code == 200
+    assert rsp.data == BIN
+    assert rsp.headers["Content-Length"] == str(len(BIN))
+    assert rsp.headers["x-MD5"] == hashlib.md5(BIN).hexdigest()
+    assert rsp.mimetype == "application/octet-stream"
+
+
+def test_a_board_that_already_runs_the_image_gets_a_304(tmp_path):
+    _, client = with_firmware(tmp_path)
+
+    rsp = client.get("/firmware.bin", headers={"x-ESP32-version": "v1.6.0"})
+
+    assert rsp.status_code == 304 and rsp.data == b""
+    assert client.get("/firmware.bin", headers={"x-ESP32-version": "v1.5.1"}).status_code == 200
+
+
+def test_an_empty_firmware_directory_is_a_404_and_offers_nothing(tmp_path):
+    _, client = with_firmware(tmp_path, version=None)
+
+    assert client.get("/firmware.bin").status_code == 404
+    assert "X-Firmware-Version" not in client.get("/today.png", headers={"User-Agent": CAL_UA}).headers
+
+
+def test_an_image_copied_in_while_running_is_offered_at_the_next_fetch(tmp_path):
+    server, client = with_firmware(tmp_path, version=None)
+
+    assert "X-Firmware-Version" not in client.get("/today.png", headers={"User-Agent": CAL_UA}).headers
+    (tmp_path / "fw" / "v1.6.0.bin").write_bytes(BIN)
+
+    rsp = client.get("/today.png", headers={"User-Agent": CAL_UA})
+    assert rsp.headers["X-Firmware-Version"] == "v1.6.0"
+
+
+def test_the_index_reports_the_image_it_holds(tmp_path):
+    import hashlib
+    _, client = with_firmware(tmp_path)
+
+    body = client.get("/").get_json()
+
+    assert body["firmware"] == {"version": "v1.6.0", "size": len(BIN),
+                                "md5": hashlib.md5(BIN).hexdigest(), "product": "weather-cal"}

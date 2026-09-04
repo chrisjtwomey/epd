@@ -26,7 +26,7 @@ def display(pools: dict, **schedule) -> dict:
 @pytest.fixture(autouse=True)
 def isolate_env(monkeypatch):
     for key in list(__import__("os").environ):
-        if key.startswith(("SERVER_", "IMAGE_", "MQTT_", "DISPLAY_")) or key == "DEBUG":
+        if key.startswith(("SERVER_", "IMAGE_", "MQTT_", "DISPLAY_", "FIRMWARE_")) or key == "DEBUG":
             monkeypatch.delenv(key, raising=False)
 
 
@@ -232,3 +232,41 @@ def test_load_yaml_rejects_non_mapping(tmp_path):
         load_yaml(f)
 
 
+
+
+# ---------- firmware ----------
+
+from epd_server.config import FirmwareSettings, parse_firmware  # noqa: E402
+
+
+def test_firmware_is_off_by_default():
+    fw = load_core_config({}, default_display=DISPLAY).firmware
+    assert fw.enabled is False and fw.offer_dev_builds is False
+    assert fw.dir == "firmware" and fw.product == ""
+
+
+def test_firmware_block_is_read():
+    fw = parse_firmware({"firmware": {"enabled": True, "dir": "/srv/images",
+                                      "product": "weather-cal", "offer_dev_builds": True}})
+    assert fw == FirmwareSettings(True, "/srv/images", "weather-cal", True)
+
+
+def test_the_project_supplies_the_product_so_the_config_need_not():
+    fw = parse_firmware({"firmware": {"enabled": True}}, default_product="weather-cal")
+    assert fw.product == "weather-cal"
+    assert parse_firmware({"firmware": {"enabled": True, "product": "other"}},
+                          default_product="weather-cal").product == "other"
+
+
+def test_an_enabled_block_without_a_product_is_refused():
+    with pytest.raises(ConfigError, match="firmware.product is required"):
+        parse_firmware({"firmware": {"enabled": True}})
+    assert parse_firmware({"firmware": {"enabled": False}}).product == ""
+
+
+def test_firmware_env_overrides_coerce_types(monkeypatch):
+    monkeypatch.setenv("FIRMWARE_ENABLED", "true")
+    monkeypatch.setenv("FIRMWARE_OFFER_DEV_BUILDS", "true")
+    monkeypatch.setenv("FIRMWARE_DIR", "/tmp/fw")
+    fw = parse_firmware({"firmware": {"product": "weather-cal"}})
+    assert fw.enabled is True and fw.offer_dev_builds is True and fw.dir == "/tmp/fw"

@@ -13,6 +13,13 @@ The wire contract with the client is small::
       200 image/png
       X-Next-Refresh-Seconds: <seconds until the next scheduled wake>
       X-Next-URL: http://host/<the page to fetch at that wake>
+      X-Firmware-Version: <version>      only when an update applies
+      X-Firmware-URL: http://host/firmware.bin
+
+    GET /firmware.bin
+      200 application/octet-stream, Content-Length, x-MD5
+      304 when the request's x-ESP32-version is the version held
+      404 when the server holds no image
 
 The server is the single source of truth for *when* the client wakes and
 *what* it shows. The client does no timezone maths and holds no schedule.
@@ -31,7 +38,8 @@ from typing import Callable, Iterable, Mapping
 from flask import Flask, abort, jsonify, make_response, request, send_file
 from werkzeug.serving import make_server
 
-from .config import MqttSettings
+from .config import FirmwareSettings, MqttSettings
+from .firmware import FirmwareStore, parse_user_agent, update_applies
 from .mqtt import client_log_subscriber
 from .page import Page
 from .pipeline import regenerate as _regenerate
@@ -95,6 +103,8 @@ class DisplayServer:
         ingest: routes that accept a JSON object by POST, as
             ``{name: handler}``. ``POST /<name>`` parses the body and calls
             ``handler(doc)``; a ``ValueError`` from the handler is a 400.
+        firmware: if given and ``enabled``, offer the image in its directory
+            to the boards it is for, and serve it at ``/firmware.bin``.
     """
 
     def __init__(
@@ -110,6 +120,7 @@ class DisplayServer:
         mqtt: MqttSettings | None = None,
         mqtt_client_id: str = "epd-server",
         ingest: Mapping[str, Callable[[dict], None]] | None = None,
+        firmware: FirmwareSettings | None = None,
     ):
         self.pages = list(pages)
         self.source = source
@@ -127,6 +138,8 @@ class DisplayServer:
         self.mqtt = mqtt
         self.mqtt_client_id = mqtt_client_id
         self.ingest = dict(ingest or {})
+        self.firmware = firmware
+        self.firmware_store = FirmwareStore(firmware.dir) if firmware and firmware.enabled else None
 
         if not self.pages:
             raise ValueError("DisplayServer needs at least one page")
@@ -178,12 +191,21 @@ class DisplayServer:
         @app.route("/")
         def index():
             seconds, path = self.next_wake()
+            image = self.firmware_store.current() if self.firmware_store else None
             return jsonify(
                 pages=[p.png_filename for p in self.pages],
                 schedule=self.schedule.describe(),
                 next_wake_seconds=seconds,
                 next_page=path,
+                firmware=None if image is None else {
+                    "version": image.version, "size": image.size, "md5": image.md5,
+                    "product": self.firmware.product if self.firmware else None,
+                },
             )
+
+        if self.firmware_store is not None:
+            app.add_url_rule("/firmware.bin", endpoint="firmware",
+                             view_func=self._serve_firmware)
 
         for page in self.pages:
             app.add_url_rule(
@@ -213,6 +235,43 @@ class DisplayServer:
         accept.__name__ = f"ingest_{name}"
         return accept
 
+    def _serve_firmware(self):
+        """The image itself. The board asks for this after a page offered it."""
+        image = self.firmware_store.current() if self.firmware_store else None
+        if image is None:
+            abort(404)
+        # HTTPUpdate sends the running version, so an image it already has
+        # costs one small response instead of a megabyte.
+        if request.headers.get("x-ESP32-version") == image.version:
+            log.info("%s already runs firmware %s", request.user_agent.string, image.version)
+            return "", 304
+        with open(image.path, "rb") as f:
+            data = f.read()
+        log.info("Serving firmware %s (%d bytes) to %s",
+                 image.version, image.size, request.user_agent.string)
+        rsp = make_response(send_file(
+            io.BytesIO(data),
+            mimetype="application/octet-stream",
+            as_attachment=True,
+            download_name=image.version + ".bin",
+        ))
+        rsp.headers["Content-Length"] = str(image.size)
+        rsp.headers["x-MD5"] = image.md5
+        return rsp
+
+    def _firmware_headers(self, rsp) -> None:
+        """Add the offer headers when the requesting board has an update."""
+        if self.firmware_store is None:
+            return
+        image = self.firmware_store.current()
+        client = parse_user_agent(request.headers.get("User-Agent"))
+        if not update_applies(client, image, self.firmware):
+            return
+        assert image is not None      # update_applies said so
+        rsp.headers["X-Firmware-Version"] = image.version
+        rsp.headers["X-Firmware-URL"] = request.host_url.rstrip("/") + "/firmware.bin"
+        log.info("Offering firmware %s to %s", image.version, request.user_agent.string)
+
     def _make_view(self, page: Page):
         def serve():
             return self._serve(page)
@@ -239,6 +298,7 @@ class DisplayServer:
         ))
         rsp.headers["X-Next-Refresh-Seconds"] = str(seconds)
         rsp.headers["X-Next-URL"] = next_url
+        self._firmware_headers(rsp)
         return rsp
 
     # ── Lifecycle ─────────────────────────────────────────────────────────

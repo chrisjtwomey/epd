@@ -151,10 +151,19 @@ class MqttSettings:
 
 
 @dataclass(frozen=True)
+class FirmwareSettings:
+    enabled: bool
+    dir: str                        # a directory of <version>.bin
+    product: str                    # the client name an image is for
+    offer_dev_builds: bool          # offer to boards not built from a tag
+
+
+@dataclass(frozen=True)
 class CoreConfig:
     server: ServerSettings
     image: ImageSettings
     mqtt: MqttSettings
+    firmware: FirmwareSettings
 
 
 def _positive_int(key: str, value) -> int:
@@ -306,10 +315,30 @@ def parse_mqtt(config: dict, *, default_topic: str = "mqtt/epd-client") -> MqttS
     return MqttSettings(enabled, host, port, topic)
 
 
+def parse_firmware(config: dict, *, default_product: str | None = None) -> FirmwareSettings:
+    """The ``firmware`` block: where the images are, and who they are for.
+
+    ``product`` is the client name the board reports in its User-Agent. It is
+    required once the block is enabled, because offering one product's image
+    to another product's board would brick it.
+    """
+    enabled = bool(get_prop_by_keys(config, "firmware", "enabled", default=False))
+    directory = str(get_prop_by_keys(config, "firmware", "dir", default="firmware"))
+    product = str(get_prop_by_keys(config, "firmware", "product",
+                                   default=default_product or "", required=False) or "").strip()
+    offer_dev = bool(get_prop_by_keys(config, "firmware", "offer_dev_builds", default=False))
+    if enabled and not product:
+        raise ConfigError("firmware.product is required when firmware is enabled: "
+                          "the client name the board sends, e.g. inkplate10-weather-cal")
+    return FirmwareSettings(enabled=enabled, dir=directory, product=product,
+                            offer_dev_builds=offer_dev)
+
+
 def load_core_config(
     config: dict,
     *,
     default_display: dict | None = None,
+    default_firmware_product: str | None = None,
     default_port: int = 8080,
     default_regen_lead_seconds: int = 120,
     default_width: int = 825,
@@ -327,4 +356,5 @@ def load_core_config(
                             default_regen_lead_seconds=default_regen_lead_seconds),
         image=parse_image(config, default_width=default_width, default_height=default_height),
         mqtt=parse_mqtt(config, default_topic=default_mqtt_topic),
+        firmware=parse_firmware(config, default_product=default_firmware_product),
     )
