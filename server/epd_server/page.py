@@ -126,7 +126,11 @@ class Page:
 
         img = renderer.render(html_fp, self.image_width, self.image_height)
         img = quantiser.apply(img)
-        img.save(png_fp, format="png", optimize=True)
+        # Write beside the target and rename, so a client fetching mid-render
+        # gets the previous image whole rather than a partial file.
+        tmp_fp = png_fp + ".tmp"
+        img.save(tmp_fp, format="png", optimize=True)
+        os.replace(tmp_fp, png_fp)
 
         self.log.info("Rendered %s -> %s", os.path.basename(html_fp), os.path.basename(png_fp))
 

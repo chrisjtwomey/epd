@@ -78,6 +78,15 @@ uint8_t* downloadFile(const char* url, const char* userAgent, uint32_t* nextRefr
     http.begin(url);
 
     int httpCode = http.GET();
+    if (httpCode != HTTP_CODE_OK) {
+        if (httpCode < 0)
+            logf(LOG_ERROR, "GET %s failed: %s", url, HTTPClient::errorToString(httpCode).c_str());
+        else
+            logf(LOG_ERROR, "Non-200 response from URL %s: %d", url, httpCode);
+        http.end();
+        WiFi.setSleep(sleep);
+        return nullptr;
+    }
 
     int32_t size = http.getSize();
     if (size == -1)
@@ -93,14 +102,6 @@ uint8_t* downloadFile(const char* url, const char* userAgent, uint32_t* nextRefr
         return nullptr;
     }
     uint8_t *buffPtr = buffer;
-
-    if (httpCode != HTTP_CODE_OK) {
-        logf(LOG_ERROR, "Non-200 response from URL %s: %d", url, httpCode);
-        free(buffer);
-        http.end();
-        WiFi.setSleep(sleep);
-        return nullptr;
-    }
 
     // The socket exists only after GET() has connected.
     http.getStream().setNoDelay(true);

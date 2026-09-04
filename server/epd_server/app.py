@@ -135,8 +135,8 @@ class DisplayServer:
         if clash:
             raise ValueError(f"ingest routes {clash} collide with page filenames")
 
-        # Serialises PNG writes (regenerate) against reads (HTTP handlers) so
-        # a client never receives a partially written file.
+        # Serialises regenerations; a page's PNG is replaced atomically, so
+        # readers never wait on it.
         self.regen_lock = threading.Lock()
         self.shutdown_event = threading.Event()
         self.http: ServerThread | None = None
@@ -219,9 +219,8 @@ class DisplayServer:
             log.error("%s: no such file exists", path)
             abort(404)
 
-        with self.regen_lock:
-            with open(path, "rb") as f:
-                data = f.read()
+        with open(path, "rb") as f:
+            data = f.read()
 
         seconds, next_path = self.next_wake()
         next_url = request.host_url.rstrip("/") + "/" + next_path.lstrip("/")
