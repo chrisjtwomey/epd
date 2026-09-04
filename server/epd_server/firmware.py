@@ -17,9 +17,13 @@ the filename, so an image built by hand works the moment it is copied in::
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import os
 import re
+import threading
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 
 log = logging.getLogger(__name__)
@@ -165,3 +169,116 @@ def _md5_of(path: str) -> str:
         for block in iter(lambda: f.read(1 << 16), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+class ReleaseWatcher:
+    """Keep a :class:`FirmwareStore` filled from a repository's releases.
+
+    Asks GitHub for the latest release, and when its tag is not the version
+    already held, downloads the named asset and stores it. The ``fetch``
+    callable is injected so the whole loop is testable without a network::
+
+        fetch(url, headers) -> (status, headers, body)
+
+    A private repository needs a token. Its asset is then fetched from the
+    API's own asset URL, because ``browser_download_url`` is not authorised.
+    """
+
+    #: How long to wait after a failure, before doubling up to the poll interval.
+    FIRST_RETRY_SECONDS = 60
+
+    def __init__(self, store: FirmwareStore, source, fetch=None, stop_event=None):
+        self.store = store
+        self.source = source
+        self.fetch = fetch or _fetch_url
+        self.stop_event = stop_event or threading.Event()
+        self.etag: str | None = None
+
+    @property
+    def releases_url(self) -> str:
+        return f"https://api.github.com/repos/{self.source.github}/releases/latest"
+
+    def _headers(self, accept: str) -> dict:
+        headers = {"Accept": accept, "X-GitHub-Api-Version": "2022-11-28"}
+        if self.source.token:
+            headers["Authorization"] = f"Bearer {self.source.token}"
+        return headers
+
+    def check_once(self) -> FirmwareImage | None:
+        """Fetch the latest release and store its asset. Returns what was stored."""
+        headers = self._headers("application/vnd.github+json")
+        if self.etag:
+            headers["If-None-Match"] = self.etag
+        status, response_headers, body = self.fetch(self.releases_url, headers)
+
+        if status == 304:
+            log.debug("No new release for %s", self.source.github)
+            return None
+        if status != 200:
+            raise RuntimeError(f"GitHub answered {status} for {self.releases_url}")
+        self.etag = response_headers.get("ETag")
+
+        release = json.loads(body)
+        tag = str(release.get("tag_name") or "").strip()
+        if not tag:
+            raise RuntimeError("the latest release has no tag_name")
+
+        held = self.store.current()
+        if held is not None and held.version == tag:
+            log.debug("Release %s is already held", tag)
+            return None
+
+        asset = next((a for a in release.get("assets", [])
+                      if a.get("name") == self.source.asset), None)
+        if asset is None:
+            raise RuntimeError(f"release {tag} has no asset named {self.source.asset}")
+
+        data = self._download(asset)
+        expected = asset.get("size")
+        if expected is not None and len(data) != expected:
+            raise RuntimeError(f"{self.source.asset} is {len(data)} bytes, expected {expected}")
+
+        log.info("New release %s for %s", tag, self.source.github)
+        return self.store.put(tag, data)
+
+    def _download(self, asset: dict) -> bytes:
+        # The browser URL is a redirect to unauthenticated storage, so a
+        # private repository has to go through the API's asset URL instead.
+        if self.source.token:
+            url = asset["url"]
+        else:
+            url = asset.get("browser_download_url") or asset["url"]
+        status, _, body = self.fetch(url, self._headers("application/octet-stream"))
+        if status != 200:
+            raise RuntimeError(f"GitHub answered {status} for {url}")
+        return body
+
+    def run(self) -> None:
+        """Check now, then every ``poll_seconds`` until the stop event is set."""
+        wait_after_failure = self.FIRST_RETRY_SECONDS
+        while not self.stop_event.is_set():
+            wait = self.source.poll_seconds
+            try:
+                self.check_once()
+                wait_after_failure = self.FIRST_RETRY_SECONDS
+            except Exception as exc:      # noqa: BLE001 - a release check must not stop the server
+                # Retry sooner than the poll interval at first, so a network
+                # that was down at startup is not an hour of no images.
+                wait = min(self.source.poll_seconds, wait_after_failure)
+                wait_after_failure = min(self.source.poll_seconds, wait_after_failure * 2)
+                log.warning("Release check failed (%s); trying again in %ds", exc, wait)
+            if self.stop_event.wait(wait):
+                return
+
+    def stop(self) -> None:
+        self.stop_event.set()
+
+
+def _fetch_url(url: str, headers: dict):
+    """The default ``fetch``: one GET, following redirects, never raising on 304."""
+    request = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return response.status, dict(response.headers), response.read()
+    except urllib.error.HTTPError as exc:
+        return exc.code, dict(exc.headers or {}), exc.read()

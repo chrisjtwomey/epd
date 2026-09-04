@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import operator
 import os
+import re
 from functools import reduce
 from typing import Any, Callable
 
@@ -151,11 +152,22 @@ class MqttSettings:
 
 
 @dataclass(frozen=True)
+class FirmwareSource:
+    """Where new images come from, when the server fetches them itself."""
+
+    github: str                     # owner/repo
+    asset: str                      # the release asset to take
+    poll_seconds: int
+    token: str                      # for a private repository
+
+
+@dataclass(frozen=True)
 class FirmwareSettings:
     enabled: bool
     dir: str                        # a directory of <version>.bin
     product: str                    # the client name an image is for
     offer_dev_builds: bool          # offer to boards not built from a tag
+    source: FirmwareSource | None = None
 
 
 @dataclass(frozen=True)
@@ -315,23 +327,54 @@ def parse_mqtt(config: dict, *, default_topic: str = "mqtt/epd-client") -> MqttS
     return MqttSettings(enabled, host, port, topic)
 
 
-def parse_firmware(config: dict, *, default_product: str | None = None) -> FirmwareSettings:
+_GITHUB_REPO = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$")
+
+
+def _parse_firmware_source(config: dict) -> FirmwareSource | None:
+    """The optional ``firmware.source`` block. Absent means images are placed by hand."""
+    github = get_prop_by_keys(config, "firmware", "source", "github",
+                              default="", required=False)
+    github = str(github or "").strip()
+    if not github:
+        return None
+    if not _GITHUB_REPO.match(github):
+        raise ConfigError(f"firmware.source.github must be owner/repo (got {github!r})")
+    asset = str(get_prop_by_keys(config, "firmware", "source", "asset",
+                                 default="firmware.bin")).strip()
+    if not asset:
+        raise ConfigError("firmware.source.asset must name the release asset to take")
+    poll = _positive_int("firmware.source.poll_seconds",
+                         get_prop_by_keys(config, "firmware", "source", "poll_seconds",
+                                          default=3600))
+    token = str(get_prop_by_keys(config, "firmware", "source", "token",
+                                 default="", required=False) or "")
+    return FirmwareSource(github=github, asset=asset, poll_seconds=poll, token=token)
+
+
+def parse_firmware(config: dict, *, default_product: str | None = None,
+                   base_dir: str | None = None) -> FirmwareSettings:
     """The ``firmware`` block: where the images are, and who they are for.
 
     ``product`` is the client name the board reports in its User-Agent. It is
     required once the block is enabled, because offering one product's image
-    to another product's board would brick it.
+    to another product's board would brick it. A relative ``dir`` is resolved
+    against ``base_dir``, which a project sets to wherever its config.yaml is.
     """
     enabled = bool(get_prop_by_keys(config, "firmware", "enabled", default=False))
     directory = str(get_prop_by_keys(config, "firmware", "dir", default="firmware"))
+    if base_dir:
+        directory = os.path.join(base_dir, directory)
+    offer_dev = bool(get_prop_by_keys(config, "firmware", "offer_dev_builds", default=False))
+    source = _parse_firmware_source(config)
+    if source and not default_product:
+        default_product = source.github.split("/")[-1]
     product = str(get_prop_by_keys(config, "firmware", "product",
                                    default=default_product or "", required=False) or "").strip()
-    offer_dev = bool(get_prop_by_keys(config, "firmware", "offer_dev_builds", default=False))
     if enabled and not product:
         raise ConfigError("firmware.product is required when firmware is enabled: "
                           "the client name the board sends, e.g. inkplate10-weather-cal")
     return FirmwareSettings(enabled=enabled, dir=directory, product=product,
-                            offer_dev_builds=offer_dev)
+                            offer_dev_builds=offer_dev, source=source)
 
 
 def load_core_config(
@@ -339,6 +382,7 @@ def load_core_config(
     *,
     default_display: dict | None = None,
     default_firmware_product: str | None = None,
+    base_dir: str | None = None,
     default_port: int = 8080,
     default_regen_lead_seconds: int = 120,
     default_width: int = 825,
@@ -356,5 +400,6 @@ def load_core_config(
                             default_regen_lead_seconds=default_regen_lead_seconds),
         image=parse_image(config, default_width=default_width, default_height=default_height),
         mqtt=parse_mqtt(config, default_topic=default_mqtt_topic),
-        firmware=parse_firmware(config, default_product=default_firmware_product),
+        firmware=parse_firmware(config, default_product=default_firmware_product,
+                                base_dir=base_dir),
     )

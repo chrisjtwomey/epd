@@ -37,7 +37,7 @@ instead of `@main` for releases.
 | `epd_server.render` | `Renderer` protocol; `ChromiumRenderer` (headless, via Selenium) is the default |
 | `epd_server.quantise` | `Quantiser` protocol; `GreyscaleQuantiser(levels=4)` default, `PaletteQuantiser` for colour panels, `IdentityQuantiser` for none |
 | `epd_server.scheduling` | `Pools`, `TimesSchedule`, `IntervalSchedule` — what shows and when; `next_wake`, `next_regen`, `seconds_until` underneath |
-| `epd_server.firmware` | `FirmwareStore` — a directory of `<version>.bin`; `parse_user_agent`, `is_clean_tag`, `update_applies` — which board an image is an update for |
+| `epd_server.firmware` | `FirmwareStore` — a directory of `<version>.bin`; `ReleaseWatcher` — fill it from a repository's releases; `parse_user_agent`, `is_clean_tag`, `update_applies` — which board an image is an update for |
 | `epd_server.mqtt` | `client_log_subscriber` — relay the client's MQTT log topic into Python logging |
 | `epd_server.source` | `DataSource` — named, lazily fetched datasets; `StaticSource` for constants; `CompositeSource` to merge |
 | `epd_server.pipeline` | `regenerate(pages, source, only=, force_refresh=)` — fetch what the selected pages need, once each; render; save |
@@ -150,13 +150,33 @@ debug: false
 `firmware` lets the server flash the boards it serves. Put an image in
 `dir` named for its version, `v1.6.0.bin`, and every board of that product
 running a different version is offered it on its next page fetch. The
-version is the filename, so nothing else has to be written.
+version is the filename, so nothing else has to be written. A relative
+`dir` is resolved against the directory holding `config.yaml`.
 
 A board built from a tag takes the update; one built from a working tree
 (`v1.5.1-3-gab12cd4`, `-dirty`, `dev`) is left alone unless
 `offer_dev_builds` says otherwise. A project passes its own client name as
 `default_firmware_product=` to `load_core_config`, so the config file only
 needs `enabled: true`.
+
+Add a `source` block and the server fills `dir` itself, from a
+repository's releases:
+
+```yaml
+firmware:
+  enabled: true
+  source:
+    github: chrisjtwomey/inkplate10-weather-cal
+    asset: firmware.bin
+    poll_seconds: 3600
+    token: ""                    # a private repository
+```
+
+It asks GitHub for the latest release on a background thread, and takes the
+named asset whenever the tag is not the version already held. An `ETag`
+makes an unchanged answer cheap. A private repository needs a token, which
+belongs in `FIRMWARE_SOURCE_TOKEN` rather than the file. With `source` set,
+`product` defaults to the repository name.
 
 Every key can be overridden by an env var named from its path:
 `SERVER_PORT`, `IMAGE_INNERWIDTH`, `MQTT_ENABLED`, `DEBUG`.

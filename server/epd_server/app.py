@@ -39,7 +39,7 @@ from flask import Flask, abort, jsonify, make_response, request, send_file
 from werkzeug.serving import make_server
 
 from .config import FirmwareSettings, MqttSettings
-from .firmware import FirmwareStore, parse_user_agent, update_applies
+from .firmware import FirmwareStore, ReleaseWatcher, parse_user_agent, update_applies
 from .mqtt import client_log_subscriber
 from .page import Page
 from .pipeline import regenerate as _regenerate
@@ -140,6 +140,7 @@ class DisplayServer:
         self.ingest = dict(ingest or {})
         self.firmware = firmware
         self.firmware_store = FirmwareStore(firmware.dir) if firmware and firmware.enabled else None
+        self.release_watcher: ReleaseWatcher | None = None
 
         if not self.pages:
             raise ValueError("DisplayServer needs at least one page")
@@ -319,6 +320,13 @@ class DisplayServer:
                 self.mqtt.host, self.mqtt.port, self.mqtt.topic, client_id=self.mqtt_client_id,
             )
 
+        if self.firmware_store is not None and self.firmware.source is not None:
+            self.release_watcher = ReleaseWatcher(self.firmware_store, self.firmware.source)
+            log.info("Watching %s for releases every %ds", self.firmware.source.github,
+                     self.firmware.source.poll_seconds)
+            threading.Thread(target=self.release_watcher.run, name="epd-releases",
+                             daemon=True).start()
+
         self.http = ServerThread(self.app, self.host, self.port)
         self.http.start()
 
@@ -358,6 +366,9 @@ class DisplayServer:
                 log.exception("Scheduled regeneration failed; will retry at next regen time")
 
     def _shutdown(self) -> None:
+        if self.release_watcher is not None:
+            self.release_watcher.stop()
+            self.release_watcher = None
         if self.http is not None:
             self.http.shutdown()
             self.http = None

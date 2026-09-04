@@ -385,3 +385,26 @@ def test_the_index_reports_the_image_it_holds(tmp_path):
 
     assert body["firmware"] == {"version": "v1.6.0", "size": len(BIN),
                                 "md5": hashlib.md5(BIN).hexdigest(), "product": "weather-cal"}
+
+
+def test_the_release_watcher_runs_only_with_a_source(tmp_path, monkeypatch):
+    from epd_server.config import FirmwareSource
+
+    server, _ = with_firmware(tmp_path)
+    server.shutdown_event = OneTickEvent()
+    server.port = 0
+    server.run(install_signal_handlers=False)
+    assert server.release_watcher is None
+
+    import threading
+    started = threading.Event()
+    monkeypatch.setattr("epd_server.firmware.ReleaseWatcher.run",
+                        lambda self: started.set())
+    settings = FirmwareSettings(True, str(tmp_path / "fw"), "weather-cal", False,
+                                FirmwareSource("a/b", "firmware.bin", 3600, ""))
+    server = make(tmp_path, port=0, firmware=settings)
+    server.shutdown_event = OneTickEvent()
+    server.run(install_signal_handlers=False)
+
+    assert started.wait(2), "the watcher thread never ran"
+    assert server.release_watcher is None   # stopped on shutdown

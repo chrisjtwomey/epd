@@ -133,6 +133,35 @@ void loop()  {}
 **`src/defaults.cpp`** — definitions for the symbols `defaults.h` declares
 (server URL, WiFi credentials, NTP host, MQTT logging).
 
+### Updating over the air
+
+A board with a server that holds firmware updates itself. The page response
+offers a version and a URL, and the client fetches the image after it has
+drawn, so an update never holds up the panel. A failed update ends the wake
+the way it would have ended anyway, and the next wake tries again.
+
+The ESP32 has two app slots. The image is written to the idle one and the
+board restarts into it **on trial**: the bootloader takes it back unless the
+application says it works. `run_app()` says so only after a page is on the
+panel, and rolls back on any failure before that. Confirming comes before
+taking the next offer, since a write to the idle slot is refused while an
+image is pending.
+
+An image built by a release pipeline cannot carry a WiFi password, so the
+server URL, the SSID and the password come from the board's own store
+(`Preferences`, namespace `epd`) whenever the running image has only the
+placeholders `defaults.example.cpp` ships. A build flashed over USB with
+real values writes them there, which provisions the board for every image
+that arrives later. So one USB flash is needed, and only one.
+
+Nothing in `defaults.cpp` else is stored: the rest is code, and comes from
+the image.
+
+To force an update, press RST. The board boots from the top — WiFi, fetch,
+draw, then the update check — so an offered image is applied within a
+minute. A reset during the write is safe, because the boot pointer moves
+only when the write completes.
+
 ### Supporting other hardware
 
 Subclass `IBoard`, implement every pure-virtual method, and assign your

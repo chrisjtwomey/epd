@@ -155,3 +155,151 @@ def test_the_md5_is_recomputed_when_the_file_changes(tmp_path):
     os.utime(tmp_path / "v1.6.0.bin", ns=(3_000_000_000_000_000_000, 3_000_000_000_000_000_000))
 
     assert store.current().md5 == hashlib.md5(replaced).hexdigest()
+
+
+# ---------- ReleaseWatcher ----------
+
+import json  # noqa: E402
+import threading  # noqa: E402
+
+from epd_server.config import FirmwareSource  # noqa: E402
+from epd_server.firmware import ReleaseWatcher  # noqa: E402
+
+
+def source(**kw) -> FirmwareSource:
+    return FirmwareSource(**{"github": "chrisjtwomey/weather-cal", "asset": "firmware.bin",
+                             "poll_seconds": 3600, "token": "", **kw})
+
+
+class FakeGitHub:
+    """Answers the two requests a watcher makes, and records what it was asked."""
+
+    def __init__(self, tag="v1.6.0", asset_name="firmware.bin", data=IMAGE,
+                 size=None, status=200, etag='W/"abc"'):
+        self.release = {
+            "tag_name": tag,
+            "assets": [{
+                "name": asset_name,
+                "size": len(data) if size is None else size,
+                "browser_download_url": "https://github.com/dl/firmware.bin",
+                "url": "https://api.github.com/repos/x/y/releases/assets/1",
+            }],
+        }
+        self.data = data
+        self.status = status
+        self.etag = etag
+        self.calls = []
+
+    def __call__(self, url, headers):
+        self.calls.append((url, headers))
+        if url.endswith("/releases/latest"):
+            if self.status != 200:
+                return self.status, {}, b""
+            if headers.get("If-None-Match") == self.etag:
+                return 304, {"ETag": self.etag}, b""
+            return 200, {"ETag": self.etag}, json.dumps(self.release).encode()
+        return 200, {}, self.data
+
+
+def watcher(tmp_path, github: FakeGitHub, **kw) -> ReleaseWatcher:
+    return ReleaseWatcher(FirmwareStore(str(tmp_path)), source(**kw), fetch=github)
+
+
+def test_a_new_release_is_downloaded_and_stored(tmp_path):
+    github = FakeGitHub()
+    w = watcher(tmp_path, github)
+
+    image = w.check_once()
+
+    assert image is not None and image.version == "v1.6.0"
+    assert w.store.current().version == "v1.6.0"
+    assert github.calls[1][0] == "https://github.com/dl/firmware.bin"
+
+
+def test_the_release_already_held_is_not_downloaded_again(tmp_path):
+    github = FakeGitHub()
+    w = watcher(tmp_path, github)
+    w.check_once()
+    github.calls.clear()
+    w.etag = None                       # force the release request through
+
+    assert w.check_once() is None
+    assert len(github.calls) == 1       # the release, never the asset
+
+
+def test_the_etag_makes_the_second_check_a_304(tmp_path):
+    github = FakeGitHub()
+    w = watcher(tmp_path, github)
+    w.check_once()
+
+    assert w.check_once() is None
+    assert github.calls[-1][1]["If-None-Match"] == 'W/"abc"'
+
+
+def test_a_private_repository_sends_the_token_and_uses_the_api_asset_url(tmp_path):
+    github = FakeGitHub()
+    w = watcher(tmp_path, github, token="ghp_secret")
+
+    w.check_once()
+
+    release_headers, asset_headers = github.calls[0][1], github.calls[1][1]
+    assert release_headers["Authorization"] == "Bearer ghp_secret"
+    assert asset_headers["Accept"] == "application/octet-stream"
+    assert github.calls[1][0] == "https://api.github.com/repos/x/y/releases/assets/1"
+
+
+@pytest.mark.parametrize("github, match", [
+    (FakeGitHub(asset_name="other.bin"), "no asset named firmware.bin"),
+    (FakeGitHub(size=999), "expected 999"),
+    (FakeGitHub(status=403), "GitHub answered 403"),
+    (FakeGitHub(tag=""), "no tag_name"),
+])
+def test_a_bad_answer_raises_and_stores_nothing(tmp_path, github, match):
+    w = watcher(tmp_path, github)
+    with pytest.raises(RuntimeError, match=match):
+        w.check_once()
+    assert w.store.current() is None
+
+
+def test_run_checks_then_waits_the_poll_interval(tmp_path):
+    github = FakeGitHub()
+    w = watcher(tmp_path, github, poll_seconds=1800)
+    waits = []
+    w.stop_event = _StopAfter(waits, 2)
+
+    w.run()
+
+    assert waits == [1800, 1800]
+    assert w.store.current().version == "v1.6.0"
+
+
+def test_run_retries_sooner_after_a_failure_then_backs_off(tmp_path):
+    w = watcher(tmp_path, FakeGitHub(status=500), poll_seconds=1800)
+    waits = []
+    w.stop_event = _StopAfter(waits, 4)
+
+    w.run()
+
+    assert waits == [60, 120, 240, 480]
+
+
+def test_run_returns_when_the_stop_event_is_set(tmp_path):
+    w = watcher(tmp_path, FakeGitHub())
+    w.stop_event.set()
+
+    w.run()
+
+    assert w.store.current() is None    # never checked
+
+
+class _StopAfter(threading.Event):
+    """Records each wait and reports a shutdown after n of them."""
+
+    def __init__(self, waits, n):
+        super().__init__()
+        self.waits = waits
+        self.n = n
+
+    def wait(self, timeout=None):
+        self.waits.append(timeout)
+        return len(self.waits) >= self.n
