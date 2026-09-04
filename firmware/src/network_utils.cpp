@@ -40,23 +40,28 @@ esp_err_t configureWiFi(const char* ssid, const char* pass, int retries) {
     return ESP_OK;
 }
 
+// Copy a header value into a fixed field, logging what arrived.
+static void copyHeader(HTTPClient& http, const char* name, char* out, size_t size) {
+    if (!out || size == 0 || !http.hasHeader(name)) return;
+    String value = http.header(name);
+    strlcpy(out, value.c_str(), size);
+    logf(LOG_INFO, "received header %s: %s", name, out);
+}
+
 /**
-  Download a file at the given URL to a data buffer.
+  Download a file at the given URL to a data buffer the caller frees.
 
-  If the server also sends X-Next-Refresh header, the value at pointer
-  nextRefresh will be populated indicating when to wake up next.
-
-  @param buf the data buffer for the downloaded file.
-  @param size the size of the file to download.
   @param url the URL where to download the file.
-  @param nextRefresh a pointer storing the next time to refresh / wake up.
-  error.
-  @returns the esp_err_t code:
-  - ESP_OK if successful.
-  - ESP_ERR_TIMEOUT if number of retries is exceeded without success.
+  @param userAgent the User-Agent header to send; null or empty sends the
+  HTTP library's own.
+  @param defaultLen in: the length to expect when the server sends none;
+  out: the length the server reported.
+  @param rsp what the server said about the next wake and about firmware;
+  null to ignore it.
+  @returns the buffer, or nullptr when the request or the allocation failed.
 */
-uint8_t* downloadFile(const char* url, const char* userAgent, uint32_t* nextRefreshSeconds,
-                      int32_t* defaultLen, char* nextURL, size_t nextURLSize) {
+uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* defaultLen,
+                      PageResponse* rsp) {
     logf(LOG_INFO, "downloading file at URL %s", url);
 
     bool sleep = WiFi.getSleep();
@@ -67,9 +72,11 @@ uint8_t* downloadFile(const char* url, const char* userAgent, uint32_t* nextRefr
     const char* headersToCollect[] = {
         "X-Next-Refresh-Seconds",
         "X-Next-URL",
+        "X-Firmware-Version",
+        "X-Firmware-URL",
     };
-    const size_t numberOfHeaders = 2;
-    http.collectHeaders(headersToCollect, numberOfHeaders);
+    http.collectHeaders(headersToCollect,
+                        sizeof(headersToCollect) / sizeof(headersToCollect[0]));
 
     if (userAgent && userAgent[0])
         http.setUserAgent(userAgent);
@@ -107,26 +114,26 @@ uint8_t* downloadFile(const char* url, const char* userAgent, uint32_t* nextRefr
     http.getStream().setNoDelay(true);
     http.getStream().setTimeout(5);
 
-    if (http.hasHeader("X-Next-Refresh-Seconds")) {
-        // Server is authoritative for *when* to refresh next; we just count
-        // down. No timezone math on the client.
-        String headerVal = http.header("X-Next-Refresh-Seconds");
-        uint32_t parsed = 0;
-        if (parseRefreshTime(headerVal.c_str(), &parsed)) {
-            *nextRefreshSeconds = parsed;
-            logf(LOG_INFO, "received header X-Next-Refresh-Seconds: %u", parsed);
+    if (rsp) {
+        if (http.hasHeader("X-Next-Refresh-Seconds")) {
+            // Server is authoritative for *when* to refresh next; we just count
+            // down. No timezone math on the client.
+            String headerVal = http.header("X-Next-Refresh-Seconds");
+            uint32_t parsed = 0;
+            if (parseRefreshTime(headerVal.c_str(), &parsed)) {
+                rsp->nextRefreshSeconds = parsed;
+                logf(LOG_INFO, "received header X-Next-Refresh-Seconds: %u", parsed);
+            } else {
+                logf(LOG_WARNING, "X-Next-Refresh-Seconds value '%s' is malformed, ignoring",
+                     headerVal.c_str());
+            }
         } else {
-            logf(LOG_WARNING, "X-Next-Refresh-Seconds value '%s' is malformed, ignoring",
-                 headerVal.c_str());
+            logf(LOG_WARNING, "header X-Next-Refresh-Seconds not found in response");
         }
-    } else {
-        logf(LOG_WARNING, "header X-Next-Refresh-Seconds not found in response");
-    }
 
-    if (nextURL && nextURLSize > 0 && http.hasHeader("X-Next-URL")) {
-        String nextURLVal = http.header("X-Next-URL");
-        strlcpy(nextURL, nextURLVal.c_str(), nextURLSize);
-        logf(LOG_INFO, "received header X-Next-URL: %s", nextURL);
+        copyHeader(http, "X-Next-URL", rsp->nextURL, sizeof(rsp->nextURL));
+        copyHeader(http, "X-Firmware-Version", rsp->firmwareVersion, sizeof(rsp->firmwareVersion));
+        copyHeader(http, "X-Firmware-URL", rsp->firmwareURL, sizeof(rsp->firmwareURL));
     }
 
     int32_t total = http.getSize();

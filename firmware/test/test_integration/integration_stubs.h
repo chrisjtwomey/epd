@@ -26,8 +26,10 @@ struct NetworkStubs {
     // a valid pointer to simulate success.
     uint8_t*    downloadBuf         = nullptr;
     int32_t     downloadBufLen      = 0;
-    uint32_t    downloadNextRefresh = 3600; // written to *nextRefreshSeconds
-    const char* downloadNextURL     = "";   // written to nextURL buffer
+    uint32_t    downloadNextRefresh = 3600; // written to rsp->nextRefreshSeconds
+    const char* downloadNextURL     = "";   // written to rsp->nextURL
+    const char* firmwareVersion     = "";   // written to rsp->firmwareVersion
+    const char* firmwareURL         = "";   // written to rsp->firmwareURL
 
     // --- observations ---
     int         downloadCallCount = 0;
@@ -42,6 +44,8 @@ struct NetworkStubs {
         downloadBufLen = 0;
         downloadNextRefresh = 3600;
         downloadNextURL = "";
+        firmwareVersion = "";
+        firmwareURL = "";
         downloadCallCount = 0;
         lastDownloadURL = nullptr;
         lastUserAgent = nullptr;
@@ -99,6 +103,33 @@ struct SleepStubs {
     }
 };
 extern SleepStubs sleepStubs;
+
+// ---------------------------------------------------------------------------
+// OTA stubs  (otaTrialPending / otaConfirm / otaRollback / applyFirmwareUpdate)
+// ---------------------------------------------------------------------------
+struct OtaStubs {
+    // --- inputs ---
+    bool trialPending = false;      // is this the first boot of a new image?
+
+    // --- observations ---
+    bool        confirmCalled      = false;
+    bool        rollbackCalled     = false;
+    const char* lastRollbackReason = nullptr;
+    int         applyCallCount     = 0;
+    const char* lastApplyURL       = nullptr;
+    const char* lastApplyVersion   = nullptr;
+
+    void reset() {
+        trialPending = false;
+        confirmCalled = false;
+        rollbackCalled = false;
+        lastRollbackReason = nullptr;
+        applyCallCount = 0;
+        lastApplyURL = nullptr;
+        lastApplyVersion = nullptr;
+    }
+};
+extern OtaStubs otaStubs;
 
 // ---------------------------------------------------------------------------
 // Battery stub  (getBatteryCapacity)

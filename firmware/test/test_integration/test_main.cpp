@@ -329,6 +329,143 @@ void test_cold_boot_does_not_clear_rtc_alarm_flag() {
 }
 
 // ---------------------------------------------------------------------------
+// Firmware updates
+// ---------------------------------------------------------------------------
+
+// The version this test binary reports; CLIENT_VERSION is unset in the
+// library's own build, so it is the header's default.
+static const char* kRunningVersion = "dev";
+
+static void offerUpdate(const char* version = "v1.6.0") {
+    netStubs.firmwareVersion = version;
+    netStubs.firmwareURL = "http://test.local:8080/firmware.bin";
+}
+
+void test_an_offered_update_is_applied_after_the_page_is_drawn() {
+    happyPathStubs();
+    offerUpdate();
+
+    run_app();
+
+    TEST_ASSERT_EQUAL_INT(1, otaStubs.applyCallCount);
+    TEST_ASSERT_EQUAL_STRING("http://test.local:8080/firmware.bin", otaStubs.lastApplyURL);
+    TEST_ASSERT_EQUAL_STRING("v1.6.0", otaStubs.lastApplyVersion);
+    // The panel was updated first, and the wake still ends in a sleep.
+    TEST_ASSERT_EQUAL_INT(1, mockBoard.displayCount);
+    TEST_ASSERT_TRUE(sleepStubs.sleepForCalled);
+}
+
+void test_the_running_version_is_not_applied_again() {
+    happyPathStubs();
+    offerUpdate(kRunningVersion);
+
+    run_app();
+
+    TEST_ASSERT_EQUAL_INT(0, otaStubs.applyCallCount);
+}
+
+void test_no_firmware_headers_means_no_update() {
+    happyPathStubs();
+
+    run_app();
+
+    TEST_ASSERT_EQUAL_INT(0, otaStubs.applyCallCount);
+    TEST_ASSERT_FALSE(otaStubs.confirmCalled);
+}
+
+void test_an_update_waits_while_the_battery_is_low() {
+    happyPathStubs();
+    offerUpdate();
+    batteryStubs.capacity = 19;
+
+    run_app();
+
+    TEST_ASSERT_EQUAL_INT(0, otaStubs.applyCallCount);
+    TEST_ASSERT_TRUE(sleepStubs.sleepForCalled);
+}
+
+void test_an_update_is_applied_at_twenty_percent() {
+    happyPathStubs();
+    offerUpdate();
+    batteryStubs.capacity = 20;
+
+    run_app();
+
+    TEST_ASSERT_EQUAL_INT(1, otaStubs.applyCallCount);
+}
+
+void test_a_failed_update_leaves_the_wake_to_end_as_it_would() {
+    // The stub returns ESP_FAIL, as applyFirmwareUpdate does when the image
+    // did not arrive; on-device a success never returns.
+    happyPathStubs();
+    offerUpdate();
+
+    run_app();
+
+    TEST_ASSERT_TRUE(sleepStubs.sleepForCalled);
+    TEST_ASSERT_EQUAL_UINT32(3600, sleepStubs.lastSleepForSecs);
+    TEST_ASSERT_EQUAL(0, serverBackoffStep);
+}
+
+// ---------------------------------------------------------------------------
+// Trial boots: the first boot of a freshly written image
+// ---------------------------------------------------------------------------
+
+void test_a_trial_boot_that_draws_a_page_is_confirmed() {
+    happyPathStubs();
+    otaStubs.trialPending = true;
+
+    run_app();
+
+    TEST_ASSERT_TRUE(otaStubs.confirmCalled);
+    TEST_ASSERT_FALSE(otaStubs.rollbackCalled);
+    TEST_ASSERT_TRUE(sleepStubs.sleepForCalled);
+}
+
+void test_a_trial_boot_that_cannot_download_rolls_back() {
+    otaStubs.trialPending = true;
+    netStubs.downloadBuf = nullptr;
+
+    run_app();
+
+    TEST_ASSERT_TRUE(otaStubs.rollbackCalled);
+    TEST_ASSERT_EQUAL_STRING("file download error", otaStubs.lastRollbackReason);
+    // Rolling back replaces the back-off sleep; the board reboots instead.
+    TEST_ASSERT_FALSE(sleepStubs.sleepForCalled);
+}
+
+void test_a_trial_boot_that_cannot_reach_wifi_rolls_back() {
+    otaStubs.trialPending = true;
+    netStubs.wifiResult = ESP_ERR_TIMEOUT;
+
+    run_app();
+
+    TEST_ASSERT_TRUE(otaStubs.rollbackCalled);
+    TEST_ASSERT_FALSE(sleepStubs.sleepCalled);
+}
+
+void test_a_trial_boot_that_cannot_draw_rolls_back() {
+    happyPathStubs();
+    otaStubs.trialPending = true;
+    dispStubs.loadImageResult = ESP_FAIL;
+
+    run_app();
+
+    TEST_ASSERT_TRUE(otaStubs.rollbackCalled);
+    TEST_ASSERT_EQUAL_STRING("image load error", otaStubs.lastRollbackReason);
+    TEST_ASSERT_FALSE(sleepStubs.sleepForCalled);
+}
+
+void test_a_normal_boot_confirms_nothing() {
+    happyPathStubs();
+
+    run_app();
+
+    TEST_ASSERT_FALSE(otaStubs.confirmCalled);
+    TEST_ASSERT_FALSE(otaStubs.rollbackCalled);
+}
+
+// ---------------------------------------------------------------------------
 // Test runner
 // ---------------------------------------------------------------------------
 
@@ -376,6 +513,21 @@ int main(int argc, char** argv) {
     // Wakeup cause
     RUN_TEST(test_ext0_wakeup_clears_rtc_alarm_flag);
     RUN_TEST(test_cold_boot_does_not_clear_rtc_alarm_flag);
+
+    // Firmware updates
+    RUN_TEST(test_an_offered_update_is_applied_after_the_page_is_drawn);
+    RUN_TEST(test_the_running_version_is_not_applied_again);
+    RUN_TEST(test_no_firmware_headers_means_no_update);
+    RUN_TEST(test_an_update_waits_while_the_battery_is_low);
+    RUN_TEST(test_an_update_is_applied_at_twenty_percent);
+    RUN_TEST(test_a_failed_update_leaves_the_wake_to_end_as_it_would);
+
+    // Trial boots
+    RUN_TEST(test_a_trial_boot_that_draws_a_page_is_confirmed);
+    RUN_TEST(test_a_trial_boot_that_cannot_download_rolls_back);
+    RUN_TEST(test_a_trial_boot_that_cannot_reach_wifi_rolls_back);
+    RUN_TEST(test_a_trial_boot_that_cannot_draw_rolls_back);
+    RUN_TEST(test_a_normal_boot_confirms_nothing);
 
     return UNITY_END();
 }

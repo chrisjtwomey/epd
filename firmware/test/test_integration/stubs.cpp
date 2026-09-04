@@ -19,6 +19,10 @@
 #include "sleep_utils.h"      // sleep_for(), sleep(), deepSleep()
 #include "battery.h"          // getBatteryCapacity()
 #include "time_utils.h"       // nowTzFmt()
+#include "ota.h"              // otaTrialPending(), otaConfirm(), otaRollback(),
+                              // applyFirmwareUpdate()
+#include "settings.h"         // loadSettings()
+#include "defaults.h"         // the compiled values loadSettings() falls back to
 #include "WiFi.h"
 #include "SPIFFS.h"
 #include "Arduino.h"          // HardwareSerial, g_wakeup_cause
@@ -30,12 +34,14 @@ NetworkStubs netStubs;
 DisplayStubs dispStubs;
 SleepStubs   sleepStubs;
 BatteryStubs batteryStubs;
+OtaStubs     otaStubs;
 
 void resetAllStubs() {
     netStubs.reset();
     dispStubs.reset();
     sleepStubs.reset();
     batteryStubs.reset();
+    otaStubs.reset();
 }
 
 // ---------------------------------------------------------------------------
@@ -79,22 +85,59 @@ esp_err_t configureTime(const char*, const char*) {
     return netStubs.timeResult;
 }
 
-uint8_t* downloadFile(const char* url, const char* userAgent, uint32_t* nextRefreshSecs,
-                      int32_t* size, char* nextURL, size_t nextURLSize) {
+// Fill one PageResponse field from a stub input, leaving it alone when the
+// input is empty, the way an absent header does.
+static void setField(char* out, size_t size, const char* value) {
+    if (!value || !value[0]) return;
+    strncpy(out, value, size - 1);
+    out[size - 1] = '\0';
+}
+
+uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* size,
+                      PageResponse* rsp) {
     netStubs.downloadCallCount++;
     netStubs.lastDownloadURL = url;
     netStubs.lastUserAgent = userAgent;
     if (netStubs.downloadBuf != nullptr) {
-        *nextRefreshSecs = netStubs.downloadNextRefresh;
         *size = netStubs.downloadBufLen;
-        if (nextURL && nextURLSize > 0) {
-            if (netStubs.downloadNextURL && netStubs.downloadNextURL[0]) {
-                strncpy(nextURL, netStubs.downloadNextURL, nextURLSize - 1);
-                nextURL[nextURLSize - 1] = '\0';
-            }
+        if (rsp) {
+            rsp->nextRefreshSeconds = netStubs.downloadNextRefresh;
+            setField(rsp->nextURL, sizeof(rsp->nextURL), netStubs.downloadNextURL);
+            setField(rsp->firmwareVersion, sizeof(rsp->firmwareVersion),
+                     netStubs.firmwareVersion);
+            setField(rsp->firmwareURL, sizeof(rsp->firmwareURL), netStubs.firmwareURL);
         }
     }
     return netStubs.downloadBuf;
+}
+
+// ---------------------------------------------------------------------------
+// ota stubs. updateOffered() is pure and is compiled, not stubbed.
+// ---------------------------------------------------------------------------
+bool otaTrialPending() { return otaStubs.trialPending; }
+
+void otaConfirm() {
+    otaStubs.confirmCalled = true;
+    otaStubs.trialPending = false;
+}
+
+void otaRollback(const char* why) {
+    otaStubs.rollbackCalled = true;
+    otaStubs.lastRollbackReason = why;
+}
+
+esp_err_t applyFirmwareUpdate(const char* url, const char* version, const char*) {
+    otaStubs.applyCallCount++;
+    otaStubs.lastApplyURL = url;
+    otaStubs.lastApplyVersion = version;
+    return ESP_FAIL;   // on-device this restarts and never returns
+}
+
+// ---------------------------------------------------------------------------
+// settings stub: the values the test image was "flashed" with
+// ---------------------------------------------------------------------------
+Settings loadSettings() {
+    return Settings{serverURL, wifiSSID, wifiPass};
 }
 
 // ---------------------------------------------------------------------------

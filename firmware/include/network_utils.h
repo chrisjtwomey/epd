@@ -1,6 +1,22 @@
 #ifndef __NETWORK_H__
 #define __NETWORK_H__
+#include <stddef.h>
+#include <stdint.h>
+
 #include "error_utils.h"
+
+/**
+  What the server said alongside the image, from the response headers.
+
+  A field the server did not send is left as the caller set it, so a zero
+  value or an empty string means "not said this time".
+*/
+struct PageResponse {
+    uint32_t nextRefreshSeconds;   // X-Next-Refresh-Seconds
+    char nextURL[256];             // X-Next-URL
+    char firmwareVersion[32];      // X-Firmware-Version, when an update is offered
+    char firmwareURL[256];         // X-Firmware-URL
+};
 /**
   Connect to a WiFi network in Station Mode.
 
@@ -20,15 +36,12 @@ esp_err_t configureWiFi(const char* ssid, const char* pass, int retries);
   userAgent is sent as the User-Agent header; null or empty keeps the
   HTTP library's default.
 
-  If the server sends the X-Next-Refresh-Seconds header, its integer value
-  (seconds until the next refresh) is written to `*nextRefreshSeconds`. On a
-  missing or malformed header value the out-param is left unmodified.
-
-  If the server sends an X-Next-URL header, up to nextURLSize-1 bytes of the
-  value are written into nextURL (null-terminated). Pass nullptr / 0 to ignore.
+  *size is the expected length, used when the server sends none, and is set
+  to the length the server reported. What the server said about the next
+  wake and about firmware is written to rsp; pass nullptr to ignore it.
 */
-uint8_t* downloadFile(const char* url, const char* userAgent, uint32_t* nextRefreshSeconds,
-                      int32_t* size, char* nextURL, size_t nextURLSize);
+uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* size,
+                      PageResponse* rsp);
 
 /**
   POST body to url as application/json.
