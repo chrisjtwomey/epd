@@ -13,6 +13,12 @@ extern IBoard& board;
 
 #define IMAGE_CACHE_PATH "/image.png"
 
+bool startImageCache() {
+    if (SPIFFS.begin(true)) return true;
+    log(LOG_WARNING, "SPIFFS mount failed - image cache unavailable");
+    return false;
+}
+
 bool saveImageCache(const uint8_t* buf, int32_t len) {
     File f = SPIFFS.open(IMAGE_CACHE_PATH, FILE_WRITE);
     if (!f) {

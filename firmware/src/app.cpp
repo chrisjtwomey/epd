@@ -1,41 +1,47 @@
-// Main application logic, extracted from Arduino setup() so integration tests
-// can call run_app() directly without the Arduino runtime.
+// The order of one wake, and every decision about how it ends.
+//
+// Each step is a call into the library, which holds no policy of its own: it
+// does not know how many times to try, what a flat battery means, or when to
+// give up on a new image. Those answers live here.
 //
 // IMPORTANT: every call to sleep() / sleep_for() is followed by an explicit
 // return. On-device those calls never return (esp_deep_sleep_start() is
 // terminal); the return is unreachable in production but allows test stubs to
 // return normally so post-sleep state can be inspected.
 
-#include <Arduino.h>
-#include <ezTime.h>
-#include <SPIFFS.h>
 #include <WiFi.h>
 
 #include "IBoard.h"
 #include "app.h"
 #include "backoff.h"
-#include "battery.h"
-#include "defaults.h"
 #include "display_utils.h"
 #include "error_utils.h"
 #include "log_utils.h"
 #include "network_utils.h"
 #include "ota.h"
+#include "sd_config.h"
 #include "settings.h"
-#include "version.h"
-#include "user_agent.h"
 #include "sleep_utils.h"
+#include "wake.h"
 #include "time_utils.h"
+#include "user_agent.h"
+#include "version.h"
 
 #if defined(USE_SDCARD)
-#include <ArduinoJson.h>
-#include <ArduinoYaml.h>
 #include "file_utils.h"
-
-// Upper bound on config.yaml. The parsed document is a StaticJsonDocument<768>,
-// so a config large enough to overflow this would not fit the document either.
-#define CONFIG_BUFFER_SIZE 1536
 #endif
+
+// Portrait: the pages this client draws are taller than they are wide.
+#define PANEL_ROTATION 1
+// Below this the board sleeps until someone charges it.
+#define BATTERY_CRITICAL_PERCENT 5
+// Below this the log says so, and the wake carries on.
+#define BATTERY_LOW_PERCENT 10
+// Below this a firmware update waits for a charge.
+#define BATTERY_FOR_UPDATE_PERCENT 20
+// How long to wait after WiFi did not connect. Short: the network is the
+// most likely thing to come back on its own.
+#define WIFI_RETRY_SECONDS 60
 
 // Provided by main.cpp (firmware) or test_main.cpp (tests).
 extern IBoard& board;
@@ -45,13 +51,13 @@ extern IBoard& board;
 RTC_DATA_ATTR int bootCount = 0;
 // Seconds-until-next-refresh as dictated by the server's
 // X-Next-Refresh-Seconds header. Zero-init on cold boot; preserved across
-// deep-sleep cycles. When 0, falls back to serverDefaultRefreshSeconds.
+// deep-sleep cycles. When 0, falls back to the config's refresh seconds.
 RTC_DATA_ATTR uint32_t nextRefreshSeconds;
 // Exponential back-off step. Incremented on each failed boot (download or
 // draw). Reset to 0 on full success. Zero-init on cold reset.
 RTC_DATA_ATTR int serverBackoffStep;
 // Next URL to fetch as directed by the server's X-Next-URL header.
-// Empty string on cold boot → falls back to serverURL from config.
+// Empty string on cold boot -> falls back to the config's server URL.
 RTC_DATA_ATTR char nextServerURL[256];
 
 #ifdef NATIVE
@@ -63,23 +69,25 @@ void reset_app_state() {
 }
 #endif
 
+// Every failed wake ends the same way: say so on the panel, give up on an
+// image that is still on trial, then back off and sleep.
+static void endFailedWake(const char* errMsg, int batteryPercent, bool trialBoot) {
+    displayMessage(errMsg, batteryPercent);
+    if (trialBoot) {
+        otaRollback(errMsg);
+        return;  // terminal
+    }
+    serverBackoffStep++;
+    logf(LOG_NOTICE, "%s (back-off step %d): sleeping %u s", errMsg, serverBackoffStep,
+         computeBackoffSeconds(serverBackoffStep));
+    sleep_for(computeBackoffSeconds(serverBackoffStep));
+}
+
 void run_app() {
     ++bootCount;
 
-    Serial.begin(115200);
-    // Init inkplate board.
-    board.begin();
-    // Init SPIFFS for image cache (preserves the image behind banners).
-    if (!SPIFFS.begin(true)) {
-        log(LOG_WARNING, "SPIFFS mount failed - image cache unavailable");
-    }
-    // Set board to portrait mode.
-    board.setRotation(1);
-    // Set clock from RTC.
-    board.rtcGetData();
-    time_t bootTime = board.rtcGetEpoch();
-    setTime(bootTime);
-
+    startBoard(PANEL_ROTATION);
+    startImageCache();
     logf(LOG_NOTICE, "##### %s boot #%d #####", board.deviceName(), bootCount);
     logf(LOG_NOTICE, "############ Client version: %s ############", CLIENT_VERSION);
     logf(LOG_INFO, "User-Agent: %s", clientUserAgent(board.deviceName()));
@@ -89,332 +97,100 @@ void run_app() {
     const bool trialBoot = otaTrialPending();
     if (trialBoot) logf(LOG_NOTICE, "trial boot of %s", CLIENT_VERSION);
 
-    esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
-    switch (wakeup_reason) {
-        case ESP_SLEEP_WAKEUP_EXT0:
-            logf(LOG_DEBUG, "wakeup caused by external signal using RTC_IO.");
-            board.rtcClearAlarmFlag();
-            break;
-        case ESP_SLEEP_WAKEUP_EXT1:
-            logf(LOG_DEBUG, "wakeup caused by external signal using RTC_CNTL.");
-            break;
-        case ESP_SLEEP_WAKEUP_TIMER:
-            logf(LOG_DEBUG, "wakeup caused by timer.");
-            break;
-        case ESP_SLEEP_WAKEUP_TOUCHPAD:
-            logf(LOG_DEBUG, "wakeup caused by touchpad.");
-            break;
-        case ESP_SLEEP_WAKEUP_ULP:
-            logf(LOG_DEBUG, "wakeup caused by ULP program.");
-            break;
-        default:
-            log(LOG_DEBUG, "wakeup caused by RST pin or power button");
-            break;
-    }
+    logWakeReason();
 
-    // Read battery voltage.
-    double bvolt = board.readBattery();
-    logf(LOG_INFO, "battery voltage: %sv", String(bvolt, 2).c_str());
-    // Get the battery percentage remaining.
-    int batteryRemainingPercent = getBatteryCapacity(bvolt);
-    logf(LOG_INFO, "approx battery capacity: %d%%", batteryRemainingPercent);
+    const int batteryPercent = readBatteryPercent();
 
-#if defined(USE_SDCARD)
-    // A card is optional: one image serves boards with and without one. The
-    // settings this image was flashed with, or the store, stand in for it.
-    const bool sdCardReady = board.sdCardInit();
-    if (!sdCardReady) log(LOG_WARNING, "no SD card; using this board's own settings");
-#endif
+    ClientConfig cfg = loadConfig();
+    const bool cardPresent = applySdConfig(&cfg);
 
-    if (batteryRemainingPercent <= 5) {
+    if (batteryPercent <= BATTERY_CRITICAL_PERCENT) {
         log(LOG_NOTICE, "battery critical! - sleeping until charged");
-        displayMessage("Battery critical, please charge!",
-                       batteryRemainingPercent);
-        // Sleep instead of proceeding when battery is too low.
+        displayMessage("Battery critical, please charge!", batteryPercent);
         sleep(board.rtcGetEpoch() + SECONDS_IN_YEAR);
-        return; // terminal
-    } else if (batteryRemainingPercent <= 10) {
-        log(LOG_WARNING, "battery low, charge soon!");
+        return;  // terminal
     }
+    if (batteryPercent <= BATTERY_LOW_PERCENT) log(LOG_WARNING, "battery low, charge soon!");
 
-    // Runtime config defaults to compile-time values and may be overridden
-    // by SD config when USE_SDCARD is enabled. The three an image built by a
-    // release pipeline cannot carry come from this board's own store.
-    const Settings settings = loadSettings();
-    const char* activeServerURL = settings.serverURL;
-    int activeServerRetries = serverRetries;
-    uint32_t activeServerDefaultRefreshSeconds = serverDefaultRefreshSeconds;
-
-    const char* activeWifiSSID = settings.wifiSSID;
-    const char* activeWifiPass = settings.wifiPass;
-    int activeWifiRetries = wifiRetries;
-
-    const char* activeNtpHost = ntpHost;
-    const char* activeNtpTimezone = ntpTimezone;
-
-    bool activeMqttLoggerEnabled = mqttLoggerEnabled;
-    const char* activeMqttLoggerBroker = mqttLoggerBroker;
-    int activeMqttLoggerPort = mqttLoggerPort;
-    const char* activeMqttLoggerClientID = mqttLoggerClientID;
-    const char* activeMqttLoggerTopic = mqttLoggerTopic;
-    int activeMqttLoggerRetries = mqttLoggerRetries;
-
-    // Init err state.
-    esp_err_t err = ESP_OK;
-
-#if defined(USE_SDCARD)
-    // The card, when there is one, has the last word. Anything wrong with it
-    // is a warning: the board falls back to the settings it was flashed with
-    // rather than blanking the panel for a day.
-    auto applySdConfig = [&]() {
-        // Read the config file through IBoard so this code stays independent
-        // of any particular SD library.
-        uint8_t configBuf[CONFIG_BUFFER_SIZE];
-        size_t configLen = board.sdReadFile(CONFIG_FILE_PATH, configBuf, sizeof(configBuf));
-        if (configLen == 0) {
-            log(LOG_WARNING, "cannot read the config file on the card");
-            return;
-        }
-
-        StaticJsonDocument<768> doc;
-        DeserializationError dse = deserializeYml(doc, (const char*)configBuf);
-        if (dse) {
-            logf(LOG_WARNING, "failed to deserialize YAML: %s", dse.c_str());
-            return;
-        }
-
-        // Validate required fields before applying SD overrides.
-        JsonObject serverCfg = doc["server"];
-        JsonObject wifiCfg = doc["wifi"];
-        JsonObject ntpCfg = doc["ntp"];
-
-        const char* cfgServerURL = serverCfg["url"];
-        const char* cfgWifiSSID = wifiCfg["ssid"];
-        const char* cfgWifiPass = wifiCfg["pass"];
-        const char* cfgNtpHost = ntpCfg["host"];
-        const char* cfgNtpTimezone = ntpCfg["timezone"];
-
-        if (!cfgServerURL || !cfgWifiSSID || !cfgWifiPass ||
-            !cfgNtpHost || !cfgNtpTimezone) {
-            log(LOG_WARNING, "config file is missing required keys");
-            return;
-        }
-
-        // Persist SD-provided strings for the lifetime of run_app().
-        static String sdServerURL;
-        static String sdWifiSSID;
-        static String sdWifiPass;
-        static String sdNtpHost;
-        static String sdNtpTimezone;
-        static String sdMqttLoggerBroker;
-        static String sdMqttLoggerClientID;
-        static String sdMqttLoggerTopic;
-
-        sdServerURL = cfgServerURL;
-        sdWifiSSID = cfgWifiSSID;
-        sdWifiPass = cfgWifiPass;
-        sdNtpHost = cfgNtpHost;
-        sdNtpTimezone = cfgNtpTimezone;
-
-        activeServerURL = sdServerURL.c_str();
-        activeServerRetries = serverCfg["retries"] | activeServerRetries;
-        activeServerDefaultRefreshSeconds =
-            serverCfg["default_refresh_seconds"] | activeServerDefaultRefreshSeconds;
-
-        activeWifiSSID = sdWifiSSID.c_str();
-        activeWifiPass = sdWifiPass.c_str();
-        activeWifiRetries = wifiCfg["retries"] | activeWifiRetries;
-
-        activeNtpHost = sdNtpHost.c_str();
-        activeNtpTimezone = sdNtpTimezone.c_str();
-
-        // Remote logging config.
-        JsonObject mqttLoggerCfg = doc["mqtt_logger"];
-        activeMqttLoggerEnabled = mqttLoggerCfg["enabled"] | activeMqttLoggerEnabled;
-        if (mqttLoggerCfg["broker"] && mqttLoggerCfg["clientId"] && mqttLoggerCfg["topic"]) {
-            sdMqttLoggerBroker = mqttLoggerCfg["broker"].as<const char*>();
-            sdMqttLoggerClientID = mqttLoggerCfg["clientId"].as<const char*>();
-            sdMqttLoggerTopic = mqttLoggerCfg["topic"].as<const char*>();
-            activeMqttLoggerBroker = sdMqttLoggerBroker.c_str();
-            activeMqttLoggerClientID = sdMqttLoggerClientID.c_str();
-            activeMqttLoggerTopic = sdMqttLoggerTopic.c_str();
-        }
-        activeMqttLoggerPort = mqttLoggerCfg["port"] | activeMqttLoggerPort;
-        activeMqttLoggerRetries = mqttLoggerCfg["retries"] | activeMqttLoggerRetries;
-    };
-    if (sdCardReady) applySdConfig();
-#endif
-
-    // Attempt to connect to WiFi.
-    err = configureWiFi(activeWifiSSID, activeWifiPass, activeWifiRetries);
-    if (err == ESP_ERR_TIMEOUT) {
+    if (connectNetwork(cfg) == ESP_ERR_TIMEOUT) {
         const char* errMsg = "wifi connect timeout";
         log(LOG_ERROR, errMsg);
-        displayMessage(errMsg, batteryRemainingPercent);
+        displayMessage(errMsg, batteryPercent);
         if (trialBoot) {
             otaRollback(errMsg);
-            return; // terminal
+            return;  // terminal
         }
-        sleep(board.rtcGetEpoch() + 60);
-        return; // terminal
+        // Not the server's fault, so the back-off step is left alone.
+        sleep(board.rtcGetEpoch() + WIFI_RETRY_SECONDS);
+        return;  // terminal
     }
 
-    // Attempt to synchronize clocks with network time.
-    err = configureTime(activeNtpHost, activeNtpTimezone);
-    if (err != ESP_OK) {
-        log(LOG_WARNING, "failed to synchronize RTC with network time");
-    }
-
-    if (activeMqttLoggerEnabled) {
-        // Attempt to connect to MQTT broker for remote logging.
-        err = configureMQTT(activeMqttLoggerBroker, activeMqttLoggerPort,
-                            activeMqttLoggerTopic, activeMqttLoggerClientID,
-                            activeMqttLoggerRetries);
-        if (err == ESP_ERR_TIMEOUT) {
-            log(LOG_WARNING,
-                "failed to connect remote logging, fallback to serial");
-        }
-    }
-
-    // Reset err state.
-    err = ESP_FAIL;
     const char* errMsg = nullptr;
-    int attempts = 0;
+    PageFetch page = {};
+    page.length = board.getWidth() * board.getHeight() * 8 + 100;
 
-    int32_t defaultLen = board.getWidth() * board.getHeight() * 8 + 100;
-    uint8_t *buf = nullptr;
-    PageResponse rsp = {};
-    do {
-        logf(LOG_DEBUG, "image download attempt #%d", attempts + 1);
-
-        const char* fetchURL =
-            (nextServerURL[0] != '\0') ? nextServerURL : activeServerURL;
-        buf = downloadFile(fetchURL, clientUserAgent(board.deviceName()),
-                           &defaultLen, &rsp);
-        if (!buf) {
-            errMsg = "file download error";
-            log(LOG_ERROR, errMsg);
-            continue;
-        }
-        err = ESP_OK;
-
-        // What the server said this time replaces what it said last time;
-        // silence keeps the previous answer, which survives deep sleep.
-        if (rsp.nextRefreshSeconds > 0) nextRefreshSeconds = rsp.nextRefreshSeconds;
-        if (rsp.nextURL[0] != '\0')
-            snprintf(nextServerURL, sizeof(nextServerURL), "%s", rsp.nextURL);
-
-        logf(LOG_INFO, "next refresh in %u seconds",
-         nextRefreshSeconds ? nextRefreshSeconds
-                : activeServerDefaultRefreshSeconds);
-#if defined(USE_SDCARD)
-        err = writeFile(buf, defaultLen, IMAGE_RW_PATH);
-        if (err != ESP_OK) {
-            errMsg = "file write error";
-            log(LOG_ERROR, errMsg);
-            continue;
-        }
-#endif
-    } while (err != ESP_OK && ++attempts <= activeServerRetries);
-
-    // If we were not successful, back off before retrying.
-    if (err != ESP_OK) {
-        displayMessage(errMsg, batteryRemainingPercent);
-        if (trialBoot) {
-            otaRollback(errMsg);
-            return; // terminal
-        }
-        serverBackoffStep++;
-        logf(LOG_NOTICE, "server unreachable (back-off step %d): sleeping %u s",
-             serverBackoffStep, computeBackoffSeconds(serverBackoffStep));
-        sleep_for(computeBackoffSeconds(serverBackoffStep));
-        return; // terminal
+    const char* fetchURL = nextServerURL[0] ? nextServerURL : cfg.serverURL;
+    if (!fetchPage(fetchURL, clientUserAgent(board.deviceName()), cfg.serverRetries, &page,
+                   &errMsg)) {
+        endFailedWake(errMsg, batteryPercent, trialBoot);
+        return;  // terminal
     }
 
-    // Reset err state.
-    err = ESP_FAIL;
-    attempts = 0;
-    do {
-        logf(LOG_DEBUG, "image draw attempt #%d", attempts + 1);
+    // What the server said this time replaces what it said last time;
+    // silence keeps the previous answer, which survives deep sleep.
+    if (page.response.nextRefreshSeconds > 0) nextRefreshSeconds = page.response.nextRefreshSeconds;
+    if (page.response.nextURL[0] != '\0')
+        snprintf(nextServerURL, sizeof(nextServerURL), "%s", page.response.nextURL);
+    logf(LOG_INFO, "next refresh in %u seconds",
+         nextRefreshSeconds ? nextRefreshSeconds : cfg.defaultRefreshSeconds);
 
-        board.clearDisplay();
+    const char* imagePath = nullptr;
 #if defined(USE_SDCARD)
-        err = loadImage(IMAGE_RW_PATH);
+    // The card holds the image the panel draws from, and keeps it for the
+    // next wake. Without one the buffer serves for this wake alone.
+    if (cardPresent) {
+        if (writeFile(page.data, page.length, IMAGE_RW_PATH) != ESP_OK) {
+            endFailedWake("file write error", batteryPercent, trialBoot);
+            return;  // terminal
+        }
+        imagePath = IMAGE_RW_PATH;
+    }
 #else
-        err = loadImage(buf, defaultLen);
+    (void)cardPresent;
 #endif
-        if (err != ESP_OK) {
-            errMsg = "image load error";
-            log(LOG_ERROR, errMsg);
-            continue;
-        }
 
-        displayBatteryStatus(batteryRemainingPercent, false);
-
-        // Send buffer to eink display.
-        board.display();
-    } while (err != ESP_OK && ++attempts <= activeServerRetries);
-
-    // Draw failure: persistent local problem (corrupt image, rendering bug).
-    // Back off to conserve battery — won't self-heal without a reflash.
-    if (err != ESP_OK) {
-        displayMessage(errMsg, batteryRemainingPercent);
-        if (trialBoot) {
-            otaRollback(errMsg);
-            return; // terminal
-        }
-        serverBackoffStep++;
-        logf(LOG_NOTICE, "draw failed (back-off step %d): sleeping %u s",
-             serverBackoffStep, computeBackoffSeconds(serverBackoffStep));
-        sleep_for(computeBackoffSeconds(serverBackoffStep));
-        return; // terminal
+    const auto batteryIndicator = [batteryPercent] { displayBatteryStatus(batteryPercent, false); };
+    if (!drawPage(page, imagePath, cfg.serverRetries, batteryIndicator, &errMsg)) {
+        endFailedWake(errMsg, batteryPercent, trialBoot);
+        return;  // terminal
     }
 
     // Cache the drawn image so displayMessage can overlay it as a backdrop.
-    if (saveImageCache(buf, defaultLen)) {
+    if (saveImageCache(page.data, page.length))
         log(LOG_DEBUG, "image cache saved to SPIFFS");
-    } else {
+    else
         log(LOG_WARNING, "failed to save image cache to SPIFFS");
-    }
 
     // A page is on the panel, so this image works. Say so before anything
     // else: the bootloader takes back an unconfirmed image, and a write to
     // the idle slot is refused while one is pending.
     if (trialBoot) otaConfirm();
 
-    const char* rejected = otaRejectedVersion();
-    if (updateRefusedBefore(rsp.firmwareVersion, rejected)) {
-        logf(LOG_WARNING, "firmware %s is offered again; this board rolled back from it",
-             rsp.firmwareVersion);
-    } else if (updateOffered(CLIENT_VERSION, rsp.firmwareVersion, rsp.firmwareURL, rejected)) {
-        if (batteryRemainingPercent < 20) {
-            logf(LOG_NOTICE, "firmware %s offered but battery is %d%%; waiting",
-                 rsp.firmwareVersion, batteryRemainingPercent);
-        } else {
-            // Restarts into the new image, so this returns only on failure
-            // and the wake ends as it would have anyway.
-            applyFirmwareUpdate(rsp.firmwareURL, rsp.firmwareVersion,
-                                clientUserAgent(board.deviceName()));
-        }
-    }
+    // Still on the network, because this is what needs it most.
+    takeOfferedUpdate(page.response, clientUserAgent(board.deviceName()), batteryPercent,
+                      BATTERY_FOR_UPDATE_PERCENT);
 
-    // Only now: the image the update step fetches needs the radio the wake
-    // was about to turn off.
     log(LOG_NOTICE, "disconnecting WiFi radio...");
     WiFi.disconnect();
     WiFi.mode(WIFI_OFF);
 
-    if (nextRefreshSeconds > 0) {
-        // Server told us exactly when to come back — reset back-off and sleep.
-        serverBackoffStep = 0;
-        sleep_for(nextRefreshSeconds);
-        return; // terminal
-    } else {
-        // Server returned an image but no valid refresh time. Back off.
-        serverBackoffStep++;
-        logf(LOG_NOTICE, "no refresh schedule from server (back-off step %d): sleeping %u s",
-             serverBackoffStep, computeBackoffSeconds(serverBackoffStep));
-        sleep_for(computeBackoffSeconds(serverBackoffStep));
-        return; // terminal
+    if (nextRefreshSeconds == 0) {
+        // An image, but no word on when to come back. Treat it as a fault.
+        endFailedWake("no refresh schedule from server", batteryPercent, trialBoot);
+        return;  // terminal
     }
+
+    serverBackoffStep = 0;
+    sleep_for(nextRefreshSeconds);
+    return;  // terminal
 }

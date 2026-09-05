@@ -21,8 +21,9 @@
 #include "time_utils.h"       // nowTzFmt()
 #include "ota.h"              // otaTrialPending(), otaConfirm(), otaRollback(),
                               // applyFirmwareUpdate()
-#include "settings.h"         // loadSettings()
-#include "defaults.h"         // the compiled values loadSettings() falls back to
+#include "wake.h"             // the steps run_app() is built from
+#include "settings.h"         // loadConfig()
+#include "defaults.h"         // the compiled values loadConfig() reports
 #include "WiFi.h"
 #include "SPIFFS.h"
 #include "Arduino.h"          // HardwareSerial, g_wakeup_cause
@@ -137,10 +138,16 @@ esp_err_t applyFirmwareUpdate(const char* url, const char* version, const char*)
 }
 
 // ---------------------------------------------------------------------------
-// settings stub: the values the test image was "flashed" with
+// settings stub: the config the test image was "flashed" with
 // ---------------------------------------------------------------------------
-Settings loadSettings() {
-    return Settings{serverURL, wifiSSID, wifiPass};
+ClientConfig loadConfig() {
+    return ClientConfig{
+        serverURL, serverRetries, serverDefaultRefreshSeconds,
+        wifiSSID, wifiPass, wifiRetries,
+        ntpHost, ntpTimezone,
+        mqttLoggerEnabled, mqttLoggerBroker, mqttLoggerPort,
+        mqttLoggerClientID, mqttLoggerTopic, mqttLoggerRetries,
+    };
 }
 
 // ---------------------------------------------------------------------------
@@ -171,6 +178,8 @@ void displayMessage(const char* msg, int) {
     dispStubs.displayMessageCalled = true;
     dispStubs.lastDisplayMsg       = msg;
 }
+
+bool startImageCache() { return true; }
 
 bool saveImageCache(const uint8_t*, int32_t) {
     dispStubs.saveImageCacheCalled = true;

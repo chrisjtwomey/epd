@@ -29,7 +29,15 @@ static String resolve(Preferences& prefs, const char* key, const char* compiled,
     return chosen;
 }
 
-Settings loadSettings() {
+ClientConfig loadConfig() {
+    ClientConfig cfg = {
+        serverURL, serverRetries, serverDefaultRefreshSeconds,
+        wifiSSID, wifiPass, wifiRetries,
+        ntpHost, ntpTimezone,
+        mqttLoggerEnabled, mqttLoggerBroker, mqttLoggerPort,
+        mqttLoggerClientID, mqttLoggerTopic, mqttLoggerRetries,
+    };
+
     static String url;
     static String ssid;
     static String pass;
@@ -37,12 +45,15 @@ Settings loadSettings() {
     Preferences prefs;
     if (!prefs.begin(SETTINGS_NAMESPACE, false)) {
         log(LOG_WARNING, "settings store unavailable; using this image's values");
-        return Settings{serverURL, wifiSSID, wifiPass};
+        return cfg;
     }
     url = resolve(prefs, "serverURL", serverURL, "server URL");
     ssid = resolve(prefs, "wifiSSID", wifiSSID, "wifi SSID");
     pass = resolve(prefs, "wifiPass", wifiPass, "wifi password");
     prefs.end();
 
-    return Settings{url.c_str(), ssid.c_str(), pass.c_str()};
+    cfg.serverURL = url.c_str();
+    cfg.wifiSSID = ssid.c_str();
+    cfg.wifiPass = pass.c_str();
+    return cfg;
 }

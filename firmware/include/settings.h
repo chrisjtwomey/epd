@@ -1,18 +1,35 @@
 #ifndef __SETTINGS_H__
 #define __SETTINGS_H__
 
-/**
-  The values a board cannot work without and a build server cannot know.
+#include <stdint.h>
 
-  An image built by CI carries placeholders for these, so the board keeps
-  its own copy in non-volatile storage. A build flashed over USB with real
-  values writes them there, and every image that arrives over the air reads
-  them back. Everything else in defaults.h is code, and comes from the image.
+/**
+  Everything a wake needs that is not code: where the server is, how to reach
+  the network, and where to send logs.
+
+  Three of these an image built by a release pipeline cannot carry — the
+  server URL, the network name and its password — so the board keeps its own
+  copy. The rest comes from the image. A card, where there is one, overrides
+  any of it.
 */
-struct Settings {
+struct ClientConfig {
     const char* serverURL;
+    int serverRetries;
+    uint32_t defaultRefreshSeconds;
+
     const char* wifiSSID;
     const char* wifiPass;
+    int wifiRetries;
+
+    const char* ntpHost;
+    const char* ntpTimezone;
+
+    bool mqttEnabled;
+    const char* mqttBroker;
+    int mqttPort;
+    const char* mqttClientID;
+    const char* mqttTopic;
+    int mqttRetries;
 };
 
 /** True for a value left as it came from defaults.example.cpp. */
@@ -25,10 +42,12 @@ bool isPlaceholder(const char* value);
 const char* chooseSetting(const char* compiled, const char* stored);
 
 /**
-  Read the settings, storing any real value the running image carries.
+  The config this image was built with, with the stored three resolved.
 
-  The returned pointers stay valid for the life of the program.
+  Any real value the image carries is written to the store on the way past,
+  so a build flashed over USB provisions the board for every image that
+  arrives later. The returned pointers stay valid for the life of the program.
 */
-Settings loadSettings();
+ClientConfig loadConfig();
 
 #endif  // __SETTINGS_H__

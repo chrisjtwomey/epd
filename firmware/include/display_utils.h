@@ -56,6 +56,16 @@ void displayBatteryStatus(int batteryRemainingPercent, bool invert);
 void displayMessage(const char* msg, int batteryRemainingPercent);
 
 /**
+  Mount the filesystem the image cache lives on.
+
+  Only worth calling on a board that draws messages over the last page:
+  saveImageCache and displayMessage need it, and nothing else does.
+
+  @returns true when the cache is usable.
+*/
+bool startImageCache();
+
+/**
   Save the raw PNG image bytes to SPIFFS so displayMessage can restore
   the image on the next boot, preserving it behind any error banner.
 
