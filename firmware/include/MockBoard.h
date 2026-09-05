@@ -1,5 +1,5 @@
-#ifndef __MOCKBOARD_H__
-#define __MOCKBOARD_H__
+#ifndef EPD_MOCK_BOARD_H
+#define EPD_MOCK_BOARD_H
 
 #include "IBoard.h"
 #include <string.h>
@@ -183,4 +183,4 @@ public:
 #endif
 };
 
-#endif // __MOCKBOARD_H__
+#endif  // EPD_MOCK_BOARD_H

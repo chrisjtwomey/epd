@@ -194,7 +194,7 @@ static MyBoard myBoard;
 IBoard& board = myBoard;
 ```
 
-All other source files (`app.cpp`, `display_utils.cpp`, `sleep_utils.cpp`, …)
+All other source files (`image.cpp`, `sleep_utils.cpp`, `wake.cpp`, …)
 call `board` through the `IBoard` reference and require no changes.
 
 ---
@@ -230,6 +230,6 @@ To run the existing host-side tests against your own `IBoard` changes:
 
 ```sh
 pio test -e native          # pure helper tests (backoff, battery, refresh_header)
-pio test -e native_mock     # display_utils and sleep_utils with MockBoard
+pio test -e native_mock     # sleep_utils with MockBoard
 pio test -e native_integration  # full run_app() control-flow tests
 ```

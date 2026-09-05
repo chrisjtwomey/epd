@@ -1,5 +1,5 @@
-#ifndef __NETWORK_H__
-#define __NETWORK_H__
+#ifndef EPD_NETWORK_UTILS_H
+#define EPD_NETWORK_UTILS_H
 #include <stddef.h>
 #include <stdint.h>
 

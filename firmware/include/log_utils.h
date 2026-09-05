@@ -1,5 +1,5 @@
-#ifndef __LOG_H__
-#define __LOG_H__
+#ifndef EPD_LOG_UTILS_H
+#define EPD_LOG_UTILS_H
 #include "error_utils.h"
 #include "time_utils.h"
 

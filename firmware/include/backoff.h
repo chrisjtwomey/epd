@@ -1,5 +1,5 @@
-#ifndef __BACKOFF_H__
-#define __BACKOFF_H__
+#ifndef EPD_BACKOFF_H
+#define EPD_BACKOFF_H
 
 #include <stdint.h>
 

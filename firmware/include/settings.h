@@ -1,5 +1,5 @@
-#ifndef __SETTINGS_H__
-#define __SETTINGS_H__
+#ifndef EPD_SETTINGS_H
+#define EPD_SETTINGS_H
 
 #include <stdint.h>
 
@@ -65,4 +65,4 @@ const char* chooseSetting(const char* builtIn, const char* stored);
 */
 ClientConfig loadConfig(const ClientConfig& builtIn);
 
-#endif  // __SETTINGS_H__
+#endif  // EPD_SETTINGS_H

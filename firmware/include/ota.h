@@ -1,5 +1,5 @@
-#ifndef __OTA_H__
-#define __OTA_H__
+#ifndef EPD_OTA_H
+#define EPD_OTA_H
 
 #include "error_utils.h"
 #include "ota_offer.h"
@@ -45,4 +45,4 @@ void otaRollback(const char* why);
 */
 const char* otaRejectedVersion();
 
-#endif  // __OTA_H__
+#endif  // EPD_OTA_H

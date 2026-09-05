@@ -1,5 +1,5 @@
-#ifndef __LOG_FORMAT_H__
-#define __LOG_FORMAT_H__
+#ifndef EPD_LOG_FORMAT_H
+#define EPD_LOG_FORMAT_H
 
 #include <stdarg.h>
 #include <stddef.h>
@@ -16,4 +16,4 @@
 */
 size_t formatLog(char* out, size_t size, const char* prefix, const char* fmt, va_list args);
 
-#endif  // __LOG_FORMAT_H__
+#endif  // EPD_LOG_FORMAT_H

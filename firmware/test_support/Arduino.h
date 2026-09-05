@@ -1,5 +1,6 @@
 // Minimal Arduino.h stub for native host builds.
-// Provides the types and macros used by app.cpp / display_utils / sleep_utils
+// Provides the types and macros used by a project's own sources and by the
+// library's image / sleep helpers
 // without pulling in any ESP32 or Inkplate headers.
 #ifndef __STUB_ARDUINO_H__
 #define __STUB_ARDUINO_H__

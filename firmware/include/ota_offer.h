@@ -1,5 +1,5 @@
-#ifndef __OTA_OFFER_H__
-#define __OTA_OFFER_H__
+#ifndef EPD_OTA_OFFER_H
+#define EPD_OTA_OFFER_H
 
 /**
   Whether the server offered an image this board should take.
@@ -18,4 +18,4 @@ bool updateOffered(const char* runningVersion, const char* offeredVersion,
 /** Whether this is the image the board already tried and rolled back from. */
 bool updateRefusedBefore(const char* offeredVersion, const char* rejectedVersion);
 
-#endif  // __OTA_OFFER_H__
+#endif  // EPD_OTA_OFFER_H

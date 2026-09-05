@@ -1,5 +1,5 @@
-#ifndef __BATTERY_H__
-#define __BATTERY_H__
+#ifndef EPD_BATTERY_H
+#define EPD_BATTERY_H
 // Define a battery capacity lookup table as an array of structs
 struct BatteryCapacity {
     double voltage;

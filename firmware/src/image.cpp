@@ -1,4 +1,4 @@
-#include "display_utils.h"
+#include "image.h"
 #include "epd.h"
 #include <SPIFFS.h>
 

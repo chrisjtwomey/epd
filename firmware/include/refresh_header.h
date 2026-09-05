@@ -1,5 +1,5 @@
-#ifndef __REFRESH_HEADER_H__
-#define __REFRESH_HEADER_H__
+#ifndef EPD_REFRESH_HEADER_H
+#define EPD_REFRESH_HEADER_H
 
 #include <stdint.h>
 #include <stdbool.h>

@@ -1,5 +1,5 @@
-#ifndef __MEM_UTILS_H__
-#define __MEM_UTILS_H__
+#ifndef EPD_MEM_UTILS_H
+#define EPD_MEM_UTILS_H
 
 #include <stdlib.h>
 
@@ -27,4 +27,4 @@ inline void* boardMalloc(size_t size) {
     return malloc(size);
 }
 
-#endif  // __MEM_UTILS_H__
+#endif  // EPD_MEM_UTILS_H

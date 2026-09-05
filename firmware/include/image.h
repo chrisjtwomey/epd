@@ -1,5 +1,5 @@
-#ifndef __DISPLAY_H__
-#define __DISPLAY_H__
+#ifndef EPD_IMAGE_H
+#define EPD_IMAGE_H
 #include "error_utils.h"
 
 /**

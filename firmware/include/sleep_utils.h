@@ -1,5 +1,5 @@
-#ifndef __SLEEP_H__
-#define __SLEEP_H__
+#ifndef EPD_SLEEP_UTILS_H
+#define EPD_SLEEP_UTILS_H
 #include "time_utils.h"
 #include <stdint.h>
 

@@ -166,48 +166,61 @@ build_flags =
 password in the first block; the rest can stay as it is:
 
 ```cpp
-#include <stdint.h>
+#include "EpdClient.h"
 
-char serverURL[] = "http://192.168.1.10:8080/clock.png";
-char wifiSSID[] = "your-network";
-char wifiPass[] = "your-password";
+ClientConfig builtInSettings() {
+    ClientConfig cfg = {};
 
-int serverRetries = 3;
-uint32_t serverDefaultRefreshSeconds = 3600;
-int wifiRetries = 10;
+    cfg.serverURL = "http://192.168.1.10:8080/clock.png";
+    cfg.wifiSSID = "your-network";
+    cfg.wifiPass = "your-password";
 
-char ntpHost[] = "pool.ntp.org";
-char ntpTimezone[] = "Europe/Dublin";
+    cfg.serverRetries = 3;
+    cfg.defaultRefreshSeconds = 3600;
+    cfg.wifiRetries = 10;
 
-bool mqttLoggerEnabled = false;
-char mqttLoggerBroker[] = "localhost";
-int mqttLoggerPort = 1883;
-char mqttLoggerClientID[] = "my-display";
-char mqttLoggerTopic[] = "mqtt/my-display";
-int mqttLoggerRetries = 3;
+    cfg.ntpHost = "pool.ntp.org";
+    cfg.ntpTimezone = "Europe/Dublin";
+
+    // Leave the broker as XXXX and this block comes from the panel's own
+    // store instead, which is what an image built by CI relies on.
+    cfg.mqttEnabled = false;
+    cfg.mqttBroker = "XXXX";
+    cfg.mqttPort = 1883;
+    cfg.mqttClientID = "my-display";
+    cfg.mqttTopic = "mqtt/my-display";
+    cfg.mqttRetries = 3;
+
+    return cfg;
+}
 ```
+
+The name is yours — epd declares no settings of its own, it just takes a
+`ClientConfig`. Keep this file out of git: it holds your WiFi password.
 
 `src/main.cpp` — one wake, from beginning to end:
 
 ```cpp
-#include "InkplateBoard.h"
-#include "sleep_utils.h"
-#include "user_agent.h"
-#include "wake.h"
+#include "EpdBoardInkplate.h"
+#include "EpdClient.h"
 
 static InkplateBoard inkplateBoard;
-IBoard& board = inkplateBoard;      // the panel epd draws on
+
+ClientConfig builtInSettings();     // from src/defaults.cpp
 
 void setup() {
+    epdBegin(inkplateBoard);        // the panel epd draws on
     startBoard(1);                  // 1 = portrait
-    ClientConfig cfg = loadConfig();
+
+    // Your settings, with the ones the panel keeps for itself resolved.
+    ClientConfig cfg = loadConfig(builtInSettings());
 
     uint32_t sleepSeconds = cfg.defaultRefreshSeconds;
     if (connectNetwork(cfg) == ESP_OK) {
         PageFetch page = {};
-        page.length = board.getWidth() * board.getHeight() * 8 + 100;
+        page.length = epdBoard().getWidth() * epdBoard().getHeight() * 8 + 100;
         const char* errMsg = nullptr;
-        if (fetchPage(cfg.serverURL, clientUserAgent(board.deviceName()),
+        if (fetchPage(cfg.serverURL, clientUserAgent(epdBoard().deviceName()),
                       cfg.serverRetries, &page, &errMsg)) {
             drawPage(page, nullptr, cfg.serverRetries, nullptr, &errMsg);
             sleepSeconds = page.response.nextRefreshSeconds;   // the server decides
@@ -218,6 +231,9 @@ void setup() {
 
 void loop() {}
 ```
+
+Two includes is the whole library: `EpdClient.h` brings everything above,
+and `EpdBoardInkplate.h` brings the panel driver.
 
 Plug the panel in, turn its power switch on, and flash it:
 

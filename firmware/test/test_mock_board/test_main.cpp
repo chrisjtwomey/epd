@@ -1,4 +1,4 @@
-// Native host tests for display_utils and sleep_utils using MockBoard.
+// Native host tests for sleep_utils using MockBoard.
 //
 // Tests verify:
 //   - sleep_for() programs the RTC alarm relative to the current epoch.

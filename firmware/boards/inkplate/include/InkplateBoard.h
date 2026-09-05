@@ -1,5 +1,5 @@
-#ifndef __INKPLATEBOARD_H__
-#define __INKPLATEBOARD_H__
+#ifndef EPD_INKPLATE_BOARD_H
+#define EPD_INKPLATE_BOARD_H
 
 #include <Inkplate.h>
 #include "IBoard.h"
@@ -82,4 +82,4 @@ private:
     Inkplate _inkplate;
 };
 
-#endif // __INKPLATEBOARD_H__
+#endif  // EPD_INKPLATE_BOARD_H

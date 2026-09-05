@@ -1,5 +1,5 @@
-#ifndef __IBOARD_H__
-#define __IBOARD_H__
+#ifndef EPD_IBOARD_H
+#define EPD_IBOARD_H
 
 #include <Arduino.h>
 #include <time.h>
@@ -214,4 +214,4 @@ public:
 #endif
 };
 
-#endif // __IBOARD_H__
+#endif  // EPD_IBOARD_H

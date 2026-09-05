@@ -1,5 +1,5 @@
-#ifndef __ERROR_H__
-#define __ERROR_H__
+#ifndef EPD_ERROR_UTILS_H
+#define EPD_ERROR_UTILS_H
 #include <esp_err.h>
 
 // Enum of errors that might be encountered.

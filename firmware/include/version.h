@@ -1,5 +1,5 @@
-#ifndef __VERSION_H__
-#define __VERSION_H__
+#ifndef EPD_VERSION_H
+#define EPD_VERSION_H
 
 /**
  * Client firmware version, reported in the boot log.
@@ -26,4 +26,4 @@
 #define CLIENT_NAME "EpdClient"
 #endif
 
-#endif // __VERSION_H__
+#endif  // EPD_VERSION_H

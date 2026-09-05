@@ -5,7 +5,7 @@
 
 #include "epd.h"
 #include "battery.h"
-#include "display_utils.h"
+#include "image.h"
 #include "log_utils.h"
 #include "ota.h"
 #include "version.h"

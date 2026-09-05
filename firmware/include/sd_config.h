@@ -1,5 +1,5 @@
-#ifndef __SD_CONFIG_H__
-#define __SD_CONFIG_H__
+#ifndef EPD_SD_CONFIG_H
+#define EPD_SD_CONFIG_H
 
 #include "settings.h"
 
@@ -15,4 +15,4 @@
 */
 bool applySdConfig(ClientConfig* cfg);
 
-#endif  // __SD_CONFIG_H__
+#endif  // EPD_SD_CONFIG_H

@@ -1,5 +1,5 @@
-#ifndef __USER_AGENT_H__
-#define __USER_AGENT_H__
+#ifndef EPD_USER_AGENT_H
+#define EPD_USER_AGENT_H
 #include <stddef.h>
 
 /**
@@ -17,4 +17,4 @@ int buildUserAgent(char* out, size_t size, const char* name, const char* version
 */
 const char* clientUserAgent(const char* device);
 
-#endif // __USER_AGENT_H__
+#endif  // EPD_USER_AGENT_H

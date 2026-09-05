@@ -1,5 +1,5 @@
-#ifndef __FILE_H__
-#define __FILE_H__
+#ifndef EPD_FILE_UTILS_H
+#define EPD_FILE_UTILS_H
 #include "error_utils.h"
 // The path on SD card where the downloaded image is stored.
 #define IMAGE_RW_PATH "/image.png"

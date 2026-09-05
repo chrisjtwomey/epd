@@ -1,5 +1,5 @@
-#ifndef __TIME_UTILS_H__
-#define __TIME_UTILS_H__
+#ifndef EPD_TIME_UTILS_H
+#define EPD_TIME_UTILS_H
 #include <Arduino.h>
 #include "error_utils.h"
 

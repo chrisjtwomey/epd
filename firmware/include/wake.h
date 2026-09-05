@@ -1,5 +1,5 @@
-#ifndef __WAKE_H__
-#define __WAKE_H__
+#ifndef EPD_WAKE_H
+#define EPD_WAKE_H
 
 #include <stdint.h>
 
@@ -86,4 +86,4 @@ bool drawPage(const PageFetch& page, const char* filePath, int retries,
 void takeOfferedUpdate(const PageResponse& rsp, const char* userAgent, int batteryPercent,
                        int minBatteryPercent);
 
-#endif  // __WAKE_H__
+#endif  // EPD_WAKE_H
