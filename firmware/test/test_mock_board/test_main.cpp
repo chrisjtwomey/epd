@@ -1,9 +1,7 @@
 // Native host tests for sleep_utils using MockBoard.
 //
-// Tests verify:
-//   - sleep_for() programs the RTC alarm relative to the current epoch.
-//   - displayBatteryStatus() selects the correct battery icon bitmap by
-//     percentage threshold (both normal and inverted variants).
+// sleep_for() programs the RTC alarm relative to the current epoch, and
+// sleep() arms the board's wake source alongside it.
 //
 // Run with:  pio test -e native_mock
 
