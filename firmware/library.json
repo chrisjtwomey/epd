@@ -1,6 +1,6 @@
 {
   "name": "EpdClient",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Battery-powered e-paper client firmware: wake, fetch a PNG over HTTP, draw it, deep sleep. Hardware-agnostic behind the IBoard interface.",
   "keywords": "epaper, eink, esp32, inkplate, deep-sleep",
   "license": "MIT",

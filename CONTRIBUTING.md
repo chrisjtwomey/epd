@@ -79,11 +79,36 @@ run` in its root and `pytest` in its `server/`.
 
 ### Publishing
 
-The two firmware libraries publish to the PlatformIO registry separately,
-from their own directories: `pio pkg publish` in `firmware/` and in
-`firmware/boards/inkplate/`. Consumers then pin `chrisjtwomey/EpdClient@^x.y`
-instead of the symlink. Tag the repo and point consumers' `requirements.txt`
-at the tag instead of `@main` in the same release.
+One version covers all three: both `library.json` files, `server/pyproject.toml`
+and `server/epd_server/_version.py`. Nothing checks that they agree, and the
+server reports its own in the `X-Server-Version` header, so bump them together.
+
+The registry ships what `library.json`'s `export` rules allow, not the
+directory, so build a consumer against the exact tarball before publishing
+anything:
+
+```sh
+pio pkg pack firmware/ -o /tmp/EpdClient.tar.gz
+pio pkg pack firmware/boards/inkplate/ -o /tmp/EpdBoardInkplate.tar.gz
+```
+
+Point a scratch project's `lib_deps` at `file:///tmp/EpdClient.tar.gz` and
+build it. What resolves is what the registry will serve.
+
+Then tag, and publish each library from its own directory:
+
+```sh
+pio pkg publish firmware/
+pio pkg publish firmware/boards/inkplate/
+```
+
+Both are public: the repository already is, so a private package would hide
+nothing while costing a subscription and a CI token.
+
+Consumers then pin `chrisjtwomey/EpdClient@^x.y` in place of the symlink, and
+the tag in place of `@main` in `requirements.txt`. A consumer keeps a second
+environment on the symlink, so epd can be changed and tried in a consumer
+before any of this happens — see the README's quickstart.
 
 ## Making Changes
 
