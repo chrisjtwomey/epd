@@ -14,7 +14,7 @@ void test_the_values_defaults_example_ships_are_placeholders(void) {
 }
 
 void test_a_real_value_is_not_a_placeholder(void) {
-    TEST_ASSERT_FALSE(isPlaceholder("http://192.168.1.50:8080/today.png"));
+    TEST_ASSERT_FALSE(isPlaceholder("http://192.168.1.20:8080/today.png"));
     TEST_ASSERT_FALSE(isPlaceholder("my-network"));
     TEST_ASSERT_FALSE(isPlaceholder("X"));
 }
