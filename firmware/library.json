@@ -16,8 +16,8 @@
   "frameworks": "arduino",
   "platforms": "espressif32",
   "headers": [
-    "app.h",
-    "IBoard.h"
+    "IBoard.h",
+    "wake.h"
   ],
   "dependencies": [
     {

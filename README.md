@@ -60,7 +60,7 @@ update costs nothing on the panel.
 
 | Library | What it is |
 |---|---|
-| `firmware/` — **EpdClient** | The hardware-agnostic client: `run_app()`, WiFi, HTTP download, back-off, battery, deep sleep, display helpers. Depends only on `IBoard`. |
+| `firmware/` — **EpdClient** | The hardware-agnostic client: the steps of a wake, WiFi, HTTP download, back-off, battery, deep sleep, display helpers. Depends only on `IBoard`. |
 | `firmware/boards/inkplate/` — **EpdBoardInkplate** | `IBoard` for Soldered / e-radionica Inkplate panels. Separate so projects on other hardware never pull in InkplateLibrary. |
 
 ### Using it
@@ -115,20 +115,39 @@ Enabling `-DUSE_SDCARD` also needs `tobozo/YAMLDuino` and
 `bblanchon/ArduinoStreamUtils` in your `lib_deps`: the YAML config path is
 optional, so those are not hard dependencies of EpdClient.
 
-Your project supplies two files:
+Your project supplies the board, the credentials, and the order of a wake.
 
-**`src/main.cpp`**
+**`src/main.cpp`** — which `IBoard` to use, and what one wake does. The steps
+are in `wake.h`; the order, and every decision about how a wake ends, is
+yours:
 
 ```cpp
 #include "InkplateBoard.h"
-#include "app.h"
+#include "wake.h"
 
 static InkplateBoard inkplateBoard;
 IBoard& board = inkplateBoard;   // EpdClient links against this
 
-void setup() { run_app(); }
-void loop()  {}
+void setup() {
+    startBoard(1);                       // rotation
+    ClientConfig cfg = loadConfig();
+    if (connectNetwork(cfg) != ESP_OK) { /* your answer to no network */ }
+
+    const char* errMsg = nullptr;
+    PageFetch page = {};
+    page.length = board.getWidth() * board.getHeight() * 8 + 100;
+    if (!fetchPage(cfg.serverURL, clientUserAgent(board.deviceName()),
+                   cfg.serverRetries, &page, &errMsg)) { /* ... */ }
+    drawPage(page, nullptr, cfg.serverRetries, nullptr, &errMsg);
+
+    sleep_for(page.response.nextRefreshSeconds);
+}
+void loop() {}
 ```
+
+[inkplate10-weather-cal](https://github.com/chrisjtwomey/inkplate10-weather-cal)
+has the whole of it: battery thresholds, back-off, the image cache, the
+firmware update, and a test for the order it puts them in.
 
 **`src/defaults.cpp`** — definitions for the symbols `defaults.h` declares
 (server URL, WiFi credentials, NTP host, MQTT logging).
@@ -142,7 +161,7 @@ the way it would have ended anyway, and the next wake tries again.
 
 The ESP32 has two app slots. The image is written to the idle one and the
 board restarts into it **on trial**: the bootloader takes it back unless the
-application says it works. `run_app()` says so only after a page is on the
+application says it works. The calendar says so only after a page is on the
 panel, and rolls back on any failure before that. Confirming comes before
 taking the next offer, since a write to the idle slot is refused while an
 image is pending.
@@ -176,17 +195,21 @@ whichever panel `InkplateLibrary` compiles for.
 
 ### Tests
 
-The client's unit and integration tests live with the code they cover:
+The client's tests live with the code they cover:
 
 ```sh
 cd firmware
 pio test -e native              # pure helpers: back-off, battery, header parsing
 pio test -e native_mock         # display + sleep against MockBoard
-pio test -e native_integration  # the full run_app() control flow
 ```
 
 `platformio.ini` here is a host-only test project. It is excluded from the
 published library, so consumers never see it.
+
+A project's own sequence is tested in the project. The kit ships what that
+needs: `MockBoard.h` in `include/`, and stub headers for Arduino, WiFi,
+SPIFFS and ezTime in `test_support/`. The calendar's `native_integration`
+environment is the worked example.
 
 ## Server — `server/`
 

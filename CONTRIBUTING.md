@@ -8,9 +8,10 @@ For what the kit is and how a project uses it, start with [README.md](README.md)
 
 ```
 firmware/                 EpdClient — PlatformIO library (hardware-agnostic client)
-  include/  src/          IBoard, run_app(), network / sleep / display helpers
+  include/  src/          IBoard, the steps of a wake, network / sleep / display helpers
   boards/inkplate/        EpdBoardInkplate — the Inkplate IBoard, a separate library
-  test/                   host-only tests, three environments
+  test/                   host-only tests, two environments
+  test_support/           stub headers a consumer needs to test its own sequence
   platformio.ini          test project only; excluded from the published library
 server/                   epd-server — pip package
   epd_server/             config, registry, cache, page, render, quantise,
@@ -34,8 +35,11 @@ No device, network, or browser is needed for any test.
 cd firmware
 pio test -e native              # pure helpers: back-off, battery, refresh header parsing
 pio test -e native_mock         # display + sleep against MockBoard
-pio test -e native_integration  # the full run_app() control flow, all hardware stubbed
 ```
+
+The order of a wake belongs to the project that decides it, so its test does
+too. `inkplate10-weather-cal` runs one with `pio test -e native_integration`,
+against `MockBoard.h` and the stub headers this kit ships in `test_support/`.
 
 ### Server
 
