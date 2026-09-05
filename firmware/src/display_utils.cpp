@@ -43,15 +43,6 @@ bool loadImageCache() {
     return ok;
 }
 
-/**
-  Load an image to the display buffer.
-
-  @param filePath the path of the file on disk.
-  @returns the esp_err_t code:
-  - ESP_OK if successful.
-  - ESP_ERR_EDL if download file fails.
-  - ESP_ERR_EFILEW if writing file to filePath fails.
-*/
 esp_err_t loadImage(const char* filePath) {
     logf(LOG_INFO, "drawing image from path: %s", filePath);
 
@@ -62,16 +53,6 @@ esp_err_t loadImage(const char* filePath) {
     return ESP_OK;
 }
 
-/**
-  Load a PNG image to the display buffer from a data buffer.
-
-  @param buf the data buffer of png.
-  @param len the size of buffer.
-  @returns the esp_err_t code:
-  - ESP_OK if successful.
-  - ESP_ERR_EDL if download file fails.
-  - ESP_ERR_EFILEW if writing file to filePath fails.
-*/
 esp_err_t loadImage(uint8_t* buf, int32_t len) {
     log(LOG_INFO, "drawing image from buffer");
 
@@ -82,15 +63,6 @@ esp_err_t loadImage(uint8_t* buf, int32_t len) {
     return ESP_OK;
 }
 
-/**
-  Load a BMP image to the display buffer.
-
-  @param buf the byte array buffer.
-  @returns the esp_err_t code:
-  - ESP_OK if successful.
-  - ESP_ERR_EDL if download file fails.
-  - ESP_ERR_EFILEW if writing file to filePath fails.
-*/
 esp_err_t loadImage(uint8_t* buf, int x, int y, int w, int h) {
     log(LOG_DEBUG, "drawing image from byte array...");
 
@@ -101,13 +73,6 @@ esp_err_t loadImage(uint8_t* buf, int x, int y, int w, int h) {
     return ESP_OK;
 }
 
-/**
-  Draw an message to the display. The error message is drawn in the top-left
-  corner of the display. Error message will overlay previously drawn image.
-
-  @param msg the message to display.
-  error.
-*/
 void displayMessage(const char* msg, int batteryRemainingPercent) {
     // Restore the cached image so the banner overlays it rather than
     // replacing the whole screen with white. drawPngFromBuffer writes every
@@ -140,12 +105,6 @@ void displayMessage(const char* msg, int batteryRemainingPercent) {
     board.display();
 }
 
-/**
-  Draw the battery status to the display.
-
-  @param batteryRemainingPercent the percentage capacity remaining in the
-  battery. error.
-*/
 void displayBatteryStatus(int batteryRemainingPercent, bool invert) {
     // PS apologies for all the hackiness here...
     char msg[5];

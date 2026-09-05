@@ -39,6 +39,8 @@ esp_err_t configureWiFi(const char* ssid, const char* pass, int retries);
   *size is the expected length, used when the server sends none, and is set
   to the length the server reported. What the server said about the next
   wake and about firmware is written to rsp; pass nullptr to ignore it.
+
+  @returns the buffer, or nullptr when the request or the allocation failed.
 */
 uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* size,
                       PageResponse* rsp);

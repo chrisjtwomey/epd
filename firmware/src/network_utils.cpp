@@ -6,18 +6,6 @@
 #include "log_utils.h"
 #include "mem_utils.h"
 #include "refresh_header.h"
-
-/**
-  Connect to a WiFi network in Station Mode.
-
-  @param ssid the network SSID.
-  @param pass the network password.
-  @param retries the number of connection attempts to make before returning an
-  error.
-  @returns the esp_err_t code:
-  - ESP_OK if successful.
-  - ESP_ERR_TIMEOUT if number of retries is exceeded without success.
-*/
 esp_err_t configureWiFi(const char* ssid, const char* pass, int retries) {
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, pass);
@@ -47,19 +35,6 @@ static void copyHeader(HTTPClient& http, const char* name, char* out, size_t siz
     strlcpy(out, value.c_str(), size);
     logf(LOG_INFO, "received header %s: %s", name, out);
 }
-
-/**
-  Download a file at the given URL to a data buffer the caller frees.
-
-  @param url the URL where to download the file.
-  @param userAgent the User-Agent header to send; null or empty sends the
-  HTTP library's own.
-  @param defaultLen in: the length to expect when the server sends none;
-  out: the length the server reported.
-  @param rsp what the server said about the next wake and about firmware;
-  null to ignore it.
-  @returns the buffer, or nullptr when the request or the allocation failed.
-*/
 uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* defaultLen,
                       PageResponse* rsp) {
     logf(LOG_INFO, "downloading file at URL %s", url);
@@ -162,6 +137,7 @@ uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* defaultLe
 
     return buffer;
 }
+
 int postJson(const char* url, const char* userAgent, const char* body) {
     HTTPClient http;
     if (userAgent && userAgent[0])

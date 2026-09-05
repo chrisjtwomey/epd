@@ -12,20 +12,6 @@ PubSubClient client(espClient);
 MqttLogger mqttLogger(client, "", MqttLoggerMode::SerialOnly);
 // queue to store messages to publish once mqtt connection is established.
 cppQueue logQ(sizeof(char) * 100, LOG_QUEUE_MAX_ENTRIES, FIFO, true);
-
-/**
-  Connect to a MQTT broker for remote logging.
-
-  @param broker the hostname of the MQTT broker.
-  @param port the port of the MQTT broker.
-  @param topic the topic to publish logs to.
-  @param clientID the name of the logger client to appear as.
-  @param max_retries the number of connection attempts to make before
-  fallback to serial-only logging.
-  @returns the esp_err_t code:
-  - ESP_OK if successful.
-  - ESP_ERR_TIMEOUT if number of retries is exceeded without success.
-*/
 esp_err_t configureMQTT(const char* broker, int port, const char* topic,
                         const char* clientID, int max_retries) {
     log(LOG_INFO, "configuring remote MQTT logging...");
@@ -50,12 +36,6 @@ esp_err_t configureMQTT(const char* broker, int port, const char* topic,
     return ESP_OK;
 }
 
-/**
-  Converts a priority into a log level prefix.
-
-  @param pri the log level / priority of the message, see LOG_LEVEL.
-  @returns the string value of the priority.
-*/
 const char* msgPrefix(uint16_t pri) {
     char* priority;
 
@@ -89,12 +69,6 @@ const char* msgPrefix(uint16_t pri) {
     return prefix;
 }
 
-/**
-  Log a message.
-
-  @param pri the log level / priority of the message, see LOG_LEVEL.
-  @param msg the message to log.
-*/
 void log(uint16_t pri, const char* msg) {
     if (pri > LOG_LEVEL) return;
 
@@ -107,12 +81,6 @@ void log(uint16_t pri, const char* msg) {
     ensureQueue(buf);
 }
 
-/**
-  Log a message with formatting.
-
-  @param pri the log level / priority of the message, see LOG_LEVEL.
-  @param fmt the format of the log message
-*/
 void logf(uint16_t pri, const char* fmt, ...) {
     if (pri > LOG_LEVEL) return;
 
@@ -124,11 +92,6 @@ void logf(uint16_t pri, const char* fmt, ...) {
     ensureQueue(line);
 }
 
-/**
-  Ensure log queue is populated/emptied based on MQTT connection.
-
-  @param msg the log message.
-*/
 void ensureQueue(char* logMsg) {
     if (!client.connected()) {
         // populate log queue while no mqtt connection

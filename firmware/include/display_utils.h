@@ -6,10 +6,9 @@
   Load an image to the display buffer.
 
   @param filePath the path of the file on disk.
-  error.
   @returns the esp_err_t code:
   - ESP_OK if successful.
-  - ESP_ERR_EFILER if writing file to filePath fails.
+  - ESP_ERR_EDRAW if the image cannot be decoded.
 */
 esp_err_t loadImage(const char* filePath);
 
@@ -20,8 +19,7 @@ esp_err_t loadImage(const char* filePath);
   @param len the size of buffer.
   @returns the esp_err_t code:
   - ESP_OK if successful.
-  - ESP_ERR_EDL if download file fails.
-  - ESP_ERR_EFILEW if writing file to filePath fails.
+  - ESP_ERR_EDRAW if the image cannot be decoded.
 */
 esp_err_t loadImage(uint8_t* buf, int32_t len);
 
@@ -31,8 +29,7 @@ esp_err_t loadImage(uint8_t* buf, int32_t len);
   @param buf the byte array data
   @returns the esp_err_t code:
   - ESP_OK if successful.
-  - ESP_ERR_EDL if download file fails.
-  - ESP_ERR_EFILEW if writing file to filePath fails.
+  - ESP_ERR_EDRAW if the image cannot be decoded.
 */
 esp_err_t loadImage(uint8_t* buf, int x, int y, int w, int h);
 

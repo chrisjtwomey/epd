@@ -33,12 +33,6 @@ BatteryCapacity capacityTable[] = {
 
 const int numCapacityEntries = sizeof(capacityTable) / sizeof(BatteryCapacity);
 
-/**
-  Look up battery capacity percentage based on voltage.
-
-  @param voltage the current voltage of the battery.
-  @returns the capacity remaining as a percentage integer.
-*/
 int getBatteryCapacity(double voltage) {
     for (int i = 0; i < numCapacityEntries; i++) {
         if (voltage >= capacityTable[i].voltage) {
