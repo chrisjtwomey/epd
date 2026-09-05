@@ -41,7 +41,16 @@ def client_log_subscriber(host: str, port: int, topic: str,
     def on_message(_client, _userdata, message):
         if message.retain:
             return  # ignore stale messages
-        client_log.info(message.payload.decode())
+        # A log line is bytes off a wire, and a board can send a malformed
+        # one — a truncated buffer flushed from a queue, say. Decode what is
+        # there rather than raise, and let nothing out of this callback:
+        # paho kills its network thread on an exception here, so one bad
+        # message would end remote logging until the server restarts.
+        try:
+            text = message.payload.decode("utf-8", errors="replace")
+            client_log.info(text.rstrip("\x00").rstrip())
+        except Exception:  # noqa: BLE001 - remote logging is best-effort
+            log.exception("Dropped an unreadable client log message")
 
     client.on_connect = on_connect
     client.on_disconnect = on_disconnect
