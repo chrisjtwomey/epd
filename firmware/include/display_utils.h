@@ -23,48 +23,20 @@ esp_err_t loadImage(const char* filePath);
 */
 esp_err_t loadImage(uint8_t* buf, int32_t len);
 
-/**
-  Load a BMP image to the display buffer.
-
-  @param buf the byte array data
-  @returns the esp_err_t code:
-  - ESP_OK if successful.
-  - ESP_ERR_EDRAW if the image cannot be decoded.
-*/
-esp_err_t loadImage(uint8_t* buf, int x, int y, int w, int h);
-
-/**
-  Draw the battery status to the display.
-
-  @param batteryRemainingPercent the percentage capacity remaining in the
-  battery. error.
-  @param invert flag to invert battery status due to black banner.
-*/
-void displayBatteryStatus(int batteryRemainingPercent, bool invert);
-
-/**
-  Draw an message to the display. The error message is drawn in the top-left
-  corner of the display. Error message will overlay previously drawn image.
-
-  @param msg the message to display.
-  @param batteryRemainingPercent the percentage remaining battery capacity for
-  battery status display. error.
-*/
-void displayMessage(const char* msg, int batteryRemainingPercent);
 
 /**
   Mount the filesystem the image cache lives on.
 
-  Only worth calling on a board that draws messages over the last page:
-  saveImageCache and displayMessage need it, and nothing else does.
+  Only worth calling on a board that redraws the last page — to put a banner
+  over it, say. Nothing in this library needs it otherwise.
 
   @returns true when the cache is usable.
 */
 bool startImageCache();
 
 /**
-  Save the raw PNG image bytes to SPIFFS so displayMessage can restore
-  the image on the next boot, preserving it behind any error banner.
+  Save the raw PNG image bytes to SPIFFS, so the next boot can restore the
+  image and draw over it rather than starting from a blank panel.
 
   @param buf  pointer to the PNG bytes.
   @param len  byte count.
@@ -74,7 +46,6 @@ bool saveImageCache(const uint8_t* buf, int32_t len);
 
 /**
   Load the cached image PNG from SPIFFS into the display buffer.
-  Called at the start of displayMessage so the banner overlays the image.
 
   @returns true if the file existed and decoded successfully; false on any
   failure (first boot, SPIFFS not mounted, etc.) — the caller gracefully

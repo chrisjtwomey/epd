@@ -38,10 +38,6 @@ public:
     bool isEmpty() const { return empty(); }
 };
 
-// Colour constants used by display_utils.cpp.
-#define BLACK  0x00
-#define WHITE  0xFF
-
 // GFX font types (normally from Adafruit_GFX). Defined here so font headers
 // that include Arduino.h compile cleanly without the Inkplate library.
 typedef struct {
