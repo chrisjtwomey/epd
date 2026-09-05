@@ -17,6 +17,7 @@
 #include "backoff.h"
 #include "time_utils.h"      // SECONDS_IN_DAY / SECONDS_IN_YEAR macros
 #include "integration_stubs.h"
+#include "WiFi.h"
 
 // ---------------------------------------------------------------------------
 // Global board instance (satisfies extern IBoard& board in app.cpp)
@@ -36,6 +37,7 @@ static const int32_t kFakePngLen = (int32_t)sizeof(kFakePng);
 static void resetAll() {
     reset_app_state();
     resetAllStubs();
+    WiFi.disconnectCount = 0;
     mockBoard = MockBoard(); // reset all call counters and return values
     // Default wakeup cause: cold boot (power-on reset)
     extern esp_sleep_wakeup_cause_t g_wakeup_cause;
@@ -355,6 +357,19 @@ void test_an_offered_update_is_applied_after_the_page_is_drawn() {
     TEST_ASSERT_TRUE(sleepStubs.sleepForCalled);
 }
 
+void test_the_radio_is_still_on_when_the_update_is_fetched() {
+    // The image is fetched over the network, so the wake cannot turn the
+    // radio off until the update step has had its turn.
+    happyPathStubs();
+    offerUpdate();
+
+    run_app();
+
+    TEST_ASSERT_EQUAL_INT(1, otaStubs.applyCallCount);
+    TEST_ASSERT_FALSE(otaStubs.wifiOffAtApply);
+    TEST_ASSERT_EQUAL_INT(1, WiFi.disconnectCount);   // off by the end
+}
+
 void test_the_running_version_is_not_applied_again() {
     happyPathStubs();
     offerUpdate(kRunningVersion);
@@ -527,6 +542,7 @@ int main(int argc, char** argv) {
 
     // Firmware updates
     RUN_TEST(test_an_offered_update_is_applied_after_the_page_is_drawn);
+    RUN_TEST(test_the_radio_is_still_on_when_the_update_is_fetched);
     RUN_TEST(test_the_running_version_is_not_applied_again);
     RUN_TEST(test_no_firmware_headers_means_no_update);
     RUN_TEST(test_an_image_this_board_rolled_back_from_is_not_taken_again);

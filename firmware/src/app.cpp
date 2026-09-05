@@ -317,11 +317,6 @@ void run_app() {
 #endif
     } while (err != ESP_OK && ++attempts <= activeServerRetries);
 
-    // Disconnect and turn off WiFi radio to save power.
-    log(LOG_NOTICE, "disconnecting WiFi radio...");
-    WiFi.disconnect();
-    WiFi.mode(WIFI_OFF);
-
     // If we were not successful, back off before retrying.
     if (err != ESP_OK) {
         displayMessage(errMsg, batteryRemainingPercent);
@@ -402,6 +397,12 @@ void run_app() {
                                 clientUserAgent(board.deviceName()));
         }
     }
+
+    // Only now: the image the update step fetches needs the radio the wake
+    // was about to turn off.
+    log(LOG_NOTICE, "disconnecting WiFi radio...");
+    WiFi.disconnect();
+    WiFi.mode(WIFI_OFF);
 
     if (nextRefreshSeconds > 0) {
         // Server told us exactly when to come back — reset back-off and sleep.

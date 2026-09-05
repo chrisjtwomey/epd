@@ -132,6 +132,7 @@ esp_err_t applyFirmwareUpdate(const char* url, const char* version, const char*)
     otaStubs.applyCallCount++;
     otaStubs.lastApplyURL = url;
     otaStubs.lastApplyVersion = version;
+    otaStubs.wifiOffAtApply = WiFi.disconnectCount > 0;
     return ESP_FAIL;   // on-device this restarts and never returns
 }
 

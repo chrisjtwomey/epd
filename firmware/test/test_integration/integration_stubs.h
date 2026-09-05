@@ -119,6 +119,7 @@ struct OtaStubs {
     int         applyCallCount     = 0;
     const char* lastApplyURL       = nullptr;
     const char* lastApplyVersion   = nullptr;
+    bool        wifiOffAtApply     = false;   // had the radio been turned off?
 
     void reset() {
         trialPending = false;
@@ -129,6 +130,7 @@ struct OtaStubs {
         applyCallCount = 0;
         lastApplyURL = nullptr;
         lastApplyVersion = nullptr;
+        wifiOffAtApply = false;
     }
 };
 extern OtaStubs otaStubs;
