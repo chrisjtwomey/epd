@@ -12,6 +12,11 @@
 // A slow link must not abort a megabyte mid-image; the default is 8 s.
 #define OTA_HTTP_TIMEOUT_MS 20000
 
+// The Arduino core confirms a pending image in initArduino(), before setup()
+// ever runs, unless the application says it will judge the image itself. It
+// asks through this weak symbol, so the trial lasts until otaConfirm().
+extern "C" bool verifyRollbackLater() { return true; }
+
 static void logProgress(int done, int total) {
     static int lastTenth = -1;
     if (total <= 0) return;
