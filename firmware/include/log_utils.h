@@ -17,6 +17,9 @@
 
 // log message entry history size
 #define LOG_QUEUE_MAX_ENTRIES 10
+// Bytes per queued entry. The queue copies exactly this many, so a line is
+// staged through a buffer of this size and truncated to fit.
+#define LOG_QUEUE_ITEM_MAX 100
 
 /**
   Connect to a MQTT broker for remote logging.
@@ -59,9 +62,13 @@ void logf(uint16_t pri, const char* fmt, ...);
 const char* msgPrefix(uint16_t pri);
 
 /**
-  Ensure log queue is populated/emptied based on MQTT connection.
+  Write one log line out, to the serial port and to the broker.
+
+  While the broker is unreachable the line is also queued, and the backlog
+  goes out ahead of the next line once it reconnects. A queued line is
+  truncated to LOG_QUEUE_ITEM_MAX; one written straight out is not.
 
   @param msg the log message
 */
-void ensureQueue(char* msg);
+void writeLog(char* msg);
 #endif

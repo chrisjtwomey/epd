@@ -11,7 +11,7 @@ WiFiClient espClient;
 PubSubClient client(espClient);
 MqttLogger mqttLogger(client, "", MqttLoggerMode::SerialOnly);
 // queue to store messages to publish once mqtt connection is established.
-cppQueue logQ(sizeof(char) * 100, LOG_QUEUE_MAX_ENTRIES, FIFO, true);
+cppQueue logQ(LOG_QUEUE_ITEM_MAX, LOG_QUEUE_MAX_ENTRIES, FIFO, true);
 esp_err_t configureMQTT(const char* broker, int port, const char* topic,
                         const char* clientID, int max_retries) {
     log(LOG_INFO, "configuring remote MQTT logging...");
@@ -78,7 +78,7 @@ void log(uint16_t pri, const char* msg) {
     char buf[prefixLen + msgLen + 1];
     strcpy(buf, prefix);
     strcat(buf, msg);
-    ensureQueue(buf);
+    writeLog(buf);
 }
 
 void logf(uint16_t pri, const char* fmt, ...) {
@@ -89,19 +89,22 @@ void logf(uint16_t pri, const char* fmt, ...) {
     va_start(args, fmt);
     formatLog(line, sizeof(line), msgPrefix(pri), fmt, args);
     va_end(args);
-    ensureQueue(line);
+    writeLog(line);
 }
 
-void ensureQueue(char* logMsg) {
+void writeLog(char* logMsg) {
     if (!client.connected()) {
-        // populate log queue while no mqtt connection
-        logQ.push(logMsg);
+        // Stage the line: push copies a whole record out of whatever it is
+        // given, so a shorter buffer would be read past its end, and a longer
+        // one would be stored without a terminator.
+        char slot[LOG_QUEUE_ITEM_MAX];
+        strlcpy(slot, logMsg, sizeof(slot));
+        logQ.push(slot);
     } else {
-        // flush queued logs using a separate buffer so logMsg is not
-        // overwritten — logQ.pop() copies into whatever pointer you pass it, so we can't pass logMsg directly since 
-        // it's also the current message to log.
+        // Pop into a buffer of its own: pop copies into whatever pointer it
+        // is given, and logMsg is still the line about to be written.
         if (logQ.getCount() > 0) {
-            char queuedMsg[100];
+            char queuedMsg[LOG_QUEUE_ITEM_MAX];
             mqttLogger.setMode(MqttLoggerMode::MqttOnly);
             while (!logQ.isEmpty()) {
                 logQ.pop(queuedMsg);
