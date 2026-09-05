@@ -6,6 +6,7 @@
 #include "log_utils.h"
 #include "mem_utils.h"
 #include "refresh_header.h"
+#include "version.h"
 esp_err_t configureWiFi(const char* ssid, const char* pass, int retries) {
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, pass);
@@ -47,8 +48,9 @@ uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* defaultLe
     const char* headersToCollect[] = {
         "X-Next-Refresh-Seconds",
         "X-Next-URL",
-        "X-Firmware-Version",
-        "X-Firmware-URL",
+        "X-Server-Version",
+        "X-Server-Firmware-Version",
+        "X-Server-Firmware-URL",
     };
     http.collectHeaders(headersToCollect,
                         sizeof(headersToCollect) / sizeof(headersToCollect[0]));
@@ -58,6 +60,10 @@ uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* defaultLe
 
     // Connect with HTTP
     http.begin(url);
+    // The server decides on these, not on the User-Agent, so that neither end
+    // has to parse an identity back out of a formatted string.
+    http.addHeader("X-Client-Name", CLIENT_NAME);
+    http.addHeader("X-Client-Version", CLIENT_VERSION);
 
     int httpCode = http.GET();
     if (httpCode != HTTP_CODE_OK) {
@@ -107,8 +113,11 @@ uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* defaultLe
         }
 
         copyHeader(http, "X-Next-URL", rsp->nextURL, sizeof(rsp->nextURL));
-        copyHeader(http, "X-Firmware-Version", rsp->firmwareVersion, sizeof(rsp->firmwareVersion));
-        copyHeader(http, "X-Firmware-URL", rsp->firmwareURL, sizeof(rsp->firmwareURL));
+        copyHeader(http, "X-Server-Firmware-Version", rsp->firmwareVersion,
+                   sizeof(rsp->firmwareVersion));
+        copyHeader(http, "X-Server-Firmware-URL", rsp->firmwareURL, sizeof(rsp->firmwareURL));
+        if (http.hasHeader("X-Server-Version"))
+            logf(LOG_INFO, "server is %s", http.header("X-Server-Version").c_str());
     }
 
     int32_t total = http.getSize();
@@ -144,6 +153,8 @@ int postJson(const char* url, const char* userAgent, const char* body) {
         http.setUserAgent(userAgent);
     http.begin(url);
     http.addHeader("Content-Type", "application/json");
+    http.addHeader("X-Client-Name", CLIENT_NAME);
+    http.addHeader("X-Client-Version", CLIENT_VERSION);
     int code = http.POST((uint8_t*)body, strlen(body));
     http.end();
     if (code < 0)

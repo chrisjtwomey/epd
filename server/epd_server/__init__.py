@@ -16,7 +16,7 @@ The pieces a project composes:
 - :mod:`epd_server.app`        DisplayServer: routes, X-Next-* headers, regen loop
 """
 
-__version__ = "0.1.0"
+from ._version import __version__  # noqa: E402
 
 from .app import DisplayServer, align_process_timezone  # noqa: E402
 from .config import (  # noqa: E402

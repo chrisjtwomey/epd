@@ -22,8 +22,10 @@ These go in `build_flags` in `platformio.ini`.
 | `-DLOG_LEVEL=4` | 5 is verbose and for development; 4 is normal. |
 | `-DUSE_SDCARD` | Read settings from `config.yaml` on the SD card. See below. |
 
-`-DCLIENT_NAME` and `-DCLIENT_VERSION` together become the User-Agent:
-`my-display/v1.0.0 (Inkplate10)`. See [the HTTP contract](protocol.md).
+`-DCLIENT_NAME` and `-DCLIENT_VERSION` are what the panel says about
+itself on every request, as `X-Client-Name` and `X-Client-Version`. They also
+become its User-Agent, `my-display/v1.0.0 (Inkplate10)`, for your access log.
+See [the HTTP contract](protocol.md).
 
 ## Panel: `src/defaults.cpp`
 

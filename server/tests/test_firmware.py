@@ -8,6 +8,7 @@ from epd_server.firmware import (
     ClientId,
     FirmwareStore,
     is_clean_tag,
+    client_from_headers,
     parse_user_agent,
     update_applies,
 )
@@ -40,6 +41,31 @@ def test_parses_the_user_agent_the_client_builds(ua, expected):
 ])
 def test_anything_else_does_not_parse(ua):
     assert parse_user_agent(ua) is None
+
+
+# ---------- client_from_headers ----------
+
+
+def test_the_two_headers_identify_a_board():
+    assert client_from_headers("my-display", "v1.5.1") == ClientId("my-display", "v1.5.1")
+
+
+@pytest.mark.parametrize("name, version", [
+    (None, "v1.5.1"),               # no name
+    ("my-display", None),           # no version
+    ("", "v1.5.1"),
+    ("my-display", "   "),
+    ("my display", "v1.5.1"),       # a space is not a product name
+    ("-my-display", "v1.5.1"),      # nor is a leading dash
+    ("my-display", "../etc/passwd"),  # a version has to be a filename
+    ("my-display", "v1 .5"),
+])
+def test_anything_incomplete_or_misshapen_identifies_nobody(name, version):
+    assert client_from_headers(name, version) is None
+
+
+def test_surrounding_space_is_trimmed():
+    assert client_from_headers(" my-display ", " v1.5.1 ") == ClientId("my-display", "v1.5.1")
 
 
 # ---------- is_clean_tag ----------

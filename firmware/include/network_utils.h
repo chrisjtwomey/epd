@@ -14,8 +14,8 @@
 struct PageResponse {
     uint32_t nextRefreshSeconds;   // X-Next-Refresh-Seconds
     char nextURL[256];             // X-Next-URL
-    char firmwareVersion[32];      // X-Firmware-Version, when an update is offered
-    char firmwareURL[256];         // X-Firmware-URL
+    char firmwareVersion[32];      // X-Server-Firmware-Version, when one is offered
+    char firmwareURL[256];         // X-Server-Firmware-URL
 };
 /**
   Connect to a WiFi network in Station Mode.

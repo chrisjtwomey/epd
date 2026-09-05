@@ -15,7 +15,8 @@
 #endif
 
 /**
- * Product token of the User-Agent the client sends, set the same way:
+ * What the client calls itself: the X-Client-Name header the server
+ * decides on, and the product token of the User-Agent. Set the same way:
  *
  *     build_flags = -DCLIENT_NAME='"my-display"'
  *

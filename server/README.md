@@ -37,7 +37,7 @@ instead of `@main` for releases.
 | `epd_server.render` | `Renderer` protocol; `ChromiumRenderer` (headless, via Selenium) is the default |
 | `epd_server.quantise` | `Quantiser` protocol; `GreyscaleQuantiser(levels=4)` default, `PaletteQuantiser` for colour panels, `IdentityQuantiser` for none |
 | `epd_server.scheduling` | `Pools`, `TimesSchedule`, `IntervalSchedule` — what shows and when; `next_wake`, `next_regen`, `seconds_until` underneath |
-| `epd_server.firmware` | `FirmwareStore` — a directory of `<version>.bin`; `ReleaseWatcher` — fill it from a repository's releases; `parse_user_agent`, `is_clean_tag`, `update_applies` — which board an image is an update for |
+| `epd_server.firmware` | `FirmwareStore` — a directory of `<version>.bin`; `ReleaseWatcher` — fill it from a repository's releases; `client_from_headers`, `parse_user_agent`, `is_clean_tag`, `update_applies` — which board an image is an update for |
 | `epd_server.mqtt` | `client_log_subscriber` — relay the client's MQTT log topic into Python logging |
 | `epd_server.source` | `DataSource` — named, lazily fetched datasets; `StaticSource` for constants; `CompositeSource` to merge |
 | `epd_server.pipeline` | `regenerate(pages, source, only=, force_refresh=)` — fetch what the selected pages need, once each; render; save |

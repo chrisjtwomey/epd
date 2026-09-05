@@ -63,6 +63,14 @@ Nothing else from `defaults.cpp` is stored. The rest is code and comes from
 the image, which means a change to, say, the MQTT settings needs a new
 release rather than a new flash.
 
+## The first update onto a new contract
+
+The panel's headers changed once already, and could again. A panel is always
+reachable by the server that speaks the names it was built to read, so the
+rule is: the server learns a new name **before** the panel does, and keeps
+answering the old one until no panel uses it. See [the HTTP
+contract](protocol.md) for the fallback in force today.
+
 ## Forcing an update now
 
 Press RST. The panel boots from the top — WiFi, fetch, draw, then the update
@@ -109,8 +117,9 @@ See [Configuration](configuration.md) for the rest of the block.
 An image is offered only when all of these hold:
 
 - The block is enabled and the server holds an image.
-- The panel's User-Agent parses, and its name equals `client.firmware.product`.
-  Offering one product's image to another product's panel would brick it.
+- The panel sent `X-Client-Name` and `X-Client-Version`, and the name equals
+  `client.firmware.product`. Offering one product's image to another
+  product's panel would brick it.
 - The panel's version is a clean tag — `v1.5.1`, not `v1.5.1-3-gab12cd4`,
   `-dirty` or `dev`. A panel on your bench built from a working tree is left
   alone, so you are not flashed back to the last release mid-experiment. Set

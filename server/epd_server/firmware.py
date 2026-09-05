@@ -1,13 +1,16 @@
 """Firmware images: what the server holds, and which client it applies to.
 
-The board sends its identity on every page fetch::
+The board states its identity on every page fetch::
 
-    my-display/v1.2.0 (Inkplate10)
+    X-Client-Name: my-display
+    X-Client-Version: v1.2.0
 
 so the server can answer "is there a newer image for you?" without the board
-knowing anything about releases. When there is, the page response carries
-``X-Firmware-Version`` and ``X-Firmware-URL``, and the board fetches the
-image after it has drawn.
+knowing anything about releases. It sends a User-Agent too, but that is for
+the access log: the headers are what decide, so nothing is parsed back out
+of a formatted string. When there is, the page response carries
+``X-Server-Firmware-Version`` and ``X-Server-Firmware-URL``, and the board
+fetches the image after it has drawn.
 
 A :class:`FirmwareStore` is a directory of ``<version>.bin``. The version is
 the filename, so an image built by hand works the moment it is copied in::
@@ -40,10 +43,13 @@ _CLEAN_TAG = re.compile(r"^v?\d+\.\d+(\.\d+)?$")
 # A version has to be a filename, since the filename is where it is kept.
 _VERSION_CHARS = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]*$")
 
+# A product name, in the same shape the User-Agent allows.
+_NAME_CHARS = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
 
 @dataclass(frozen=True)
 class ClientId:
-    """A board's own account of itself, from its User-Agent."""
+    """A board's own account of itself."""
 
     name: str
     version: str
@@ -69,6 +75,21 @@ def parse_user_agent(ua: str | None) -> ClientId | None:
         return None
     name, version, device = match.groups()
     return ClientId(name=name, version=version, device=(device or "").strip())
+
+
+def client_from_headers(name: str | None, version: str | None) -> ClientId | None:
+    """The board's identity, from the two headers it states it in.
+
+    Both must be present and shaped like a name and a version, or this is not
+    a board we can reason about and no update is offered. Nothing here parses
+    the User-Agent: one source of truth, so there is no rule to write for what
+    happens when the two disagree.
+    """
+    name = (name or "").strip()
+    version = (version or "").strip()
+    if not _NAME_CHARS.match(name) or not _VERSION_CHARS.match(version):
+        return None
+    return ClientId(name=name, version=version)
 
 
 def is_clean_tag(version: str) -> bool:

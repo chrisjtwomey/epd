@@ -10,11 +10,15 @@ the client log relay, signal handling — lives here.
 The wire contract with the client is small::
 
     GET /<page>.png
+      X-Client-Name: <product>          the board says who it is
+      X-Client-Version: <version>       and what it runs
+
       200 image/png
       X-Next-Refresh-Seconds: <seconds until the next scheduled wake>
       X-Next-URL: http://host/<the page to fetch at that wake>
-      X-Firmware-Version: <version>      only when an update applies
-      X-Firmware-URL: http://host/firmware.bin
+      X-Server-Version: <version>                 this server, on every response
+      X-Server-Firmware-Version: <version>        only when an update applies
+      X-Server-Firmware-URL: http://host/firmware.bin
 
     GET /firmware.bin
       200 application/octet-stream, Content-Length, x-MD5
@@ -39,7 +43,9 @@ from flask import Flask, abort, jsonify, make_response, request, send_file
 from werkzeug.serving import make_server
 
 from .config import FirmwareSettings, MqttSettings
-from .firmware import FirmwareStore, ReleaseWatcher, parse_user_agent, update_applies
+from ._version import __version__
+from .firmware import (FirmwareStore, ReleaseWatcher, client_from_headers,
+                       parse_user_agent, update_applies)
 from .mqtt import client_log_subscriber
 from .page import Page
 from .pipeline import regenerate as _regenerate
@@ -189,6 +195,9 @@ class DisplayServer:
     def _build_app(self) -> Flask:
         app = Flask("epd_server")
 
+        app.before_request(self._log_client)
+        app.after_request(self._add_server_version)
+
         @app.route("/")
         def index():
             seconds, path = self.next_wake()
@@ -265,13 +274,43 @@ class DisplayServer:
         if self.firmware_store is None:
             return
         image = self.firmware_store.current()
-        client = parse_user_agent(request.headers.get("User-Agent"))
+        client = client_from_headers(request.headers.get("X-Client-Name"),
+                                     request.headers.get("X-Client-Version"))
+        legacy = client is None
+        if legacy:
+            client = self._parse_client_from_user_agent()
         if not update_applies(client, image, self.firmware):
             return
         assert image is not None      # update_applies said so
-        rsp.headers["X-Firmware-Version"] = image.version
-        rsp.headers["X-Firmware-URL"] = request.host_url.rstrip("/") + "/firmware.bin"
-        log.info("Offering firmware %s to %s", image.version, request.user_agent.string)
+        url = request.host_url.rstrip("/") + "/firmware.bin"
+        # The version travels with the URL because the board checks it against
+        # the one it rolled back from, before it downloads anything.
+        rsp.headers["X-Server-Firmware-Version"] = image.version
+        rsp.headers["X-Server-Firmware-URL"] = url
+        if legacy:
+            rsp.headers["X-Firmware-Version"] = image.version
+            rsp.headers["X-Firmware-URL"] = url
+        log.info("Offering firmware %s to %s %s", image.version, client.name, client.version)
+
+    def _parse_client_from_user_agent(self):
+        """The board this User-Agent names, when it is one of ours.
+
+        Only a board flashed before ``X-Client-Name`` existed reaches here. It
+        states itself in the User-Agent alone and reads the offer under the
+        old ``X-Firmware-*`` names, so a server speaking only the current
+        contract could never update it. This is how it takes the one image
+        that teaches it that contract.
+
+        Remove this, and the ``X-Firmware-*`` headers beside it, once no board
+        reaches here any more: it says so in the log every time one does.
+        """
+        client = parse_user_agent(request.headers.get("User-Agent"))
+        if client is None or client.name != self.firmware.product:
+            return None
+        log.info("%s %s states itself only in its User-Agent, so it predates "
+                 "X-Client-Name; it needs one update to speak the current contract",
+                 client.name, client.version)
+        return client
 
     def _make_view(self, page: Page):
         def serve():
@@ -300,6 +339,21 @@ class DisplayServer:
         rsp.headers["X-Next-Refresh-Seconds"] = str(seconds)
         rsp.headers["X-Next-URL"] = next_url
         self._firmware_headers(rsp)
+        return rsp
+
+    @staticmethod
+    def _log_client() -> None:
+        """Log the identity the board stated, when it stated one."""
+        name = request.headers.get("X-Client-Name")
+        version = request.headers.get("X-Client-Version")
+        if name or version:
+            log.info("%s %s asked for %s", name or "an unnamed client",
+                     version or "of no stated version", request.path)
+
+    @staticmethod
+    def _add_server_version(rsp):
+        """Stamp every response with the version of the package serving it."""
+        rsp.headers["X-Server-Version"] = __version__
         return rsp
 
     # ── Lifecycle ─────────────────────────────────────────────────────────

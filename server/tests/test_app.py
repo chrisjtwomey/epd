@@ -289,7 +289,7 @@ def test_interval_schedule_drives_the_headers_and_the_index(tmp_path):
 from epd_server.config import FirmwareSettings  # noqa: E402
 
 BIN = b"\xe9" + b"\x00" * 63
-CLIENT_UA = "my-display/v1.5.1 (Inkplate10)"
+CLIENT = {"X-Client-Name": "my-display", "X-Client-Version": "v1.5.1"}
 
 
 def with_firmware(tmp_path, version="v1.6.0", **kw):
@@ -310,31 +310,94 @@ def with_firmware(tmp_path, version="v1.6.0", **kw):
 def test_a_page_offers_the_update_to_the_board_it_is_for(tmp_path):
     _, client = with_firmware(tmp_path)
 
-    rsp = client.get("/today.png", headers={"User-Agent": CLIENT_UA})
+    rsp = client.get("/today.png", headers=CLIENT)
 
-    assert rsp.headers["X-Firmware-Version"] == "v1.6.0"
-    assert rsp.headers["X-Firmware-URL"] == "http://localhost/firmware.bin"
+    assert rsp.headers["X-Server-Firmware-Version"] == "v1.6.0"
+    assert rsp.headers["X-Server-Firmware-URL"] == "http://localhost/firmware.bin"
     assert rsp.data == PNG          # still the page
 
 
-@pytest.mark.parametrize("ua", [
-    "other-display/v1.5.1 (Inkplate5V2)",     # another product
-    "my-display/v1.6.0 (Inkplate10)",      # already on it
-    "my-display/dev (Inkplate10)",         # a developer build
-    "Mozilla/5.0 (Macintosh)",              # a browser
+@pytest.mark.parametrize("headers", [
+    {"X-Client-Name": "other-display", "X-Client-Version": "v1.5.1"},   # another product
+    {"X-Client-Name": "my-display", "X-Client-Version": "v1.6.0"},      # already on it
+    {"X-Client-Name": "my-display", "X-Client-Version": "dev"},         # a developer build
+    {"X-Client-Version": "v1.5.1"},                                     # no name
+    {"X-Client-Name": "my-display"},                                    # no version
+    {},                                                                 # nothing at all
+    {"User-Agent": "Mozilla/5.0 (Macintosh)"},                          # a browser
 ])
-def test_a_page_offers_nothing_to_anyone_else(tmp_path, ua):
+def test_a_page_offers_nothing_to_anyone_else(tmp_path, headers):
     _, client = with_firmware(tmp_path)
 
-    rsp = client.get("/today.png", headers={"User-Agent": ua})
+    rsp = client.get("/today.png", headers=headers)
 
+    assert "X-Server-Firmware-Version" not in rsp.headers
+    assert "X-Server-Firmware-URL" not in rsp.headers
+
+
+def test_a_board_predating_the_headers_is_still_offered_the_update(tmp_path):
+    """The compatibility path. Delete with the X-Firmware-* headers it serves."""
+    _, client = with_firmware(tmp_path)
+
+    rsp = client.get("/today.png",
+                     headers={"User-Agent": "my-display/v1.5.1 (Inkplate10)"})
+
+    # It reads the old names, so it gets those...
+    assert rsp.headers["X-Firmware-Version"] == "v1.6.0"
+    assert rsp.headers["X-Firmware-URL"] == "http://localhost/firmware.bin"
+    # ...and the new ones, which the image it is about to take will read.
+    assert rsp.headers["X-Server-Firmware-Version"] == "v1.6.0"
+    assert rsp.headers["X-Server-Firmware-URL"] == "http://localhost/firmware.bin"
+
+
+def test_a_board_that_states_itself_gets_only_the_current_headers(tmp_path):
+    _, client = with_firmware(tmp_path)
+
+    rsp = client.get("/today.png", headers=CLIENT)
+
+    assert rsp.headers["X-Server-Firmware-Version"] == "v1.6.0"
     assert "X-Firmware-Version" not in rsp.headers
     assert "X-Firmware-URL" not in rsp.headers
 
 
+def test_the_log_names_a_board_that_predates_the_headers(tmp_path, caplog):
+    _, client = with_firmware(tmp_path)
+
+    with caplog.at_level("INFO"):
+        client.get("/today.png", headers={"User-Agent": "my-display/v1.5.1 (Inkplate10)"})
+
+    assert "predates X-Client-Name" in caplog.text
+
+
+def test_a_stale_user_agent_does_not_override_the_headers(tmp_path):
+    _, client = with_firmware(tmp_path)
+
+    rsp = client.get("/today.png", headers={**CLIENT,
+                                            "User-Agent": "my-display/v1.6.0 (Inkplate10)"})
+
+    assert rsp.headers["X-Server-Firmware-Version"] == "v1.6.0"
+
+
+def test_every_response_says_which_server_answered(tmp_path):
+    from epd_server import __version__
+    _, client = with_firmware(tmp_path)
+
+    for path in ("/", "/today.png", "/firmware.bin"):
+        assert client.get(path, headers=CLIENT).headers["X-Server-Version"] == __version__
+
+
+def test_the_server_logs_the_client_that_asked(tmp_path, caplog):
+    _, client = with_firmware(tmp_path)
+
+    with caplog.at_level("INFO"):
+        client.get("/today.png", headers=CLIENT)
+
+    assert "my-display v1.5.1 asked for /today.png" in caplog.text
+
+
 def test_no_firmware_headers_and_no_route_without_the_block(client):
-    rsp = client.get("/today.png", headers={"User-Agent": CLIENT_UA})
-    assert "X-Firmware-Version" not in rsp.headers
+    rsp = client.get("/today.png", headers=CLIENT)
+    assert "X-Server-Firmware-Version" not in rsp.headers
     assert client.get("/firmware.bin").status_code == 404
 
 
@@ -342,7 +405,7 @@ def test_the_image_is_served_with_its_length_and_md5(tmp_path):
     import hashlib
     _, client = with_firmware(tmp_path)
 
-    rsp = client.get("/firmware.bin", headers={"User-Agent": CLIENT_UA})
+    rsp = client.get("/firmware.bin", headers=CLIENT)
 
     assert rsp.status_code == 200
     assert rsp.data == BIN
@@ -364,17 +427,17 @@ def test_an_empty_firmware_directory_is_a_404_and_offers_nothing(tmp_path):
     _, client = with_firmware(tmp_path, version=None)
 
     assert client.get("/firmware.bin").status_code == 404
-    assert "X-Firmware-Version" not in client.get("/today.png", headers={"User-Agent": CLIENT_UA}).headers
+    assert "X-Server-Firmware-Version" not in client.get("/today.png", headers=CLIENT).headers
 
 
 def test_an_image_copied_in_while_running_is_offered_at_the_next_fetch(tmp_path):
     server, client = with_firmware(tmp_path, version=None)
 
-    assert "X-Firmware-Version" not in client.get("/today.png", headers={"User-Agent": CLIENT_UA}).headers
+    assert "X-Server-Firmware-Version" not in client.get("/today.png", headers=CLIENT).headers
     (tmp_path / "fw" / "v1.6.0.bin").write_bytes(BIN)
 
-    rsp = client.get("/today.png", headers={"User-Agent": CLIENT_UA})
-    assert rsp.headers["X-Firmware-Version"] == "v1.6.0"
+    rsp = client.get("/today.png", headers=CLIENT)
+    assert rsp.headers["X-Server-Firmware-Version"] == "v1.6.0"
 
 
 def test_the_index_reports_the_image_it_holds(tmp_path):
