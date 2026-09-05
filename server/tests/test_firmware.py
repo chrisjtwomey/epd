@@ -17,13 +17,13 @@ IMAGE = b"\xe9" + b"\x00" * 63
 
 def settings(**kw) -> FirmwareSettings:
     return FirmwareSettings(**{"enabled": True, "dir": "firmware",
-                               "product": "weather-cal", "offer_dev_builds": False, **kw})
+                               "product": "my-display", "offer_dev_builds": False, **kw})
 
 
 # ---------- parse_user_agent ----------
 
 @pytest.mark.parametrize("ua, expected", [
-    ("inkplate10-weather-cal/v1.5.1 (Inkplate10)", ClientId("inkplate10-weather-cal", "v1.5.1", "Inkplate10")),
+    ("my-display/v1.5.1 (Inkplate10)", ClientId("my-display", "v1.5.1", "Inkplate10")),
     ("EpdClient/dev", ClientId("EpdClient", "dev", "")),
     ("  EpdClient/v1.0.0 (Inkplate5V2)  ", ClientId("EpdClient", "v1.0.0", "Inkplate5V2")),
     ("cal/v1.5.1-3-gab12cd4-dirty (Inkplate10)", ClientId("cal", "v1.5.1-3-gab12cd4-dirty", "Inkplate10")),
@@ -57,16 +57,16 @@ def test_only_a_version_built_from_a_tag_is_clean(version, clean):
 def test_a_newer_image_applies_to_a_release_board(tmp_path):
     store = FirmwareStore(str(tmp_path))
     image = store.put("v1.6.0", IMAGE)
-    client = ClientId("weather-cal", "v1.5.1", "Inkplate10")
+    client = ClientId("my-display", "v1.5.1", "Inkplate10")
     assert update_applies(client, image, settings()) is True
 
 
 @pytest.mark.parametrize("client, image_version, kw", [
-    (ClientId("weather-cal", "v1.5.1"), "v1.6.0", {"enabled": False}),      # switched off
-    (ClientId("env-monitor", "v1.5.1"), "v1.6.0", {}),                      # another product
-    (ClientId("weather-cal", "v1.6.0"), "v1.6.0", {}),                      # already on it
-    (ClientId("weather-cal", "dev"), "v1.6.0", {}),                         # a developer build
-    (ClientId("weather-cal", "v1.5.1-3-gab12cd4"), "v1.6.0", {}),           # past the tag
+    (ClientId("my-display", "v1.5.1"), "v1.6.0", {"enabled": False}),      # switched off
+    (ClientId("other-display", "v1.5.1"), "v1.6.0", {}),                      # another product
+    (ClientId("my-display", "v1.6.0"), "v1.6.0", {}),                      # already on it
+    (ClientId("my-display", "dev"), "v1.6.0", {}),                         # a developer build
+    (ClientId("my-display", "v1.5.1-3-gab12cd4"), "v1.6.0", {}),           # past the tag
 ])
 def test_no_update_applies(tmp_path, client, image_version, kw):
     image = FirmwareStore(str(tmp_path)).put(image_version, IMAGE)
@@ -75,13 +75,13 @@ def test_no_update_applies(tmp_path, client, image_version, kw):
 
 def test_a_developer_build_is_offered_only_when_asked_for(tmp_path):
     image = FirmwareStore(str(tmp_path)).put("v1.6.0", IMAGE)
-    client = ClientId("weather-cal", "v1.5.1-3-gab12cd4-dirty")
+    client = ClientId("my-display", "v1.5.1-3-gab12cd4-dirty")
     assert update_applies(client, image, settings(offer_dev_builds=True)) is True
 
 
 def test_nothing_applies_without_a_client_or_an_image():
     assert update_applies(None, None, settings()) is False
-    assert update_applies(ClientId("weather-cal", "v1.5.1"), None, settings()) is False
+    assert update_applies(ClientId("my-display", "v1.5.1"), None, settings()) is False
     assert update_applies(None, None, None) is False
 
 
@@ -167,7 +167,7 @@ from epd_server.firmware import ReleaseWatcher  # noqa: E402
 
 
 def source(**kw) -> FirmwareSource:
-    return FirmwareSource(**{"github": "chrisjtwomey/weather-cal", "asset": "firmware.bin",
+    return FirmwareSource(**{"github": "owner/my-display", "asset": "firmware.bin",
                              "poll_seconds": 3600, "token": "", **kw})
 
 

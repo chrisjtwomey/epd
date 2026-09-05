@@ -23,7 +23,7 @@ epd-server @ git+https://github.com/chrisjtwomey/epd.git@main#subdirectory=serve
 ```
 
 pip honours `#subdirectory=` only for VCS URLs, so a git binary is needed
-where this is installed (the weather-cal Dockerfile adds one). Pin a tag
+where this is installed, so add one to your Dockerfile. Pin a tag
 instead of `@main` for releases.
 
 ## Modules
@@ -233,4 +233,4 @@ Page(..., quantiser=PaletteQuantiser([               # 7-colour ACeP
 ]))
 ```
 
-The default stays at four greys, which is what the weather calendar shipped with.
+The default stays at four greys, which suits a monochrome Inkplate panel.

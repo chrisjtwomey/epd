@@ -13,8 +13,8 @@ void setUp(void) {
 void tearDown(void) {}
 
 void test_product_version_and_device(void) {
-    int n = buildUserAgent(buf, sizeof(buf), "inkplate10-weather-cal", "v1.4.0", "Inkplate10");
-    TEST_ASSERT_EQUAL_STRING("inkplate10-weather-cal/v1.4.0 (Inkplate10)", buf);
+    int n = buildUserAgent(buf, sizeof(buf), "my-display", "v1.4.0", "Inkplate10");
+    TEST_ASSERT_EQUAL_STRING("my-display/v1.4.0 (Inkplate10)", buf);
     TEST_ASSERT_EQUAL_INT((int)strlen(buf), n);
 }
 

@@ -17,9 +17,9 @@
 /**
  * Product token of the User-Agent the client sends, set the same way:
  *
- *     build_flags = -DCLIENT_NAME='"inkplate10-weather-cal"'
+ *     build_flags = -DCLIENT_NAME='"my-display"'
  *
- * The request then carries: inkplate10-weather-cal/v1.4.0 (Inkplate10).
+ * The request then carries: my-display/v1.4.0 (Inkplate10).
  */
 #ifndef CLIENT_NAME
 #define CLIENT_NAME "EpdClient"

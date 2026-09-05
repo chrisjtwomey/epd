@@ -2,7 +2,7 @@
 
 The board sends its identity on every page fetch::
 
-    inkplate10-weather-cal/v1.5.1 (Inkplate10)
+    my-display/v1.2.0 (Inkplate10)
 
 so the server can answer "is there a newer image for you?" without the board
 knowing anything about releases. When there is, the page response carries
@@ -61,7 +61,7 @@ class FirmwareImage:
 
 
 def parse_user_agent(ua: str | None) -> ClientId | None:
-    """``"weather-cal/v1.5.1 (Inkplate10)"`` -> :class:`ClientId`, else ``None``."""
+    """``"my-display/v1.2.0 (Inkplate10)"`` -> :class:`ClientId`, else ``None``."""
     if not ua:
         return None
     match = _USER_AGENT.match(ua.strip())

@@ -289,7 +289,7 @@ def test_interval_schedule_drives_the_headers_and_the_index(tmp_path):
 from epd_server.config import FirmwareSettings  # noqa: E402
 
 BIN = b"\xe9" + b"\x00" * 63
-CAL_UA = "weather-cal/v1.5.1 (Inkplate10)"
+CLIENT_UA = "my-display/v1.5.1 (Inkplate10)"
 
 
 def with_firmware(tmp_path, version="v1.6.0", **kw):
@@ -298,7 +298,7 @@ def with_firmware(tmp_path, version="v1.6.0", **kw):
     fw_dir.mkdir(exist_ok=True)
     if version:
         (fw_dir / f"{version}.bin").write_bytes(BIN)
-    settings = FirmwareSettings(enabled=True, dir=str(fw_dir), product="weather-cal",
+    settings = FirmwareSettings(enabled=True, dir=str(fw_dir), product="my-display",
                                 offer_dev_builds=False, **kw)
     (tmp_path / "today.png").write_bytes(PNG)
     (tmp_path / "hourly.png").write_bytes(PNG)
@@ -310,7 +310,7 @@ def with_firmware(tmp_path, version="v1.6.0", **kw):
 def test_a_page_offers_the_update_to_the_board_it_is_for(tmp_path):
     _, client = with_firmware(tmp_path)
 
-    rsp = client.get("/today.png", headers={"User-Agent": CAL_UA})
+    rsp = client.get("/today.png", headers={"User-Agent": CLIENT_UA})
 
     assert rsp.headers["X-Firmware-Version"] == "v1.6.0"
     assert rsp.headers["X-Firmware-URL"] == "http://localhost/firmware.bin"
@@ -318,9 +318,9 @@ def test_a_page_offers_the_update_to_the_board_it_is_for(tmp_path):
 
 
 @pytest.mark.parametrize("ua", [
-    "env-monitor/v1.5.1 (Inkplate5V2)",     # another product
-    "weather-cal/v1.6.0 (Inkplate10)",      # already on it
-    "weather-cal/dev (Inkplate10)",         # a developer build
+    "other-display/v1.5.1 (Inkplate5V2)",     # another product
+    "my-display/v1.6.0 (Inkplate10)",      # already on it
+    "my-display/dev (Inkplate10)",         # a developer build
     "Mozilla/5.0 (Macintosh)",              # a browser
 ])
 def test_a_page_offers_nothing_to_anyone_else(tmp_path, ua):
@@ -333,7 +333,7 @@ def test_a_page_offers_nothing_to_anyone_else(tmp_path, ua):
 
 
 def test_no_firmware_headers_and_no_route_without_the_block(client):
-    rsp = client.get("/today.png", headers={"User-Agent": CAL_UA})
+    rsp = client.get("/today.png", headers={"User-Agent": CLIENT_UA})
     assert "X-Firmware-Version" not in rsp.headers
     assert client.get("/firmware.bin").status_code == 404
 
@@ -342,7 +342,7 @@ def test_the_image_is_served_with_its_length_and_md5(tmp_path):
     import hashlib
     _, client = with_firmware(tmp_path)
 
-    rsp = client.get("/firmware.bin", headers={"User-Agent": CAL_UA})
+    rsp = client.get("/firmware.bin", headers={"User-Agent": CLIENT_UA})
 
     assert rsp.status_code == 200
     assert rsp.data == BIN
@@ -364,16 +364,16 @@ def test_an_empty_firmware_directory_is_a_404_and_offers_nothing(tmp_path):
     _, client = with_firmware(tmp_path, version=None)
 
     assert client.get("/firmware.bin").status_code == 404
-    assert "X-Firmware-Version" not in client.get("/today.png", headers={"User-Agent": CAL_UA}).headers
+    assert "X-Firmware-Version" not in client.get("/today.png", headers={"User-Agent": CLIENT_UA}).headers
 
 
 def test_an_image_copied_in_while_running_is_offered_at_the_next_fetch(tmp_path):
     server, client = with_firmware(tmp_path, version=None)
 
-    assert "X-Firmware-Version" not in client.get("/today.png", headers={"User-Agent": CAL_UA}).headers
+    assert "X-Firmware-Version" not in client.get("/today.png", headers={"User-Agent": CLIENT_UA}).headers
     (tmp_path / "fw" / "v1.6.0.bin").write_bytes(BIN)
 
-    rsp = client.get("/today.png", headers={"User-Agent": CAL_UA})
+    rsp = client.get("/today.png", headers={"User-Agent": CLIENT_UA})
     assert rsp.headers["X-Firmware-Version"] == "v1.6.0"
 
 
@@ -384,7 +384,7 @@ def test_the_index_reports_the_image_it_holds(tmp_path):
     body = client.get("/").get_json()
 
     assert body["firmware"] == {"version": "v1.6.0", "size": len(BIN),
-                                "md5": hashlib.md5(BIN).hexdigest(), "product": "weather-cal"}
+                                "md5": hashlib.md5(BIN).hexdigest(), "product": "my-display"}
 
 
 def test_the_release_watcher_runs_only_with_a_source(tmp_path, monkeypatch):
@@ -400,7 +400,7 @@ def test_the_release_watcher_runs_only_with_a_source(tmp_path, monkeypatch):
     started = threading.Event()
     monkeypatch.setattr("epd_server.firmware.ReleaseWatcher.run",
                         lambda self: started.set())
-    settings = FirmwareSettings(True, str(tmp_path / "fw"), "weather-cal", False,
+    settings = FirmwareSettings(True, str(tmp_path / "fw"), "my-display", False,
                                 FirmwareSource("a/b", "firmware.bin", 3600, ""))
     server = make(tmp_path, port=0, firmware=settings)
     server.shutdown_event = OneTickEvent()
