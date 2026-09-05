@@ -147,6 +147,10 @@ panel, and rolls back on any failure before that. Confirming comes before
 taking the next offer, since a write to the idle slot is refused while an
 image is pending.
 
+The version it rolled back from is remembered, so a bad release does not
+loop: roll back, be offered the same image, take it again. Publish the fix
+under a new version, since the board will not take that one again.
+
 An image built by a release pipeline cannot carry a WiFi password, so the
 server URL, the SSID and the password come from the board's own store
 (`Preferences`, namespace `epd`) whenever the running image has only the

@@ -6,11 +6,17 @@
 #include <WiFi.h>
 #include <esp_ota_ops.h>
 
+#include <Preferences.h>
+
 #include "log_utils.h"
 #include "version.h"
 
 // A slow link must not abort a megabyte mid-image; the default is 8 s.
 #define OTA_HTTP_TIMEOUT_MS 20000
+
+// Where the client keeps what it learned about images, beside its settings.
+#define OTA_NAMESPACE "epd"
+#define OTA_REJECTED_KEY "ota_rejected"
 
 // The Arduino core confirms a pending image in initArduino(), before setup()
 // ever runs, unless the application says it will judge the image itself. It
@@ -76,9 +82,28 @@ void otaConfirm() {
         log(LOG_ERROR, "failed to confirm the running firmware");
 }
 
+const char* otaRejectedVersion() {
+    static String rejected;
+    Preferences prefs;
+    if (!prefs.begin(OTA_NAMESPACE, true)) return "";
+    // isKey() first: getString() on an absent key logs an error of its own.
+    rejected = prefs.isKey(OTA_REJECTED_KEY) ? prefs.getString(OTA_REJECTED_KEY, "") : String("");
+    prefs.end();
+    return rejected.c_str();
+}
+
+static void rememberRejected(const char* version) {
+    Preferences prefs;
+    if (!prefs.begin(OTA_NAMESPACE, false)) return;
+    prefs.putString(OTA_REJECTED_KEY, version);
+    prefs.end();
+}
+
 void otaRollback(const char* why) {
     logf(LOG_ERROR, "firmware %s failed its first cycle (%s); rolling back", CLIENT_VERSION,
          why ? why : "no reason given");
+    // Recorded before the reboot, so the same image is refused next time.
+    rememberRejected(CLIENT_VERSION);
     Serial.flush();
     esp_ota_mark_app_invalid_rollback_and_reboot();
     // Only reached when the bootloader has no image to roll back to.
@@ -86,3 +111,4 @@ void otaRollback(const char* why) {
     Update.rollBack();
     ESP.restart();
 }
+

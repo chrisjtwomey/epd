@@ -12,7 +12,8 @@
 // board flashed over USB provisions itself for every later image.
 static String resolve(Preferences& prefs, const char* key, const char* compiled,
                       const char* label) {
-    String stored = prefs.getString(key, "");
+    // isKey() first: getString() on an absent key logs an error of its own.
+    String stored = prefs.isKey(key) ? prefs.getString(key, "") : String("");
     String chosen = chooseSetting(compiled, stored.c_str());
 
     if (!isPlaceholder(compiled)) {

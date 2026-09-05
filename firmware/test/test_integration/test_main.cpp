@@ -364,6 +364,17 @@ void test_the_running_version_is_not_applied_again() {
     TEST_ASSERT_EQUAL_INT(0, otaStubs.applyCallCount);
 }
 
+void test_an_image_this_board_rolled_back_from_is_not_taken_again() {
+    happyPathStubs();
+    offerUpdate("v1.6.0");
+    otaStubs.rejectedVersion = "v1.6.0";
+
+    run_app();
+
+    TEST_ASSERT_EQUAL_INT(0, otaStubs.applyCallCount);
+    TEST_ASSERT_TRUE(sleepStubs.sleepForCalled);
+}
+
 void test_no_firmware_headers_means_no_update() {
     happyPathStubs();
 
@@ -518,6 +529,7 @@ int main(int argc, char** argv) {
     RUN_TEST(test_an_offered_update_is_applied_after_the_page_is_drawn);
     RUN_TEST(test_the_running_version_is_not_applied_again);
     RUN_TEST(test_no_firmware_headers_means_no_update);
+    RUN_TEST(test_an_image_this_board_rolled_back_from_is_not_taken_again);
     RUN_TEST(test_an_update_waits_while_the_battery_is_low);
     RUN_TEST(test_an_update_is_applied_at_twenty_percent);
     RUN_TEST(test_a_failed_update_leaves_the_wake_to_end_as_it_would);

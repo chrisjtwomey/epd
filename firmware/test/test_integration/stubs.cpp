@@ -126,6 +126,8 @@ void otaRollback(const char* why) {
     otaStubs.lastRollbackReason = why;
 }
 
+const char* otaRejectedVersion() { return otaStubs.rejectedVersion; }
+
 esp_err_t applyFirmwareUpdate(const char* url, const char* version, const char*) {
     otaStubs.applyCallCount++;
     otaStubs.lastApplyURL = url;

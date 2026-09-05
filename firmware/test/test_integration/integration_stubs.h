@@ -110,6 +110,7 @@ extern SleepStubs sleepStubs;
 struct OtaStubs {
     // --- inputs ---
     bool trialPending = false;      // is this the first boot of a new image?
+    const char* rejectedVersion = "";   // what a previous trial rolled back from
 
     // --- observations ---
     bool        confirmCalled      = false;
@@ -121,6 +122,7 @@ struct OtaStubs {
 
     void reset() {
         trialPending = false;
+        rejectedVersion = "";
         confirmCalled = false;
         rollbackCalled = false;
         lastRollbackReason = nullptr;

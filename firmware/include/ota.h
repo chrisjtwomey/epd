@@ -30,7 +30,19 @@ bool otaTrialPending();
 /** Keep the running image. Does nothing when this is not a trial boot. */
 void otaConfirm();
 
-/** Give up on the running image and boot the previous one. Does not return. */
+/**
+  Give up on the running image and boot the previous one. Does not return.
+
+  The version is recorded first, so the board does not take the same image
+  again the next time the server offers it.
+*/
 void otaRollback(const char* why);
+
+/**
+  The version this board rolled back from, or an empty string.
+
+  The pointer stays valid until the next call.
+*/
+const char* otaRejectedVersion();
 
 #endif  // __OTA_H__

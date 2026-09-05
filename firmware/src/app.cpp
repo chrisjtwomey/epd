@@ -387,7 +387,11 @@ void run_app() {
     // the idle slot is refused while one is pending.
     if (trialBoot) otaConfirm();
 
-    if (updateOffered(CLIENT_VERSION, rsp.firmwareVersion, rsp.firmwareURL)) {
+    const char* rejected = otaRejectedVersion();
+    if (updateRefusedBefore(rsp.firmwareVersion, rejected)) {
+        logf(LOG_WARNING, "firmware %s is offered again; this board rolled back from it",
+             rsp.firmwareVersion);
+    } else if (updateOffered(CLIENT_VERSION, rsp.firmwareVersion, rsp.firmwareURL, rejected)) {
         if (batteryRemainingPercent < 20) {
             logf(LOG_NOTICE, "firmware %s offered but battery is %d%%; waiting",
                  rsp.firmwareVersion, batteryRemainingPercent);
