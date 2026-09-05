@@ -117,6 +117,10 @@ public:
         return drawBitmapReturn;
     }
 
+    // Everything print() was handed this run, in order, one per line. A test
+    // that cares what reached the panel reads this.
+    String printedText;
+
     void setFont(FontHandle font) override { lastFont = font; }
     void setTextSize(uint8_t)     override {}
     void setTextColor(uint16_t)   override {}
@@ -136,8 +140,8 @@ public:
         lastCursorY = y;
     }
 
-    void print(const char*)    override {}
-    void print(const String&)  override {}
+    void print(const char* str)   override { printedText += str; printedText += "\n"; }
+    void print(const String& str) override { print(str.c_str()); }
 
     void fillRect(int16_t, int16_t, int16_t, int16_t, uint16_t) override {}
 
