@@ -7,15 +7,15 @@
 // One namespace for everything this client keeps between boots.
 #define SETTINGS_NAMESPACE "epd"
 
-// Resolve one setting and keep the image's value when it is a real one, so a
+// Resolve one setting and keep this build's value when it is a real one, so a
 // board flashed over USB provisions itself for every later image.
-static String resolve(Preferences& prefs, const char* key, const char* compiled,
+static String resolve(Preferences& prefs, const char* key, const char* builtIn,
                       const char* label) {
     // isKey() first: getString() on an absent key logs an error of its own.
     String stored = prefs.isKey(key) ? prefs.getString(key, "") : String("");
-    String chosen = chooseSetting(compiled, stored.c_str());
+    String chosen = chooseSetting(builtIn, stored.c_str());
 
-    if (!isPlaceholder(compiled)) {
+    if (!isPlaceholder(builtIn)) {
         if (stored != chosen) {
             prefs.putString(key, chosen);
             logf(LOG_INFO, "%s stored from this image", label);
@@ -30,18 +30,18 @@ static String resolve(Preferences& prefs, const char* key, const char* compiled,
 
 // Resolve the MQTT block, which travels as a unit: see mqttSettingsAreSet.
 // The strings outlive this call because the config points into them.
-static void resolveMqtt(Preferences& prefs, const ClientConfig& compiled,
+static void resolveMqtt(Preferences& prefs, const ClientConfig& builtIn,
                         ClientConfig* cfg) {
     static String broker;
     static String clientID;
     static String topic;
 
-    if (mqttSettingsAreSet(compiled.mqttBroker)) {
-        prefs.putBool("mqttEnabled", compiled.mqttEnabled);
-        prefs.putString("mqttBroker", compiled.mqttBroker);
-        prefs.putInt("mqttPort", compiled.mqttPort);
-        prefs.putString("mqttClientID", compiled.mqttClientID);
-        prefs.putString("mqttTopic", compiled.mqttTopic);
+    if (mqttSettingsAreSet(builtIn.mqttBroker)) {
+        prefs.putBool("mqttEnabled", builtIn.mqttEnabled);
+        prefs.putString("mqttBroker", builtIn.mqttBroker);
+        prefs.putInt("mqttPort", builtIn.mqttPort);
+        prefs.putString("mqttClientID", builtIn.mqttClientID);
+        prefs.putString("mqttTopic", builtIn.mqttTopic);
         log(LOG_INFO, "MQTT settings stored from this image");
         return;  // cfg already holds them
     }
@@ -61,8 +61,8 @@ static void resolveMqtt(Preferences& prefs, const ClientConfig& compiled,
     log(LOG_INFO, "MQTT settings read from the store");
 }
 
-ClientConfig loadConfig(const ClientConfig& compiled) {
-    ClientConfig cfg = compiled;
+ClientConfig loadConfig(const ClientConfig& builtIn) {
+    ClientConfig cfg = builtIn;
 
     static String url;
     static String ssid;
@@ -73,10 +73,10 @@ ClientConfig loadConfig(const ClientConfig& compiled) {
         log(LOG_WARNING, "settings store unavailable; using this image's values");
         return cfg;
     }
-    url = resolve(prefs, "serverURL", compiled.serverURL, "server URL");
-    ssid = resolve(prefs, "wifiSSID", compiled.wifiSSID, "wifi SSID");
-    pass = resolve(prefs, "wifiPass", compiled.wifiPass, "wifi password");
-    resolveMqtt(prefs, compiled, &cfg);
+    url = resolve(prefs, "serverURL", builtIn.serverURL, "server URL");
+    ssid = resolve(prefs, "wifiSSID", builtIn.wifiSSID, "wifi SSID");
+    pass = resolve(prefs, "wifiPass", builtIn.wifiPass, "wifi password");
+    resolveMqtt(prefs, builtIn, &cfg);
     prefs.end();
 
     cfg.serverURL = url.c_str();

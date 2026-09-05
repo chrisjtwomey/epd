@@ -46,23 +46,23 @@ bool isPlaceholder(const char* value);
 bool mqttSettingsAreSet(const char* broker);
 
 /**
-  Which of the two values to use: the image's when it is real, else the
-  stored one, else the image's anyway so the failure names itself.
+  Which of the two values to use: this build's when it is real, else the
+  stored one, else this build's anyway so the failure names itself.
 */
-const char* chooseSetting(const char* compiled, const char* stored);
+const char* chooseSetting(const char* builtIn, const char* stored);
 
 /**
-  Resolve ``compiled`` against the settings the board keeps for itself.
+  Resolve ``builtIn`` against the settings the board keeps for itself.
 
   Any real value the image carries is written to the store on the way past,
   so a build flashed over USB provisions the board for every image that
   arrives later; a placeholder is answered from the store instead. The
   returned pointers stay valid for the life of the program.
 
-  ``compiled`` is what this image was built with. The library declares no
-  settings symbols of its own, so what a project hard-codes, and where, is
-  the project's business.
+  ``builtIn`` is what this build carries. The library declares no settings
+  symbols of its own, so what a project hard-codes, and where, is the
+  project's business.
 */
-ClientConfig loadConfig(const ClientConfig& compiled);
+ClientConfig loadConfig(const ClientConfig& builtIn);
 
 #endif  // __SETTINGS_H__

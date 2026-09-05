@@ -8,10 +8,10 @@ bool isPlaceholder(const char* value) {
     return strstr(value, "YOUR_") != nullptr;
 }
 
-const char* chooseSetting(const char* compiled, const char* stored) {
-    if (!isPlaceholder(compiled)) return compiled;
+const char* chooseSetting(const char* builtIn, const char* stored) {
+    if (!isPlaceholder(builtIn)) return builtIn;
     if (!isPlaceholder(stored)) return stored;
-    return compiled;
+    return builtIn;
 }
 
 bool mqttSettingsAreSet(const char* broker) { return !isPlaceholder(broker); }
