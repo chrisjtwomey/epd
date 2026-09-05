@@ -44,9 +44,9 @@ number; the panel will take that one.
 ## Credentials, and the one USB flash
 
 An image built by a release pipeline cannot contain your WiFi password. So
-the panel keeps its own copy of the three settings that cannot be compiled
-in — the server URL, the network name and its password — in the ESP32's own
-storage (`Preferences`, namespace `epd`).
+the panel keeps its own copy of the settings that cannot be compiled in — the
+server URL, the network name and its password, and where to send its logs —
+in the ESP32's own storage (`Preferences`, namespace `epd`).
 
 The rule is simple:
 
@@ -59,9 +59,15 @@ So the build you flash over USB, with your real `src/defaults.cpp`,
 provisions the panel. Every later image comes from CI with placeholders,
 finds the stored values, and connects. One USB flash, and only one.
 
+The MQTT block is resolved as a unit, and the broker host decides. A real
+broker means this image carries real settings, which are stored for the
+images that follow; a placeholder means the whole block comes from the store.
+The other fields cannot answer for themselves — `false` and "not set" are the
+same bool, and `localhost` and `1883` are as plausible as leftovers as they
+are as answers.
+
 Nothing else from `defaults.cpp` is stored. The rest is code and comes from
-the image, which means a change to, say, the MQTT settings needs a new
-release rather than a new flash.
+the image.
 
 ## The first update onto a new contract
 

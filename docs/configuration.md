@@ -4,7 +4,7 @@ The panel and the server are configured separately, and they overlap in only
 one place: the address the panel fetches from.
 
 - The **panel** gets its settings from `src/defaults.cpp`, compiled in, with
-  three of them overridable from the panel's own storage and all of them
+  some of them overridable from the panel's own storage and all of them
   overridable from an SD card.
 - The **server** gets its settings from `config.yaml`, with every key
   overridable by an environment variable.
@@ -44,11 +44,12 @@ pipeline build from that.
 | `ntpHost`, `ntpTimezone` | The clock. The timezone is an IANA name, e.g. `Europe/Dublin`. |
 | `mqttLogger*` | Optional: publish the panel's log to an MQTT broker, so you can read it without a cable. `mqttLoggerEnabled = false` switches all of it off. |
 
-Three of these — `serverURL`, `wifiSSID` and `wifiPass` — are also kept in
-the panel's own storage, so that an image built by CI can still connect. A
-value is treated as a placeholder when it is empty, is `XXXX`, or contains
-`YOUR_`; a real compiled value always wins and is saved as it passes.
-[Updates over the air](ota.md) explains why.
+`serverURL`, `wifiSSID`, `wifiPass` and the whole `mqttLogger` block are also
+kept in the panel's own storage, so that an image built by CI can still
+connect and still report. A value is treated as a placeholder when it is
+empty, is `XXXX`, or contains `YOUR_`; a real compiled value always wins and
+is saved as it passes. The MQTT fields travel together, with the broker host
+deciding for all of them. [Updates over the air](ota.md) explains why.
 
 ## Panel: settings on an SD card
 

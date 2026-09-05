@@ -13,3 +13,5 @@ const char* chooseSetting(const char* compiled, const char* stored) {
     if (!isPlaceholder(stored)) return stored;
     return compiled;
 }
+
+bool mqttSettingsAreSet(const char* broker) { return !isPlaceholder(broker); }

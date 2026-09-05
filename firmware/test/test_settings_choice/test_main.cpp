@@ -37,8 +37,20 @@ void test_with_nothing_anywhere_the_image_value_stands(void) {
     TEST_ASSERT_EQUAL_STRING("XXXX", chooseSetting("XXXX", nullptr));
 }
 
+void test_the_broker_says_whether_an_image_carries_mqtt_settings(void) {
+    TEST_ASSERT_TRUE(mqttSettingsAreSet("roci.local"));
+    TEST_ASSERT_TRUE(mqttSettingsAreSet("192.168.1.10"));
+    // A placeholder means the block comes from the board's own store, which
+    // is what lets an image built by CI keep logging somewhere real.
+    TEST_ASSERT_FALSE(mqttSettingsAreSet("XXXX"));
+    TEST_ASSERT_FALSE(mqttSettingsAreSet("YOUR_BROKER"));
+    TEST_ASSERT_FALSE(mqttSettingsAreSet(""));
+    TEST_ASSERT_FALSE(mqttSettingsAreSet(nullptr));
+}
+
 int main(int argc, char** argv) {
     UNITY_BEGIN();
+    RUN_TEST(test_the_broker_says_whether_an_image_carries_mqtt_settings);
     RUN_TEST(test_the_values_defaults_example_ships_are_placeholders);
     RUN_TEST(test_a_real_value_is_not_a_placeholder);
     RUN_TEST(test_the_image_wins_when_it_carries_a_real_value);

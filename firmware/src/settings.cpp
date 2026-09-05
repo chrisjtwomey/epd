@@ -29,6 +29,38 @@ static String resolve(Preferences& prefs, const char* key, const char* compiled,
     return chosen;
 }
 
+// Resolve the MQTT block, which travels as a unit: see mqttSettingsAreSet.
+// The strings outlive this call because the config points into them.
+static void resolveMqtt(Preferences& prefs, ClientConfig* cfg) {
+    static String broker;
+    static String clientID;
+    static String topic;
+
+    if (mqttSettingsAreSet(mqttLoggerBroker)) {
+        prefs.putBool("mqttEnabled", mqttLoggerEnabled);
+        prefs.putString("mqttBroker", mqttLoggerBroker);
+        prefs.putInt("mqttPort", mqttLoggerPort);
+        prefs.putString("mqttClientID", mqttLoggerClientID);
+        prefs.putString("mqttTopic", mqttLoggerTopic);
+        log(LOG_INFO, "MQTT settings stored from this image");
+        return;  // cfg already holds them
+    }
+    if (!prefs.isKey("mqttBroker")) {
+        log(LOG_INFO, "no MQTT settings in this image or the store");
+        return;
+    }
+
+    broker = prefs.getString("mqttBroker", "");
+    clientID = prefs.getString("mqttClientID", "");
+    topic = prefs.getString("mqttTopic", "");
+    cfg->mqttEnabled = prefs.getBool("mqttEnabled", cfg->mqttEnabled);
+    cfg->mqttBroker = broker.c_str();
+    cfg->mqttPort = prefs.getInt("mqttPort", cfg->mqttPort);
+    cfg->mqttClientID = clientID.c_str();
+    cfg->mqttTopic = topic.c_str();
+    log(LOG_INFO, "MQTT settings read from the store");
+}
+
 ClientConfig loadConfig() {
     ClientConfig cfg = {
         serverURL, serverRetries, serverDefaultRefreshSeconds,
@@ -50,6 +82,7 @@ ClientConfig loadConfig() {
     url = resolve(prefs, "serverURL", serverURL, "server URL");
     ssid = resolve(prefs, "wifiSSID", wifiSSID, "wifi SSID");
     pass = resolve(prefs, "wifiPass", wifiPass, "wifi password");
+    resolveMqtt(prefs, &cfg);
     prefs.end();
 
     cfg.serverURL = url.c_str();
