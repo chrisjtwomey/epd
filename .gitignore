@@ -1,6 +1,8 @@
 # PlatformIO
 .pio/
 .vscode/
+# The images examples/ota's server offers
+examples/*/firmware/
 
 # Python (server package, added in step 3)
 __pycache__/

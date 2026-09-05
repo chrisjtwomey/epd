@@ -36,6 +36,9 @@ Confirm before you take the next offer. A write to the idle slot is refused
 while an image is still pending, so an unconfirmed image blocks the next
 update.
 
+[`examples/ota`](../examples/ota) is a whole project that does this, with a
+walk-through of an update, and of a rollback, on the bench.
+
 A panel that rolled back remembers the version it rejected and will not take
 that version again. Without that memory it would roll back, be offered the
 same image, take it again, and loop. Publish the fix under a new version

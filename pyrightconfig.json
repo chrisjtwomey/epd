@@ -1,5 +1,5 @@
 {
-  "include": ["server"],
+  "include": ["server", "examples"],
   "venvPath": "server",
   "venv": ".venv",
   "extraPaths": ["server"]

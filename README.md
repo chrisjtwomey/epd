@@ -61,6 +61,9 @@ mkdir -p my-display/src && cd my-display
 You now have `epd/` and `my-display/` side by side. Everything below happens
 in `my-display`.
 
+The four files below are also in [`examples/minimal`](examples/minimal),
+ready to copy.
+
 ### 1. Start a server
 
 ```sh
@@ -86,7 +89,7 @@ body { margin:0; height:100vh; display:flex; flex-direction:column;
 
 
 class ClockPage(Page):
-    def template(self):
+    def template(self, **kwargs):
         now = datetime.now()
         with self.airium.html():
             with self.airium.head():
@@ -171,9 +174,9 @@ password in the first block; the rest can stay as it is:
 ClientConfig builtInSettings() {
     ClientConfig cfg = {};
 
-    cfg.serverURL = "http://192.168.1.10:8080/clock.png";
-    cfg.wifiSSID = "your-network";
-    cfg.wifiPass = "your-password";
+    cfg.serverURL = "http://YOUR_SERVER_HOST:8080/clock.png";
+    cfg.wifiSSID = "XXXX";
+    cfg.wifiPass = "XXXX";
 
     cfg.serverRetries = 3;
     cfg.defaultRefreshSeconds = 3600;
@@ -223,7 +226,8 @@ void setup() {
         if (fetchPage(cfg.serverURL, clientUserAgent(epdBoard().deviceName()),
                       cfg.serverRetries, &page, &errMsg)) {
             drawPage(page, nullptr, cfg.serverRetries, nullptr, &errMsg);
-            sleepSeconds = page.response.nextRefreshSeconds;   // the server decides
+            if (page.response.nextRefreshSeconds)
+                sleepSeconds = page.response.nextRefreshSeconds;   // the server decides
         }
     }
     sleep_for(sleepSeconds);

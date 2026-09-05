@@ -31,6 +31,36 @@ jobs:
       - name: Run native_mock tests
         run: pio test -e native_mock
 
+  example-build:
+    name: Example project (ESP32)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        example: [minimal, ota]
+    defaults:
+      run:
+        working-directory: examples/${{ matrix.example }}
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio/.cache
+          key: ${{ runner.os }}-pio-esp32
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install PlatformIO Core
+        run: pip install --upgrade platformio
+
+      # The only builds here that see the ESP32 framework. The host tests
+      # cannot catch what breaks only there.
+      - name: Build the example
+        run: pio run
+
   server-tests:
     name: Server tests
     runs-on: ubuntu-latest

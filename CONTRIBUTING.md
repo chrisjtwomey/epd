@@ -18,6 +18,8 @@ server/                   epd-server — pip package
                           source, pipeline, scheduling, mqtt, app
   tests/
 docs/                     configuration, ota, protocol, testing, custom-board
+examples/                 minimal, the README's quickstart as a project; ota, the
+                          same with updates on. The only ESP32 builds
 ```
 
 Two libraries, not one, so that a project on other hardware never pulls in
@@ -41,7 +43,13 @@ No device, network, or browser is needed for any test.
 cd firmware
 pio test -e native              # pure helpers: back-off, battery, refresh header parsing
 pio test -e native_mock         # display + sleep against MockBoard
+cd ../examples/minimal
+pio run                         # an ESP32 build; the host tests never see the framework
 ```
+
+`examples/minimal` is the README's quickstart, file for file, and
+`server/tests/test_examples.py` fails when they differ. Change one and copy
+it to the other.
 
 The order of a wake belongs to the project that decides it, so its test does
 too. A consumer runs one from its own repository, against `MockBoard.h` and
