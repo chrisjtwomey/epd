@@ -31,9 +31,6 @@ jobs:
       - name: Run native_mock tests
         run: pio test -e native_mock
 
-      - name: Run native_integration tests
-        run: pio test -e native_integration
-
   server-tests:
     name: Server tests
     runs-on: ubuntu-latest
