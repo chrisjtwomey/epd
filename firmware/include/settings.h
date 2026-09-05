@@ -52,12 +52,17 @@ bool mqttSettingsAreSet(const char* broker);
 const char* chooseSetting(const char* compiled, const char* stored);
 
 /**
-  The config this image was built with, with the stored settings resolved.
+  Resolve ``compiled`` against the settings the board keeps for itself.
 
   Any real value the image carries is written to the store on the way past,
   so a build flashed over USB provisions the board for every image that
-  arrives later. The returned pointers stay valid for the life of the program.
+  arrives later; a placeholder is answered from the store instead. The
+  returned pointers stay valid for the life of the program.
+
+  ``compiled`` is what this image was built with. The library declares no
+  settings symbols of its own, so what a project hard-codes, and where, is
+  the project's business.
 */
-ClientConfig loadConfig();
+ClientConfig loadConfig(const ClientConfig& compiled);
 
 #endif  // __SETTINGS_H__

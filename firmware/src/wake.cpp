@@ -3,29 +3,27 @@
 #include <Arduino.h>
 #include <ezTime.h>
 
-#include "IBoard.h"
+#include "epd.h"
 #include "battery.h"
 #include "display_utils.h"
 #include "log_utils.h"
 #include "ota.h"
 #include "version.h"
 
-// Provided by main.cpp (firmware) or test_main.cpp (tests).
-extern IBoard& board;
 
 void startBoard(uint8_t rotation) {
     Serial.begin(115200);
-    board.begin();
-    board.setRotation(rotation);
-    board.rtcGetData();
-    setTime(board.rtcGetEpoch());
+    epdBoard().begin();
+    epdBoard().setRotation(rotation);
+    epdBoard().rtcGetData();
+    setTime(epdBoard().rtcGetEpoch());
 }
 
 void logWakeReason() {
     switch (esp_sleep_get_wakeup_cause()) {
         case ESP_SLEEP_WAKEUP_EXT0:
             log(LOG_DEBUG, "wakeup caused by external signal using RTC_IO.");
-            board.rtcClearAlarmFlag();
+            epdBoard().rtcClearAlarmFlag();
             break;
         case ESP_SLEEP_WAKEUP_EXT1:
             log(LOG_DEBUG, "wakeup caused by external signal using RTC_CNTL.");
@@ -46,7 +44,7 @@ void logWakeReason() {
 }
 
 int readBatteryPercent() {
-    double volts = board.readBattery();
+    double volts = epdBoard().readBattery();
     logf(LOG_INFO, "battery voltage: %sv", String(volts, 2).c_str());
     int percent = getBatteryCapacity(volts);
     logf(LOG_INFO, "approx battery capacity: %d%%", percent);
@@ -85,12 +83,12 @@ bool drawPage(const PageFetch& page, const char* filePath, int retries,
     for (int attempt = 0; attempt <= retries; ++attempt) {
         logf(LOG_DEBUG, "image draw attempt #%d", attempt + 1);
 
-        board.clearDisplay();
+        epdBoard().clearDisplay();
         if ((filePath ? loadImage(filePath) : loadImage(page.data, page.length)) != ESP_OK)
             continue;
 
         if (overlay) overlay();
-        board.display();
+        epdBoard().display();
         return true;
     }
     *errMsg = "image load error";

@@ -5,7 +5,7 @@
 #include <ArduinoJson.h>
 #include <ArduinoYaml.h>
 
-#include "IBoard.h"
+#include "epd.h"
 #include "file_utils.h"
 #include "log_utils.h"
 
@@ -13,8 +13,6 @@
 // so a config large enough to overflow this would not fit the document either.
 #define CONFIG_BUFFER_SIZE 1536
 
-// Provided by main.cpp (firmware) or test_main.cpp (tests).
-extern IBoard& board;
 
 // Read the card and apply what it says. Every problem is a warning, and
 // leaves cfg untouched.
@@ -22,7 +20,7 @@ static void readCard(ClientConfig* cfg) {
     // Read the config file through IBoard so this code stays independent of
     // any particular SD library.
     uint8_t configBuf[CONFIG_BUFFER_SIZE];
-    if (board.sdReadFile(CONFIG_FILE_PATH, configBuf, sizeof(configBuf)) == 0) {
+    if (epdBoard().sdReadFile(CONFIG_FILE_PATH, configBuf, sizeof(configBuf)) == 0) {
         log(LOG_WARNING, "cannot read the config file on the card");
         return;
     }
@@ -94,7 +92,7 @@ static void readCard(ClientConfig* cfg) {
 
 bool applySdConfig(ClientConfig* cfg) {
     // A card is optional: one image serves boards with and without one.
-    if (!board.sdCardInit()) {
+    if (!epdBoard().sdCardInit()) {
         log(LOG_WARNING, "no SD card; using this board's own settings");
         return false;
     }

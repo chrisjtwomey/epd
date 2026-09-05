@@ -1,16 +1,14 @@
 #include "sleep_utils.h"
-#include "IBoard.h"
+#include "epd.h"
 #include <WiFi.h>
 #include <driver/rtc_io.h>
 #include <ezTime.h>
 
 #include "log_utils.h"
 
-// The board driver instance.
-extern IBoard& board;
 
 void sleep_for(uint32_t seconds) {
-    time_t targetWakeTime = board.rtcGetEpoch() + (time_t)seconds;
+    time_t targetWakeTime = epdBoard().rtcGetEpoch() + (time_t)seconds;
     logf(LOG_DEBUG, "sleeping for %u seconds (RTC alarm at epoch %ld)",
          seconds, (long)targetWakeTime);
     sleep(targetWakeTime);
@@ -19,9 +17,9 @@ void sleep_for(uint32_t seconds) {
 void sleep(time_t targetWakeTime) {
     log(LOG_DEBUG, "arming deep sleep RTC alarm wakeup");
 
-    board.rtcSetAlarmEpoch(targetWakeTime);
+    epdBoard().rtcSetAlarmEpoch(targetWakeTime);
     // The alarm pin and wake source are board-specific — the board owns them.
-    board.enableWakeOnRtcAlarm();
+    epdBoard().enableWakeOnRtcAlarm();
 
     logf(LOG_DEBUG, "waking at %s", dateTime(targetWakeTime, RFC3339).c_str());
 
@@ -34,7 +32,7 @@ void deepSleep() {
     WiFi.mode(WIFI_OFF);
 
 #if defined(USE_SDCARD)
-    board.sdCardSleep();
+    epdBoard().sdCardSleep();
 #endif
 
     esp_deep_sleep_start();

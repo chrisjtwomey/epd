@@ -2,14 +2,12 @@
 #include <Arduino.h>
 #include <ezTime.h>
 
-#include "IBoard.h"
+#include "epd.h"
 #include "log_utils.h"
 
 // The timezone store
 Timezone myTz;
 
-// The board driver instance.
-extern IBoard& board;
 
 String nowTzFmt() {
     return myTz.dateTime(RFC3339);   // local time with its real offset, UTC until the zone is known
@@ -37,7 +35,7 @@ esp_err_t configureTime(const char* ntpHost, const char* timezoneName) {
     }
 
     // The RTC holds UTC. Local time is a display format, from myTz.
-    board.rtcSetEpoch(now());
+    epdBoard().rtcSetEpoch(now());
     logf(LOG_DEBUG, "RTC synced to %s", myTz.dateTime(RFC3339).c_str());
 
     return ESP_OK;

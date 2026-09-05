@@ -1,12 +1,10 @@
 #include "display_utils.h"
-#include "IBoard.h"
+#include "epd.h"
 #include <SPIFFS.h>
 
 #include "log_utils.h"
 #include "mem_utils.h"
 
-// The board driver instance.
-extern IBoard& board;
 
 #define IMAGE_CACHE_PATH "/image.png"
 
@@ -35,7 +33,7 @@ bool loadImageCache() {
     if (!buf) { f.close(); return false; }
     f.read(buf, len);
     f.close();
-    bool ok = board.drawPngFromBuffer(buf, len, 0, 0, false, true);
+    bool ok = epdBoard().drawPngFromBuffer(buf, len, 0, 0, false, true);
     free(buf);
     return ok;
 }
@@ -43,7 +41,7 @@ bool loadImageCache() {
 esp_err_t loadImage(const char* filePath) {
     logf(LOG_INFO, "drawing image from path: %s", filePath);
 
-    if (!board.drawPngFromSd(filePath, 0, 0, false, true)) {
+    if (!epdBoard().drawPngFromSd(filePath, 0, 0, false, true)) {
         return ESP_ERR_EDRAW;
     }
 
@@ -53,7 +51,7 @@ esp_err_t loadImage(const char* filePath) {
 esp_err_t loadImage(uint8_t* buf, int32_t len) {
     log(LOG_INFO, "drawing image from buffer");
 
-    if (!board.drawPngFromBuffer(buf, len, 0, 0, false, true)) {
+    if (!epdBoard().drawPngFromBuffer(buf, len, 0, 0, false, true)) {
         return ESP_ERR_EDRAW;
     }
 
