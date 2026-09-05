@@ -19,7 +19,9 @@ server/                   epd-server — pip package
   tests/
 docs/                     configuration, ota, protocol, testing, custom-board
 examples/                 minimal, the README's quickstart as a project; ota, the
-                          same with updates on. The only ESP32 builds
+                          same with updates on; live-data, a server with a
+                          data source, a cache and two pages. The first two
+                          are the only ESP32 builds
 ```
 
 Two libraries, not one, so that a project on other hardware never pulls in

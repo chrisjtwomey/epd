@@ -3,6 +3,8 @@
 .vscode/
 # The images examples/ota's server offers
 examples/*/firmware/
+# What examples/live-data keeps between fetches
+.weather-cache.json
 
 # Python (server package, added in step 3)
 __pycache__/
