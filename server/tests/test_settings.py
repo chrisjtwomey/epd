@@ -232,11 +232,13 @@ def test_load_yaml_rejects_non_mapping(tmp_path):
         load_yaml(f)
 
 
-
-
 # ---------- firmware ----------
 
 from epd_server.config import FirmwareSettings, parse_firmware  # noqa: E402
+
+
+def firmware_cfg(**firmware):
+    return {"client": {"firmware": firmware}}
 
 
 def test_firmware_is_off_by_default():
@@ -246,42 +248,41 @@ def test_firmware_is_off_by_default():
 
 
 def test_firmware_block_is_read():
-    fw = parse_firmware({"firmware": {"enabled": True, "dir": "/srv/images",
-                                      "product": "weather-cal", "offer_dev_builds": True}})
-    assert fw == FirmwareSettings(True, "/srv/images", "weather-cal", True)
+    fw = parse_firmware(firmware_cfg(enabled=True, dir="/srv/images",
+                               product="my-display", offer_dev_builds=True))
+    assert fw == FirmwareSettings(True, "/srv/images", "my-display", True)
 
 
 def test_the_project_supplies_the_product_so_the_config_need_not():
-    fw = parse_firmware({"firmware": {"enabled": True}}, default_product="weather-cal")
-    assert fw.product == "weather-cal"
-    assert parse_firmware({"firmware": {"enabled": True, "product": "other"}},
-                          default_product="weather-cal").product == "other"
+    fw = parse_firmware(firmware_cfg(enabled=True), default_product="my-display")
+    assert fw.product == "my-display"
+    assert parse_firmware(firmware_cfg(enabled=True, product="other"),
+                          default_product="my-display").product == "other"
 
 
 def test_an_enabled_block_without_a_product_is_refused():
-    with pytest.raises(ConfigError, match="firmware.product is required"):
-        parse_firmware({"firmware": {"enabled": True}})
-    assert parse_firmware({"firmware": {"enabled": False}}).product == ""
+    with pytest.raises(ConfigError, match="client.firmware.product is required"):
+        parse_firmware(firmware_cfg(enabled=True))
+    assert parse_firmware(firmware_cfg(enabled=False)).product == ""
 
 
 def test_firmware_env_overrides_coerce_types(monkeypatch):
-    monkeypatch.setenv("FIRMWARE_ENABLED", "true")
-    monkeypatch.setenv("FIRMWARE_OFFER_DEV_BUILDS", "true")
-    monkeypatch.setenv("FIRMWARE_DIR", "/tmp/fw")
-    fw = parse_firmware({"firmware": {"product": "weather-cal"}})
+    monkeypatch.setenv("CLIENT_FIRMWARE_ENABLED", "true")
+    monkeypatch.setenv("CLIENT_FIRMWARE_OFFER_DEV_BUILDS", "true")
+    monkeypatch.setenv("CLIENT_FIRMWARE_DIR", "/tmp/fw")
+    fw = parse_firmware(firmware_cfg(product="my-display"))
     assert fw.enabled is True and fw.offer_dev_builds is True and fw.dir == "/tmp/fw"
 
 
 def test_firmware_source_defaults_and_product_from_the_repo_name():
-    fw = parse_firmware({"firmware": {"enabled": True,
-                                      "source": {"github": "chrisjtwomey/weather-cal"}}})
-    assert fw.product == "weather-cal"
+    fw = parse_firmware(firmware_cfg(enabled=True, source={"github": "owner/my-display"}))
+    assert fw.product == "my-display"
     assert fw.source.asset == "firmware.bin" and fw.source.poll_seconds == 3600
     assert fw.source.token == ""
 
 
 def test_no_source_block_means_images_are_placed_by_hand():
-    assert parse_firmware({"firmware": {"enabled": True, "product": "cal"}}).source is None
+    assert parse_firmware(firmware_cfg(enabled=True, product="cal")).source is None
 
 
 @pytest.mark.parametrize("source, match", [
@@ -291,17 +292,17 @@ def test_no_source_block_means_images_are_placed_by_hand():
 ])
 def test_a_bad_source_block_is_refused(source, match):
     with pytest.raises(ConfigError, match=match):
-        parse_firmware({"firmware": {"enabled": True, "source": source}})
+        parse_firmware(firmware_cfg(enabled=True, source=source))
 
 
 def test_the_token_comes_from_the_environment(monkeypatch):
-    monkeypatch.setenv("FIRMWARE_SOURCE_TOKEN", "ghp_secret")
-    fw = parse_firmware({"firmware": {"enabled": True, "source": {"github": "a/b"}}})
+    monkeypatch.setenv("CLIENT_FIRMWARE_SOURCE_TOKEN", "ghp_secret")
+    fw = parse_firmware(firmware_cfg(enabled=True, source={"github": "a/b"}))
     assert fw.source.token == "ghp_secret"
 
 
 def test_a_relative_firmware_dir_resolves_against_the_config_file(tmp_path):
-    fw = parse_firmware({"firmware": {"product": "cal"}}, base_dir=str(tmp_path))
+    fw = parse_firmware(firmware_cfg(product="cal"), base_dir=str(tmp_path))
     assert fw.dir == str(tmp_path / "firmware")
-    absolute = parse_firmware({"firmware": {"dir": "/srv/images"}}, base_dir=str(tmp_path))
+    absolute = parse_firmware(firmware_cfg(dir="/srv/images"), base_dir=str(tmp_path))
     assert absolute.dir == "/srv/images"

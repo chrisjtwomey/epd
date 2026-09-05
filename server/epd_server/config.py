@@ -175,7 +175,7 @@ class CoreConfig:
     server: ServerSettings
     image: ImageSettings
     mqtt: MqttSettings
-    firmware: FirmwareSettings
+    firmware: FirmwareSettings     # from the client block: client.firmware
 
 
 def _positive_int(key: str, value) -> int:
@@ -331,48 +331,50 @@ _GITHUB_REPO = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$")
 
 
 def _parse_firmware_source(config: dict) -> FirmwareSource | None:
-    """The optional ``firmware.source`` block. Absent means images are placed by hand."""
-    github = get_prop_by_keys(config, "firmware", "source", "github",
+    """The optional ``client.firmware.source`` block. Absent means images are placed by hand."""
+    github = get_prop_by_keys(config, "client", "firmware", "source", "github",
                               default="", required=False)
     github = str(github or "").strip()
     if not github:
         return None
     if not _GITHUB_REPO.match(github):
-        raise ConfigError(f"firmware.source.github must be owner/repo (got {github!r})")
-    asset = str(get_prop_by_keys(config, "firmware", "source", "asset",
+        raise ConfigError(f"client.firmware.source.github must be owner/repo (got {github!r})")
+    asset = str(get_prop_by_keys(config, "client", "firmware", "source", "asset",
                                  default="firmware.bin")).strip()
     if not asset:
-        raise ConfigError("firmware.source.asset must name the release asset to take")
-    poll = _positive_int("firmware.source.poll_seconds",
-                         get_prop_by_keys(config, "firmware", "source", "poll_seconds",
+        raise ConfigError("client.firmware.source.asset must name the release asset to take")
+    poll = _positive_int("client.firmware.source.poll_seconds",
+                         get_prop_by_keys(config, "client", "firmware", "source", "poll_seconds",
                                           default=3600))
-    token = str(get_prop_by_keys(config, "firmware", "source", "token",
+    token = str(get_prop_by_keys(config, "client", "firmware", "source", "token",
                                  default="", required=False) or "")
     return FirmwareSource(github=github, asset=asset, poll_seconds=poll, token=token)
 
 
 def parse_firmware(config: dict, *, default_product: str | None = None,
                    base_dir: str | None = None) -> FirmwareSettings:
-    """The ``firmware`` block: where the images are, and who they are for.
+    """The ``client.firmware`` block: where the images are, and who they are for.
 
-    ``product`` is the client name the board reports in its User-Agent. It is
-    required once the block is enabled, because offering one product's image
-    to another product's board would brick it. A relative ``dir`` is resolved
-    against ``base_dir``, which a project sets to wherever its config.yaml is.
+    It sits under ``client`` because every key in it describes the board, not
+    this server: the images are for the board to run, and ``product`` is the
+    name the board reports in its User-Agent. ``product`` is required once the
+    block is enabled, because offering one product's image to another
+    product's board would brick it. A relative ``dir`` is resolved against
+    ``base_dir``, which a project sets to wherever its config.yaml is.
     """
-    enabled = bool(get_prop_by_keys(config, "firmware", "enabled", default=False))
-    directory = str(get_prop_by_keys(config, "firmware", "dir", default="firmware"))
+    enabled = bool(get_prop_by_keys(config, "client", "firmware", "enabled", default=False))
+    directory = str(get_prop_by_keys(config, "client", "firmware", "dir", default="firmware"))
     if base_dir:
         directory = os.path.join(base_dir, directory)
-    offer_dev = bool(get_prop_by_keys(config, "firmware", "offer_dev_builds", default=False))
+    offer_dev = bool(get_prop_by_keys(config, "client", "firmware", "offer_dev_builds", default=False))
     source = _parse_firmware_source(config)
     if source and not default_product:
         default_product = source.github.split("/")[-1]
-    product = str(get_prop_by_keys(config, "firmware", "product",
+    product = str(get_prop_by_keys(config, "client", "firmware", "product",
                                    default=default_product or "", required=False) or "").strip()
     if enabled and not product:
-        raise ConfigError("firmware.product is required when firmware is enabled: "
-                          "the client name the board sends, e.g. inkplate10-weather-cal")
+        raise ConfigError("client.firmware.product is required when it is enabled: "
+                          "the client name the board sends, e.g. my-display")
     return FirmwareSettings(enabled=enabled, dir=directory, product=product,
                             offer_dev_builds=offer_dev, source=source)
 

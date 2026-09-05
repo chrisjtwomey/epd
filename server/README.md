@@ -134,11 +134,12 @@ image:
   innerHeight: 1200
   innerAlignX: center            # left | center | right
   innerAlignY: center            # top | center | bottom
-firmware:                        # server-driven client updates
-  enabled: false
-  dir: firmware                  # a directory of <version>.bin, newest wins
-  product: inkplate10-weather-cal  # the client name a board reports
-  offer_dev_builds: false        # true also offers to boards not built from a tag
+client:                          # what the boards this server serves run
+  firmware:                      # server-driven client updates
+    enabled: false
+    dir: firmware                # a directory of <version>.bin, newest wins
+    product: my-display          # the client name a board reports
+    offer_dev_builds: false      # true also offers to boards not built from a tag
 mqtt:                            # relay the client's log topic
   enabled: false
   host: localhost
@@ -147,11 +148,12 @@ mqtt:                            # relay the client's log topic
 debug: false
 ```
 
-`firmware` lets the server flash the boards it serves. Put an image in
-`dir` named for its version, `v1.6.0.bin`, and every board of that product
-running a different version is offered it on its next page fetch. The
-version is the filename, so nothing else has to be written. A relative
-`dir` is resolved against the directory holding `config.yaml`.
+`client.firmware` lets the server flash the boards it serves. It sits under
+`client` because every key in it describes the board rather than this
+server. Put an image in `dir` named for its version, `v1.6.0.bin`, and every
+board of that product running a different version is offered it on its next
+page fetch. The version is the filename, so nothing else has to be written.
+A relative `dir` is resolved against the directory holding `config.yaml`.
 
 A board built from a tag takes the update; one built from a working tree
 (`v1.5.1-3-gab12cd4`, `-dirty`, `dev`) is left alone unless
@@ -163,20 +165,21 @@ Add a `source` block and the server fills `dir` itself, from a
 repository's releases:
 
 ```yaml
-firmware:
-  enabled: true
-  source:
-    github: chrisjtwomey/inkplate10-weather-cal
-    asset: firmware.bin
-    poll_seconds: 3600
-    token: ""                    # a private repository
+client:
+  firmware:
+    enabled: true
+    source:
+      github: owner/repo
+      asset: firmware.bin
+      poll_seconds: 3600
+      token: ""                  # a private repository
 ```
 
 It asks GitHub for the latest release on a background thread, and takes the
 named asset whenever the tag is not the version already held. An `ETag`
 makes an unchanged answer cheap. A private repository needs a token, which
-belongs in `FIRMWARE_SOURCE_TOKEN` rather than the file. With `source` set,
-`product` defaults to the repository name.
+belongs in `CLIENT_FIRMWARE_SOURCE_TOKEN` rather than the file. With
+`source` set, `product` defaults to the repository name.
 
 Every key can be overridden by an env var named from its path:
 `SERVER_PORT`, `IMAGE_INNERWIDTH`, `MQTT_ENABLED`, `DEBUG`.
