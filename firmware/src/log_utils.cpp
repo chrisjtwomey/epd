@@ -1,3 +1,4 @@
+#include "log_format.h"
 #include "log_utils.h"
 #include <Arduino.h>
 #include <WiFi.h>
@@ -115,20 +116,12 @@ void log(uint16_t pri, const char* msg) {
 void logf(uint16_t pri, const char* fmt, ...) {
     if (pri > LOG_LEVEL) return;
 
-    const char* prefix = msgPrefix(pri);
-    size_t prefixLen = strlen(prefix);
-    size_t msgLen = strlen(fmt);
-    char a[prefixLen + msgLen + 1];
-    strcpy(a, prefix);
-    strcat(a, fmt);
-
+    char line[LOG_LINE_MAX];
     va_list args;
     va_start(args, fmt);
-    size_t size = snprintf(NULL, 0, a, args);
-    char b[size + 1];
-    vsprintf(b, a, args);
-    ensureQueue(b);
+    formatLog(line, sizeof(line), msgPrefix(pri), fmt, args);
     va_end(args);
+    ensureQueue(line);
 }
 
 /**
