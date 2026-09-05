@@ -17,13 +17,19 @@ server/                   epd-server — pip package
   epd_server/             config, registry, cache, page, render, quantise,
                           source, pipeline, scheduling, mqtt, app
   tests/
-docs/                     custom-board.md and other guides
+docs/                     configuration, ota, protocol, testing, custom-board
 ```
 
 Two libraries, not one, so that a project on other hardware never pulls in
 InkplateLibrary. Nothing in `firmware/src` may name an Inkplate type: if a
 change needs one, it goes in `boards/inkplate/`, or behind a new method on
 `IBoard`.
+
+A PlatformIO `lib_deps` git URL can only address a repository root, and
+these two libraries sit in one tree. Until both are published to the
+registry, a consumer therefore checks this repo out beside itself and uses
+`symlink://../epd/firmware`. The README's quickstart says so; keep the two
+in step if that changes.
 
 ## Tests
 
@@ -38,8 +44,9 @@ pio test -e native_mock         # display + sleep against MockBoard
 ```
 
 The order of a wake belongs to the project that decides it, so its test does
-too. `inkplate10-weather-cal` runs one with `pio test -e native_integration`,
-against `MockBoard.h` and the stub headers this kit ships in `test_support/`.
+too. A consumer runs one from its own repository, against `MockBoard.h` and
+the stub headers this kit ships in `test_support/`. Setting that up is
+[docs/testing.md](docs/testing.md); keep the two in step.
 
 ### Server
 
@@ -57,19 +64,18 @@ network belongs in a consumer, not here.
 
 ## Consumers
 
-[inkplate10-weather-cal](https://github.com/chrisjtwomey/inkplate10-weather-cal)
-and [inkplate5-env-monitor](https://github.com/chrisjtwomey/inkplate5-env-monitor)
-build against this repo:
+A project builds against this repo two ways, and a change here can break
+either:
 
 - Firmware: `lib_deps = symlink://../epd/firmware` and
-  `symlink://../epd/firmware/boards/inkplate`, so they need this repo checked
-  out beside them. Their CI checks out both.
+  `symlink://../epd/firmware/boards/inkplate`, so the project needs this repo
+  checked out beside it, in CI as well as locally.
 - Server: `epd-server @ git+https://github.com/chrisjtwomey/epd.git@main#subdirectory=server`
   in `requirements.txt`. pip honours `#subdirectory=` for VCS URLs only, so a
   git binary is needed where that is installed.
 
-A change here can break them. Before opening a pull request, build at least
-the weather calendar: `pio run` in its root and `pytest` in its `server/`.
+Before opening a pull request, build a consumer against your branch: `pio
+run` in its root and `pytest` in its `server/`.
 
 ### Publishing
 
