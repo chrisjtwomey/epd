@@ -79,9 +79,18 @@ run` in its root and `pytest` in its `server/`.
 
 ### Publishing
 
-One version covers all three: both `library.json` files, `server/pyproject.toml`
-and `server/epd_server/_version.py`. Nothing checks that they agree, and the
-server reports its own in the `X-Server-Version` header, so bump them together.
+One version covers all three, declared in both `library.json` files,
+`server/pyproject.toml` and `server/epd_server/_version.py`. Set all four at
+once, and never by hand:
+
+```sh
+python3 scripts/version.py          # what is declared now
+python3 scripts/version.py 0.3.0    # set every declaration
+```
+
+`server/tests/test_version.py` fails if they ever disagree. That matters more
+than tidiness: the server sends its own version to every client in the
+`X-Server-Version` header.
 
 The registry ships what `library.json`'s `export` rules allow, not the
 directory, so build a consumer against the exact tarball before publishing
