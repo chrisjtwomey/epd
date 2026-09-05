@@ -13,6 +13,7 @@ import epd_server
 ROOT = Path(__file__).resolve().parents[2]
 
 _spec = importlib.util.spec_from_file_location("epd_version", ROOT / "scripts" / "version.py")
+assert _spec is not None and _spec.loader is not None, "scripts/version.py is missing"
 _module = importlib.util.module_from_spec(_spec)
 sys.modules["epd_version"] = _module
 _spec.loader.exec_module(_module)

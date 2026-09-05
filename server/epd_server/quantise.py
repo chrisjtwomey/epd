@@ -45,13 +45,17 @@ class PaletteQuantiser:
     """Map every pixel to the nearest colour in ``colors`` (RGB triples)."""
 
     def __init__(self, colors: Sequence[RGB], dither: bool = True):
-        colors = [tuple(int(c) for c in rgb) for rgb in colors]
         if not 2 <= len(colors) <= 256:
             raise ValueError(f"palette needs 2..256 colours (got {len(colors)})")
+        # Build a new list rather than reassigning the parameter: a triple of
+        # ints is narrower than what a caller may pass, and saying so here is
+        # what lets self.colors be typed at all.
+        self.colors: list[RGB] = []
         for rgb in colors:
-            if len(rgb) != 3 or not all(0 <= c <= 255 for c in rgb):
-                raise ValueError(f"bad RGB triple {rgb!r}")
-        self.colors: list[RGB] = colors  # type: ignore[assignment]
+            triple = tuple(int(c) for c in rgb)
+            if len(triple) != 3 or not all(0 <= c <= 255 for c in triple):
+                raise ValueError(f"bad RGB triple {triple!r}")
+            self.colors.append((triple[0], triple[1], triple[2]))
         self.dither = dither
 
         # PIL wants the palette as a 768-entry flat list on a "P" image.

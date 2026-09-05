@@ -6,6 +6,7 @@ import pytest
 from epd_server.config import FirmwareSettings
 from epd_server.firmware import (
     ClientId,
+    FirmwareImage,
     FirmwareStore,
     is_clean_tag,
     client_from_headers,
@@ -19,6 +20,13 @@ IMAGE = b"\xe9" + b"\x00" * 63
 def settings(**kw) -> FirmwareSettings:
     return FirmwareSettings(**{"enabled": True, "dir": "firmware",
                                "product": "my-display", "offer_dev_builds": False, **kw})
+
+
+def current(store) -> FirmwareImage:
+    """The image the store holds. Tests calling this expect one to be there."""
+    image = store.current()
+    assert image is not None, "the store holds no image"
+    return image
 
 
 # ---------- parse_user_agent ----------
@@ -136,12 +144,12 @@ def test_put_replaces_the_previous_image_and_leaves_no_temporary_file(tmp_path):
     store.put("v1.7.0", IMAGE + b"\x01")
 
     assert sorted(os.listdir(tmp_path)) == ["v1.7.0.bin"]
-    assert store.current().version == "v1.7.0"
+    assert current(store).version == "v1.7.0"
 
 
 def test_an_image_copied_in_by_hand_is_current(tmp_path):
     (tmp_path / "v2.0.0.bin").write_bytes(IMAGE)
-    assert FirmwareStore(str(tmp_path)).current().version == "v2.0.0"
+    assert current(FirmwareStore(str(tmp_path))).version == "v2.0.0"
 
 
 def test_the_newest_file_wins_when_several_are_present(tmp_path):
@@ -149,7 +157,7 @@ def test_the_newest_file_wins_when_several_are_present(tmp_path):
     (tmp_path / "v2.0.0.bin").write_bytes(IMAGE)
     os.utime(tmp_path / "v2.0.0.bin", ns=(2_000_000_000_000_000_000, 2_000_000_000_000_000_000))
     os.utime(tmp_path / "v1.0.0.bin", ns=(1_000_000_000_000_000_000, 1_000_000_000_000_000_000))
-    assert FirmwareStore(str(tmp_path)).current().version == "v2.0.0"
+    assert current(FirmwareStore(str(tmp_path))).version == "v2.0.0"
 
 
 def test_a_file_whose_name_is_not_a_version_is_ignored_with_a_warning(tmp_path, caplog):
@@ -180,7 +188,7 @@ def test_the_md5_is_recomputed_when_the_file_changes(tmp_path):
     (tmp_path / "v1.6.0.bin").write_bytes(replaced)
     os.utime(tmp_path / "v1.6.0.bin", ns=(3_000_000_000_000_000_000, 3_000_000_000_000_000_000))
 
-    assert store.current().md5 == hashlib.md5(replaced).hexdigest()
+    assert current(store).md5 == hashlib.md5(replaced).hexdigest()
 
 
 # ---------- ReleaseWatcher ----------
@@ -238,7 +246,7 @@ def test_a_new_release_is_downloaded_and_stored(tmp_path):
     image = w.check_once()
 
     assert image is not None and image.version == "v1.6.0"
-    assert w.store.current().version == "v1.6.0"
+    assert current(w.store).version == "v1.6.0"
     assert github.calls[1][0] == "https://github.com/dl/firmware.bin"
 
 
@@ -296,7 +304,7 @@ def test_run_checks_then_waits_the_poll_interval(tmp_path):
     w.run()
 
     assert waits == [1800, 1800]
-    assert w.store.current().version == "v1.6.0"
+    assert current(w.store).version == "v1.6.0"
 
 
 def test_run_retries_sooner_after_a_failure_then_backs_off(tmp_path):

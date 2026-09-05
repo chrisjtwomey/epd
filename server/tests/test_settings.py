@@ -55,6 +55,7 @@ def test_project_can_change_every_default():
         default_mqtt_topic="mqtt/x",
     )
     assert cfg.server.port == 9000 and cfg.server.regen_lead_seconds == 30
+    assert isinstance(cfg.server.schedule, TimesSchedule)   # the block said type: times
     assert list(cfg.server.schedule) == [("07:00:00", "a")]
     assert (cfg.image.width, cfg.image.height) == (600, 448)
     assert cfg.mqtt.topic == "mqtt/x"
@@ -114,6 +115,7 @@ def test_interval_schedule_visits_the_pools_in_order():
 
 def test_interval_order_defaults_to_every_pool():
     s = parse_server(display({"x": ["x.png"], "y": ["y.png"]}, type="interval", every=60)).schedule
+    assert isinstance(s, IntervalSchedule)
     assert s.order == ["x", "y"]
 
 
@@ -277,6 +279,7 @@ def test_firmware_env_overrides_coerce_types(monkeypatch):
 def test_firmware_source_defaults_and_product_from_the_repo_name():
     fw = parse_firmware(firmware_cfg(enabled=True, source={"github": "owner/my-display"}))
     assert fw.product == "my-display"
+    assert fw.source is not None
     assert fw.source.asset == "firmware.bin" and fw.source.poll_seconds == 3600
     assert fw.source.token == ""
 
@@ -298,7 +301,7 @@ def test_a_bad_source_block_is_refused(source, match):
 def test_the_token_comes_from_the_environment(monkeypatch):
     monkeypatch.setenv("CLIENT_FIRMWARE_SOURCE_TOKEN", "ghp_secret")
     fw = parse_firmware(firmware_cfg(enabled=True, source={"github": "a/b"}))
-    assert fw.source.token == "ghp_secret"
+    assert fw.source is not None and fw.source.token == "ghp_secret"
 
 
 def test_a_relative_firmware_dir_resolves_against_the_config_file(tmp_path):

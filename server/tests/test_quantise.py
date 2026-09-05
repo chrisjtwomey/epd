@@ -41,6 +41,7 @@ def _test_image(seed=0, size=(64, 48)) -> Image.Image:
     w, h = size
     img = Image.new("RGB", size)
     px = img.load()
+    assert px is not None
     for y in range(h):
         for x in range(w):
             base = int(255 * x / (w - 1)) + rnd.randint(-20, 20)

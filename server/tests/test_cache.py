@@ -14,6 +14,7 @@ def test_set_then_get_roundtrips(tmp_path):
     c = DiskCache(tmp_path / "c.json")
     c.set("k", {"a": 1, "when": datetime(2026, 7, 1, 12, 0)})
     got = c.get("k")
+    assert got is not None
     assert got["a"] == 1
     assert got["when"] == datetime(2026, 7, 1, 12, 0)   # datetime survives JSON
 

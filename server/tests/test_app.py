@@ -1,5 +1,6 @@
 """DisplayServer: routes, headers, schedule checks, regeneration, lifecycle."""
 import os
+import threading
 import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -123,7 +124,7 @@ def test_run_once_regenerates_and_does_not_start_http(server):
     assert server.http is None and server.mqtt_client is None
 
 
-class OneTickEvent:
+class OneTickEvent(threading.Event):
     """A threading.Event stand-in that lets _loop() run exactly one iteration.
 
     is_set() is False on the first check (enter the loop) and True after
@@ -292,7 +293,7 @@ BIN = b"\xe9" + b"\x00" * 63
 CLIENT = {"X-Client-Name": "my-display", "X-Client-Version": "v1.5.1"}
 
 
-def with_firmware(tmp_path, version="v1.6.0", **kw):
+def with_firmware(tmp_path, version: str | None = "v1.6.0", **kw):
     """A server whose firmware directory holds one image."""
     fw_dir = tmp_path / "fw"
     fw_dir.mkdir(exist_ok=True)

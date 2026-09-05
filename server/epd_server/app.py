@@ -273,15 +273,17 @@ class DisplayServer:
         """Add the offer headers when the requesting board has an update."""
         if self.firmware_store is None:
             return
+        firmware = self.firmware
+        assert firmware is not None   # the store exists only when it does
         image = self.firmware_store.current()
         client = client_from_headers(request.headers.get("X-Client-Name"),
                                      request.headers.get("X-Client-Version"))
         legacy = client is None
         if legacy:
             client = self._parse_client_from_user_agent()
-        if not update_applies(client, image, self.firmware):
+        if not update_applies(client, image, firmware):
             return
-        assert image is not None      # update_applies said so
+        assert image is not None and client is not None   # update_applies said so
         url = request.host_url.rstrip("/") + "/firmware.bin"
         # The version travels with the URL because the board checks it against
         # the one it rolled back from, before it downloads anything.
@@ -304,8 +306,10 @@ class DisplayServer:
         Remove this, and the ``X-Firmware-*`` headers beside it, once no board
         reaches here any more: it says so in the log every time one does.
         """
+        firmware = self.firmware
+        assert firmware is not None   # only reached from _firmware_headers
         client = parse_user_agent(request.headers.get("User-Agent"))
-        if client is None or client.name != self.firmware.product:
+        if client is None or client.name != firmware.product:
             return None
         log.info("%s %s states itself only in its User-Agent, so it predates "
                  "X-Client-Name; it needs one update to speak the current contract",
@@ -374,10 +378,11 @@ class DisplayServer:
                 self.mqtt.host, self.mqtt.port, self.mqtt.topic, client_id=self.mqtt_client_id,
             )
 
-        if self.firmware_store is not None and self.firmware.source is not None:
-            self.release_watcher = ReleaseWatcher(self.firmware_store, self.firmware.source)
-            log.info("Watching %s for releases every %ds", self.firmware.source.github,
-                     self.firmware.source.poll_seconds)
+        source = self.firmware.source if self.firmware else None
+        if self.firmware_store is not None and source is not None:
+            self.release_watcher = ReleaseWatcher(self.firmware_store, source)
+            log.info("Watching %s for releases every %ds", source.github,
+                     source.poll_seconds)
             threading.Thread(target=self.release_watcher.run, name="epd-releases",
                              daemon=True).start()
 

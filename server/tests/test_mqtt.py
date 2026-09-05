@@ -37,6 +37,7 @@ def on_message(monkeypatch):
     """The subscriber's message callback, wired to a fake broker."""
     monkeypatch.setattr(relay.mqtt, "Client", FakeClient)
     client = relay.client_log_subscriber("localhost", 1883, "mqtt/epd-client")
+    assert isinstance(client, FakeClient)   # it connected, and it is our fake
     assert client.subscribed == "mqtt/epd-client"
     return client.on_message
 
