@@ -135,6 +135,27 @@ public:
     virtual int readPanelTemperature() = 0;
 
     // -------------------------------------------------------------------------
+    // GPIO expander
+    // -------------------------------------------------------------------------
+
+    /**
+     * Drive a pin on the board's IO expander high or low.
+     *
+     * Optional: a board with no expander returns false, which says the pin
+     * was not written rather than that it was. A true return means the write
+     * was issued, not that the pin moved.
+     *
+     * @param pin   the expander's own pin number.
+     * @param high  true to drive the pin high, false to drive it low.
+     * @returns true when the board wrote the pin.
+     */
+    virtual bool writeExpanderPin(uint8_t pin, bool high) {
+        (void)pin;
+        (void)high;
+        return false;
+    }
+
+    // -------------------------------------------------------------------------
     // RTC
     // -------------------------------------------------------------------------
 

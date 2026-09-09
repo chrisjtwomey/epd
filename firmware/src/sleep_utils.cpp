@@ -26,6 +26,11 @@ void sleep(time_t targetWakeTime) {
     deepSleep();
 }
 
+void enableWakeOnTimer(uint32_t seconds) {
+    logf(LOG_DEBUG, "arming deep sleep timer wakeup in %u seconds", seconds);
+    esp_sleep_enable_timer_wakeup((uint64_t)seconds * 1000000ULL);
+}
+
 void deepSleep() {
     log(LOG_NOTICE, "deep sleeping now");
     WiFi.disconnect();

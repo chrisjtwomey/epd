@@ -59,6 +59,9 @@ public:
     // Panel
     int readPanelTemperature() override;
 
+    // GPIO expander
+    bool writeExpanderPin(uint8_t pin, bool high) override;
+
     // RTC
     void rtcGetData() override;
     time_t rtcGetEpoch() override;

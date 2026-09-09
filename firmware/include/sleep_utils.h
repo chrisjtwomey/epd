@@ -16,6 +16,15 @@ void sleep_for(uint32_t seconds);
 void sleep(time_t targetWakeTime);
 
 /**
+  Add an ESP32 timer wake `seconds` from the moment sleep begins.
+
+  Wake sources accumulate, so this stands beside the RTC alarm rather than
+  replacing it, and whichever fires first ends the sleep. Call it before
+  sleep_for() or sleep(), which sleep as soon as they are called.
+*/
+void enableWakeOnTimer(uint32_t seconds);
+
+/**
   Enter deep sleep with no scheduled wake (only external triggers).
 */
 void deepSleep();

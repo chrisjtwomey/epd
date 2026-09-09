@@ -7,6 +7,7 @@
 
 #include <unity.h>
 #include "MockBoard.h"
+#include "driver/rtc_io.h"
 #include "epd.h"
 #include "sleep_utils.h"
 
@@ -17,6 +18,7 @@ static MockBoard mockBoard;
 void setUp(void) {
     mockBoard = MockBoard();
     epdBegin(mockBoard);
+    g_timerWakeupUs = 0;
 }
 
 void tearDown(void) {}
@@ -58,6 +60,17 @@ void test_sleep_sets_alarm_and_wake_source_together() {
     TEST_ASSERT_EQUAL(500, mockBoard.lastAlarmEpoch);
 }
 
+// A timer wake is a second wake source, not a replacement: a board whose RTC
+// alarm never reaches the SoC still comes back.
+void test_timer_wake_is_armed_alongside_the_rtc_alarm() {
+    mockBoard.epochReturn = 1000;
+    enableWakeOnTimer(15);
+    sleep_for(10);
+    TEST_ASSERT_EQUAL_UINT64(15000000ULL, g_timerWakeupUs);
+    TEST_ASSERT_TRUE(mockBoard.enableWakeOnRtcAlarmCalled);
+    TEST_ASSERT_EQUAL(1010, mockBoard.lastAlarmEpoch);
+}
+
 // ---------------------------------------------------------------------------
 // displayBatteryStatus — icon selection tests.
 //
@@ -74,6 +87,7 @@ int main(int argc, char** argv) {
     RUN_TEST(test_sleep_for_large_offset);
     RUN_TEST(test_sleep_arms_board_wake_source);
     RUN_TEST(test_sleep_sets_alarm_and_wake_source_together);
+    RUN_TEST(test_timer_wake_is_armed_alongside_the_rtc_alarm);
 
     return UNITY_END();
 }

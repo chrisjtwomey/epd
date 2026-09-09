@@ -39,5 +39,9 @@ SPIFFSClass SPIFFS;
 HardwareSerial Serial;
 esp_sleep_wakeup_cause_t g_wakeup_cause = ESP_SLEEP_WAKEUP_UNDEFINED;
 
+// What the driver/rtc_io.h stub writes when sleep_utils arms a timer wake.
+#include "driver/rtc_io.h"
+uint64_t g_timerWakeupUs = 0;
+
 #endif // NATIVE
 

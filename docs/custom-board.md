@@ -8,7 +8,7 @@ pure-virtual method, and swap the instance in `src/main.cpp`.
 
 ## 1. Understand the interface
 
-`IBoard` is divided into five sections.
+`IBoard` is divided into six sections.
 
 ### Lifecycle
 
@@ -72,6 +72,12 @@ offset to the current epoch when setting the alarm.
 | `rtcClearAlarmFlag()` | Clear any pending alarm interrupt flag (called on `ESP_SLEEP_WAKEUP_EXT0`). |
 | `rtcSetAlarmEpoch(epoch)` | Program the RTC alarm to fire at `epoch`. All alarm-match mode details are encapsulated inside the implementation. |
 | `enableWakeOnRtcAlarm()` | Arm the deep-sleep wake source the RTC alarm drives. The alarm reaches the SoC on a board-specific pin, so the pin and wake mode belong here. `InkplateBoard` calls `esp_sleep_enable_ext0_wakeup(GPIO_NUM_39, 0)`. |
+
+### GPIO expander
+
+| Method | Notes |
+|---|---|
+| `writeExpanderPin(pin, high)` | Optional; the base class returns `false`, meaning the board wrote nothing. Implement it when the board has an IO expander whose free pins a project needs — `InkplateBoard` drives the PCAL6416A. A `true` return says the write was issued, not that the pin moved. |
 
 ### SD card (`USE_SDCARD` only)
 

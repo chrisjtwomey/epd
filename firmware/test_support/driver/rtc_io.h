@@ -12,6 +12,14 @@ typedef int gpio_num_t;
 
 inline int  esp_sleep_enable_ext0_wakeup(gpio_num_t, int) { return 0; }
 
+// Recorded rather than discarded: a test's only way to see that the timer
+// wake was armed alongside the RTC alarm.
+extern uint64_t g_timerWakeupUs;
+inline int esp_sleep_enable_timer_wakeup(uint64_t us) {
+    g_timerWakeupUs = us;
+    return 0;
+}
+
 // Must NOT call exit() or abort() — tests need to keep running after
 // sleep() is invoked so assertions after the call-under-test can execute.
 inline void esp_deep_sleep_start() {}
