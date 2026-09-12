@@ -262,6 +262,50 @@ def test_ingest_route_is_post_only_and_cannot_shadow_a_page(tmp_path):
         make(tmp_path, ingest={"today.png": lambda doc: None})
 
 
+# ---------- queries ----------
+
+def test_query_route_answers_a_get_with_the_handlers_json(tmp_path):
+    asked = []
+
+    def answer(args):
+        asked.append(args)
+        return {"bme688": {"state": "AAEC"}}
+    client = make(tmp_path, queries={"calibration": answer})._build_app().test_client()
+
+    rsp = client.get("/calibration?device=x&before=100")
+
+    assert rsp.status_code == 200 and rsp.get_json() == {"bme688": {"state": "AAEC"}}
+    assert asked == [{"device": "x", "before": "100"}]
+
+
+def test_query_handler_none_is_a_404_and_value_error_a_400(tmp_path):
+    def answer(args):
+        if "before" not in args:
+            raise ValueError("before is required")
+        return None
+    client = make(tmp_path, queries={"calibration": answer})._build_app().test_client()
+
+    assert client.get("/calibration?before=1").status_code == 404
+    rsp = client.get("/calibration")
+    assert rsp.status_code == 400 and b"before is required" in rsp.data
+
+
+def test_one_name_can_take_a_post_and_answer_a_get(tmp_path):
+    seen = []
+    server = make(tmp_path, ingest={"notes": seen.append}, queries={"notes": lambda args: seen})
+    client = server._build_app().test_client()
+
+    assert client.post("/notes", json={"ts": 1}).status_code == 204
+    assert client.get("/notes").get_json() == [{"ts": 1}]
+
+
+def test_query_route_is_get_only_and_cannot_shadow_a_page(tmp_path):
+    server = make(tmp_path, queries={"calibration": lambda args: {}})
+    assert server._build_app().test_client().post("/calibration", json={}).status_code == 405
+    with pytest.raises(ValueError, match="collide"):
+        make(tmp_path, queries={"today.png": lambda args: {}})
+
+
 # ---------- interval schedules ----------
 
 from epd_server.scheduling import IntervalSchedule, Pools  # noqa: E402

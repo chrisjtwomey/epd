@@ -1,7 +1,8 @@
 """DataSource helpers in epd_server.source."""
 import pytest
 
-from epd_server.source import CompositeSource, DataSource, StaticSource
+from epd_server.source import CompositeSource, DataSource, IngestSource, StaticSource
+from epd_server.store import ReadingsStore
 
 
 class Counting(DataSource):
@@ -62,3 +63,30 @@ def test_composite_merges_datasets_and_fans_out_invalidate():
 def test_composite_rejects_colliding_names():
     with pytest.raises(ValueError, match="'x' is provided by both Counting and StaticSource"):
         CompositeSource(Counting(x=1), StaticSource(x=2)).datasets()
+
+
+def test_ingest_source_serves_the_newest_and_each_window(tmp_path):
+    store = ReadingsStore(tmp_path / "r.db")
+    now = 10 * 86400
+    for ts in (now - 80 * 3600, now - 30 * 3600, now - 3600, now - 60):
+        store.add({"ts": ts, "device": "a"})
+    ds = IngestSource(store, hours=(24, 72), now=lambda: now).datasets()
+    assert set(ds) == {"latest", "history_24h", "history_72h"}
+    assert ds["latest"]()["ts"] == now - 60
+    assert [d["ts"] for d in ds["history_24h"]()] == [now - 3600, now - 60]
+    assert [d["ts"] for d in ds["history_72h"]()] == [now - 30 * 3600, now - 3600, now - 60]
+
+
+def test_ingest_source_before_the_first_document(tmp_path):
+    ds = IngestSource(ReadingsStore(tmp_path / "r.db")).datasets()
+    assert ds["latest"]() is None
+    assert ds["history_24h"]() == []
+
+
+def test_ingest_source_can_follow_one_board(tmp_path):
+    store = ReadingsStore(tmp_path / "r.db")
+    store.add({"ts": 1, "device": "a"})
+    store.add({"ts": 2, "device": "b"})
+    ds = IngestSource(store, device="a", now=lambda: 3).datasets()
+    assert ds["latest"]()["device"] == "a"
+    assert [d["device"] for d in ds["history_24h"]()] == ["a"]

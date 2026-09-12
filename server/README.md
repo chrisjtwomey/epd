@@ -39,9 +39,10 @@ instead of `@main` for releases.
 | `epd_server.scheduling` | `Pools`, `TimesSchedule`, `IntervalSchedule` — what shows and when; `next_wake`, `next_regen`, `seconds_until` underneath |
 | `epd_server.firmware` | `FirmwareStore` — a directory of `<version>.bin`; `ReleaseWatcher` — fill it from a repository's releases; `client_from_headers`, `parse_user_agent`, `is_clean_tag`, `update_applies` — which board an image is an update for |
 | `epd_server.mqtt` | `client_log_subscriber` — relay the client's MQTT log topic into Python logging |
-| `epd_server.source` | `DataSource` — named, lazily fetched datasets; `StaticSource` for constants; `CompositeSource` to merge |
+| `epd_server.source` | `DataSource` — named, lazily fetched datasets; `StaticSource` for constants; `CompositeSource` to merge; `IngestSource` — what a board posted, from a `ReadingsStore` |
+| `epd_server.store` | `ReadingsStore` — what a board posts, in SQLite, kept by its `device` and `ts` and read back by time |
 | `epd_server.pipeline` | `regenerate(pages, source, only=, force_refresh=)` — fetch what the selected pages need, once each; render; save |
-| `epd_server.app` | `DisplayServer(pages, source, schedule, tz, …).run()` — routes, `X-Next-*` headers, regen loop, client log relay, signals. `align_process_timezone()` |
+| `epd_server.app` | `DisplayServer(pages, source, schedule, tz, …).run()` — routes, `X-Next-*` headers, ingest and query routes, regen loop, client log relay, signals. `align_process_timezone()` |
 
 ## Tests
 
@@ -86,6 +87,28 @@ Routes come from the page list — `/<page>.png` for each — plus `/`, which
 returns the page list, the schedule and the next wake as JSON. The schedule
 is checked against the pages at construction, so a typo in `config.yaml`
 fails at startup instead of silently regenerating nothing.
+
+## Readings from a board
+
+A board that stays awake can post what it measures. `ingest={name: handler}`
+gives the server a `POST /<name>` route, and `queries={name: handler}` a
+`GET /<name>` one; [docs/protocol.md](../docs/protocol.md) has both. To keep
+what arrives, hand the route to a `ReadingsStore` and serve the store to the
+pages through an `IngestSource`:
+
+```python
+from epd_server import IngestSource, ReadingsStore
+
+store = ReadingsStore("readings.db")
+DisplayServer(..., source=IngestSource(store, hours=(24, 72)),
+              ingest={"readings": store.add})
+```
+
+The pages then ask for `latest`, the newest document or None before the
+first, and `history_24h` and `history_72h`, the documents of each window,
+oldest first. A document is kept by its own `ts`, so one a board held while
+the server was down lands where it belongs, and a second copy of the same
+`device` and `ts` is ignored. `store.prune(before)` deletes older ones.
 
 ## Config
 

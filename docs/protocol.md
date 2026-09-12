@@ -139,6 +139,30 @@ DisplayServer(..., ingest={"readings": handler})
 `POST /readings` then parses the body as a JSON object and calls
 `handler(doc)`. A `ValueError` raised by the handler becomes a 400.
 
+To keep what arrives, the handler can be `ReadingsStore.add`: the store
+keeps each document by its `device` and `ts` keys and ignores a second copy
+of the same pair. See [server/README.md](../server/README.md).
+
+## Asking the server
+
+A panel can also ask the server something:
+
+```
+GET /<name>?device=inkplate5-env-monitor&before=1757443200
+  200 application/json
+  404 when the server has no answer
+```
+
+The server side declares the names it answers, beside the ones it accepts:
+
+```python
+DisplayServer(..., queries={"calibration": handler})
+```
+
+`handler(args)` gets the query string as a dict, and what it returns is the
+JSON answer. None becomes a 404 and a `ValueError` a 400. One name can have
+both routes: a POST that sends something and a GET that asks for it back.
+
 ## Status
 
 ```

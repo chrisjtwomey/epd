@@ -11,8 +11,12 @@ agree on any of them.
 """
 from __future__ import annotations
 
+import time
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Mapping
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping
+
+if TYPE_CHECKING:
+    from .store import ReadingsStore
 
 Fetcher = Callable[[], Any]
 
@@ -59,3 +63,31 @@ class CompositeSource(DataSource):
     def invalidate(self) -> None:
         for src in self.sources:
             src.invalidate()
+
+
+class IngestSource(DataSource):
+    """What a board has posted, from a :class:`~epd_server.store.ReadingsStore`.
+
+    Datasets: ``latest``, the newest document or None before the first; and
+    ``history_<N>h`` for each N in ``hours``, the documents of the last N
+    hours, oldest first. ``device`` limits both to one board.
+    """
+
+    def __init__(self, store: ReadingsStore, hours: Iterable[int] = (24,),
+                 device: str | None = None, now: Callable[[], float] = time.time):
+        self.store = store
+        self.hours = tuple(hours)
+        self.device = device
+        self.now = now
+
+    def latest(self) -> dict | None:
+        return self.store.latest(self.device)
+
+    def history(self, hours: int) -> list[dict]:
+        return self.store.between(int(self.now()) - hours * 3600, device=self.device)
+
+    def datasets(self) -> Mapping[str, Fetcher]:
+        sets: dict[str, Fetcher] = {"latest": self.latest}
+        for h in self.hours:
+            sets[f"history_{h}h"] = lambda h=h: self.history(h)
+        return sets

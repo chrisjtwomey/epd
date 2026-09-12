@@ -11,7 +11,8 @@ The pieces a project composes:
 - :mod:`epd_server.scheduling` DST-correct next-wake / next-regen maths
 - :mod:`epd_server.firmware`   which client an image is an update for; the image store
 - :mod:`epd_server.mqtt`       subscribe to the client's remote log topic
-- :mod:`epd_server.source`     DataSource protocol; Static / Composite helpers
+- :mod:`epd_server.source`     DataSource protocol; Static / Composite / Ingest helpers
+- :mod:`epd_server.store`      ReadingsStore: what a board posts, in SQLite, read back by time
 - :mod:`epd_server.pipeline`   regenerate(): fetch what pages need, render, save
 - :mod:`epd_server.app`        DisplayServer: routes, X-Next-* headers, regen loop
 """
@@ -41,7 +42,8 @@ from .firmware import (  # noqa: E402
 )
 from .page import Page, SkipPage  # noqa: E402
 from .pipeline import regenerate, select_pages  # noqa: E402
-from .source import CompositeSource, DataSource, StaticSource  # noqa: E402
+from .source import CompositeSource, DataSource, IngestSource, StaticSource  # noqa: E402
+from .store import ReadingsStore  # noqa: E402
 from .quantise import (  # noqa: E402
     GreyscaleQuantiser,
     IdentityQuantiser,
@@ -58,7 +60,7 @@ __all__ = [
     "ClientId", "FirmwareImage", "FirmwareStore", "ReleaseWatcher",
     "parse_user_agent", "is_clean_tag", "update_applies",
     "Page", "SkipPage",
-    "DataSource", "StaticSource", "CompositeSource",
+    "DataSource", "StaticSource", "CompositeSource", "IngestSource", "ReadingsStore",
     "regenerate", "select_pages",
     "Renderer", "ChromiumRenderer",
     "Quantiser", "GreyscaleQuantiser", "PaletteQuantiser", "IdentityQuantiser",

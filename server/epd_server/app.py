@@ -25,6 +25,10 @@ The wire contract with the client is small::
       304 when the request's x-ESP32-version is the version held
       404 when the server holds no image
 
+    POST /<name>        a project's ingest route: a JSON object in, 204 out
+    GET /<name>?k=v     a project's query route: JSON out, 404 when there
+                        is no answer
+
 The server is the single source of truth for *when* the client wakes and
 *what* it shows. The client does no timezone maths and holds no schedule.
 """
@@ -109,6 +113,10 @@ class DisplayServer:
         ingest: routes that accept a JSON object by POST, as
             ``{name: handler}``. ``POST /<name>`` parses the body and calls
             ``handler(doc)``; a ``ValueError`` from the handler is a 400.
+        queries: routes that answer a GET with JSON, as ``{name: handler}``.
+            ``GET /<name>`` calls ``handler(args)`` with the query string as
+            a dict and sends what it returns; None is a 404 and a
+            ``ValueError`` a 400. A name may have both kinds of route.
         firmware: if given and ``enabled``, offer the image in its directory
             to the boards it is for, and serve it at ``/firmware.bin``.
     """
@@ -126,6 +134,7 @@ class DisplayServer:
         mqtt: MqttSettings | None = None,
         mqtt_client_id: str = "epd-server",
         ingest: Mapping[str, Callable[[dict], None]] | None = None,
+        queries: Mapping[str, Callable[[dict], object]] | None = None,
         firmware: FirmwareSettings | None = None,
     ):
         self.pages = list(pages)
@@ -144,6 +153,7 @@ class DisplayServer:
         self.mqtt = mqtt
         self.mqtt_client_id = mqtt_client_id
         self.ingest = dict(ingest or {})
+        self.queries = dict(queries or {})
         self.firmware = firmware
         self.firmware_store = FirmwareStore(firmware.dir) if firmware and firmware.enabled else None
         self.release_watcher: ReleaseWatcher | None = None
@@ -160,6 +170,9 @@ class DisplayServer:
         clash = sorted(set(self.ingest) & served)
         if clash:
             raise ValueError(f"ingest routes {clash} collide with page filenames")
+        clash = sorted(set(self.queries) & served)
+        if clash:
+            raise ValueError(f"query routes {clash} collide with page filenames")
 
         # Serialises regenerations; a page's PNG is replaced atomically, so
         # readers never wait on it.
@@ -230,7 +243,26 @@ class DisplayServer:
                 view_func=self._make_ingest(name, handler),
                 methods=["POST"],
             )
+        for name, handler in self.queries.items():
+            app.add_url_rule(
+                "/" + name,
+                endpoint=f"query_{name}",
+                view_func=self._make_query(name, handler),
+                methods=["GET"],
+            )
         return app
+
+    def _make_query(self, name: str, handler: Callable[[dict], object]):
+        def answer():
+            try:
+                result = handler(request.args.to_dict())
+            except ValueError as exc:
+                abort(400, str(exc))
+            if result is None:
+                abort(404)
+            return jsonify(result)
+        answer.__name__ = f"query_{name}"
+        return answer
 
     def _make_ingest(self, name: str, handler: Callable[[dict], None]):
         def accept():
