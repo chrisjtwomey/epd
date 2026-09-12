@@ -1,6 +1,6 @@
 {
   "name": "EpdBoardInkplate",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "IBoard implementation for Soldered/e-radionica Inkplate panels. Kept separate from EpdClient so projects on other hardware never pull in InkplateLibrary.",
   "keywords": "epaper, eink, inkplate",
   "license": "MIT",
@@ -22,7 +22,7 @@
     {
       "owner": "chrisjtwomey",
       "name": "EpdClient",
-      "version": "^0.4.0"
+      "version": "^0.5.0"
     },
     {
       "owner": "e-radionicacom",
