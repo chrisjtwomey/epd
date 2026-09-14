@@ -80,12 +80,14 @@ either:
 - Firmware: `lib_deps = symlink://../epd/firmware` and
   `symlink://../epd/firmware/boards/inkplate`, so the project needs this repo
   checked out beside it, in CI as well as locally.
-- Server: `epd-server @ git+https://github.com/chrisjtwomey/epd.git@main#subdirectory=server`
-  in `requirements.txt`. pip honours `#subdirectory=` for VCS URLs only, so a
-  git binary is needed where that is installed.
+- Server: `epd-server @ git+https://github.com/chrisjtwomey/epd.git@v<version>#subdirectory=server`
+  in `requirements.txt`, pinned to a release tag. pip honours `#subdirectory=`
+  for VCS URLs only, so a git binary is needed where that is installed.
 
 Before opening a pull request, build a consumer against your branch: `pio
-run` in its root and `pytest` in its `server/`.
+run` in its root, and `pytest` in its `server/` with this checkout installed
+editable after the consumer's requirements. Installed before them, it loses:
+pip treats the pin as a direct reference and puts the tagged release back.
 
 ### Publishing
 
@@ -125,7 +127,7 @@ Both are public: the repository already is, so a private package would hide
 nothing while costing a subscription and a CI token.
 
 Consumers then pin `chrisjtwomey/EpdClient@^x.y` in place of the symlink, and
-the tag in place of `@main` in `requirements.txt`. A consumer keeps a second
+the new tag in `requirements.txt`. A consumer keeps a second
 environment on the symlink, so epd can be changed and tried in a consumer
 before any of this happens — see the README's quickstart.
 

@@ -16,15 +16,18 @@ Local checkout, editable:
 pip install -e ../epd/server
 ```
 
-From GitHub, in a `requirements.txt`:
+Install it after the project's requirements. pip treats a `requirements.txt`
+pin like the one below as a direct reference, so any later `pip install -r`
+replaces the editable checkout with the tagged release, whatever the versions.
+
+From GitHub, in a `requirements.txt`, pinned to a release tag:
 
 ```
-epd-server @ git+https://github.com/chrisjtwomey/epd.git@main#subdirectory=server
+epd-server @ git+https://github.com/chrisjtwomey/epd.git@v<version>#subdirectory=server
 ```
 
 pip honours `#subdirectory=` only for VCS URLs, so a git binary is needed
-where this is installed, so add one to your Dockerfile. Pin a tag
-instead of `@main` for releases.
+wherever this is installed; add one to your Dockerfile.
 
 ## Modules
 
