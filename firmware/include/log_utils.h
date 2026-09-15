@@ -38,6 +38,15 @@ esp_err_t configureMQTT(const char* broker, int port, const char* topic,
                         const char* clientID, int max_retries);
 
 /**
+  Keep the MQTT logging connection alive, and reconnect it once it drops.
+
+  A board that stays awake calls it on every pass of its loop: the broker
+  closes a connection that sends nothing for 1.5 keepalives, 22 s. A board
+  that sleeps after each wake does not need it.
+*/
+void keepMQTTConnected();
+
+/**
   Log a message.
 
   @param pri the log level / priority of the message, see LOG_LEVEL.

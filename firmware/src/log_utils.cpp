@@ -12,28 +12,49 @@ PubSubClient client(espClient);
 MqttLogger mqttLogger(client, "", MqttLoggerMode::SerialOnly);
 // queue to store messages to publish once mqtt connection is established.
 cppQueue logQ(LOG_QUEUE_ITEM_MAX, LOG_QUEUE_MAX_ENTRIES, FIFO, true);
+// The client ID configureMQTT was given, for keepMQTTConnected() to reconnect with.
+static const char* mqttClientID = nullptr;
+static uint32_t lastConnectAttemptMs = 0;
+// A failed connect holds up the caller's loop, so the tries are spaced out.
+static const uint32_t kReconnectMs = 30000;
+
 esp_err_t configureMQTT(const char* broker, int port, const char* topic,
                         const char* clientID, int max_retries) {
     log(LOG_INFO, "configuring remote MQTT logging...");
 
     client.setServer(broker, port);
+    mqttLogger.setTopic(topic);
+    mqttClientID = clientID;
     // Attempt to connect to MQTT broker.
     int attempts = 0;
     while (attempts++ <= max_retries && !client.connect(clientID)) {
         logf(LOG_DEBUG, "connection attempt #%d...", attempts);
         delay(250);
     }
+    lastConnectAttemptMs = millis();
 
     if (!client.connected()) {
         return ESP_ERR_TIMEOUT;
     }
 
-    mqttLogger.setTopic(topic);
     mqttLogger.setMode(MqttLoggerMode::MqttAndSerial);
 
     logf(LOG_INFO, "connected to MQTT broker %s:%d", broker, port);
 
     return ESP_OK;
+}
+
+void keepMQTTConnected() {
+    if (!mqttClientID || client.loop()) return;
+
+    uint32_t now = millis();
+    if (now - lastConnectAttemptMs < kReconnectMs) return;
+    lastConnectAttemptMs = now;
+    if (!client.connect(mqttClientID)) return;
+
+    mqttLogger.setMode(MqttLoggerMode::MqttAndSerial);
+    // Also sends the lines queued while the connection was down.
+    log(LOG_INFO, "reconnected to the MQTT broker");
 }
 
 const char* msgPrefix(uint16_t pri) {
