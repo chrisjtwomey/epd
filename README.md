@@ -296,7 +296,7 @@ itself — is already written.
 — a framed Inkplate 10 on a wall. Weather, forecast and calendar, on
 battery, waking seven times a day.
 
-[**inkplate5-env-monitor**](https://github.com/chrisjtwomey/inkplate5-env-monitor)
+[**canary**](https://github.com/chrisjtwomey/canary)
 — a mains-powered Inkplate 5 Gen2 showing temperature, humidity and air
 quality from its own sensors.
 

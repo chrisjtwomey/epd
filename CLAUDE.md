@@ -5,7 +5,7 @@
 ## This repo
 
 - Two PlatformIO libraries in `firmware/` (`EpdClient`, `EpdBoardInkplate`) and one pip package in `server/` (`epd_server`). They share one wire contract — the `X-Next-Refresh-Seconds` / `X-Next-URL` headers — and version together.
-- Consumers (`inkplate10-weather-cal`, `inkplate5-env-monitor`) check this repo out beside themselves. Their `lib_deps` use `symlink://../epd/firmware`; their `requirements.txt` pins `epd-server` to a release tag on GitHub. A change here can break them: run their builds too.
+- Consumers (`inkplate10-weather-cal`, `canary`) check this repo out beside themselves. Their `lib_deps` use `symlink://../epd/firmware`; their `requirements.txt` pins `epd-server` to a release tag on GitHub. A change here can break them: run their builds too.
 - Tests live with the code they cover. Code that moves here brings its tests.
 - Nothing under `server/tests` may need a network or a browser. `Page.save()` is tested with a fake `Renderer`; `DisplayServer` with Flask's test client.
 - Nothing hardware-specific outside `firmware/boards/`. `EpdClient` depends on `IBoard` only; if a change needs an Inkplate type, it belongs in `EpdBoardInkplate` or behind a new `IBoard` method.
