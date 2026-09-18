@@ -3,22 +3,25 @@ before its client wake time.
 
 A project builds its pages and a :class:`~epd_server.source.DataSource`,
 hands them to :class:`DisplayServer` with the validated settings, and calls
-:meth:`DisplayServer.run`. Everything else — HTTP routes, the
-``X-Next-Refresh-Seconds`` / ``X-Next-URL`` headers, the regeneration loop,
-the client log relay, signal handling — lives here.
+:meth:`DisplayServer.run`. Everything else — HTTP routes, the schedule and
+identity headers, the regeneration loop, the client log relay, signal
+handling — lives here.
 
-The wire contract with the client is small::
+The wire contract with the client is small. Every name below is written with
+the default prefix; a project sets its own, and :mod:`epd_server.headers`
+builds the names from it::
 
     GET /<page>.png
-      X-Client-Name: <product>          the board says who it is
-      X-Client-Version: <version>       and what it runs
+      EPD-Device: <product>             the board says who it is
+      EPD-Device-Version: <version>     and what it runs
 
       200 image/png
-      X-Next-Refresh-Seconds: <seconds until the next scheduled wake>
-      X-Next-URL: http://host/<the page to fetch at that wake>
-      X-Server-Version: <version>                 this server, on every response
-      X-Server-Firmware-Version: <version>        only when an update applies
-      X-Server-Firmware-URL: http://host/firmware.bin
+      EPD-Next-Display-Refresh-Seconds: <seconds until the next scheduled wake>
+      EPD-Next-URL: http://host/<the page to fetch at that wake>
+      EPD-Server-Version: <version>               this server, on every response
+      EPD-Server-Epoch-Seconds: <UTC seconds>     its clock, on every response
+      EPD-Server-Firmware-Version: <version>      only when an update applies
+      EPD-Server-Firmware-URL: http://host/firmware.bin
 
     GET /firmware.bin
       200 application/octet-stream, Content-Length, x-MD5
@@ -48,6 +51,9 @@ from werkzeug.serving import make_server
 
 from .config import FirmwareSettings, MqttSettings
 from ._version import __version__
+from .headers import (LEGACY_DEVICE, LEGACY_DEVICE_VERSION, LEGACY_FIRMWARE_URL,
+                      LEGACY_FIRMWARE_VERSION, LEGACY_NEXT_REFRESH, LEGACY_NEXT_URL,
+                      LEGACY_SERVER_VERSION, Wire)
 from .firmware import (FirmwareStore, ReleaseWatcher, client_from_headers,
                        parse_user_agent, update_applies)
 from .mqtt import client_log_subscriber
@@ -119,6 +125,11 @@ class DisplayServer:
             ``ValueError`` a 400. A name may have both kinds of route.
         firmware: if given and ``enabled``, offer the image in its directory
             to the boards it is for, and serve it at ``/firmware.bin``.
+        header_prefix: the product's name, which every header on the wire
+            starts with. See :mod:`epd_server.headers`.
+        server_version: what to report as this server's version. Defaults to
+            the version of this package, which is right until a project has
+            one of its own.
     """
 
     def __init__(
@@ -136,6 +147,8 @@ class DisplayServer:
         ingest: Mapping[str, Callable[[dict], None]] | None = None,
         queries: Mapping[str, Callable[[dict], object]] | None = None,
         firmware: FirmwareSettings | None = None,
+        header_prefix: str = "EPD",
+        server_version: str | None = None,
     ):
         self.pages = list(pages)
         self.source = source
@@ -155,6 +168,8 @@ class DisplayServer:
         self.ingest = dict(ingest or {})
         self.queries = dict(queries or {})
         self.firmware = firmware
+        self.wire = Wire(header_prefix)
+        self.server_version = server_version or __version__
         self.firmware_store = FirmwareStore(firmware.dir) if firmware and firmware.enabled else None
         self.release_watcher: ReleaseWatcher | None = None
 
@@ -209,7 +224,7 @@ class DisplayServer:
         app = Flask("epd_server")
 
         app.before_request(self._log_client)
-        app.after_request(self._add_server_version)
+        app.after_request(self._add_server_headers)
 
         @app.route("/")
         def index():
@@ -308,8 +323,9 @@ class DisplayServer:
         firmware = self.firmware
         assert firmware is not None   # the store exists only when it does
         image = self.firmware_store.current()
-        client = client_from_headers(request.headers.get("X-Client-Name"),
-                                     request.headers.get("X-Client-Version"))
+        client = client_from_headers(self._header(self.wire.device, LEGACY_DEVICE),
+                                     self._header(self.wire.device_version,
+                                                  LEGACY_DEVICE_VERSION))
         legacy = client is None
         if legacy:
             client = self._parse_client_from_user_agent()
@@ -319,8 +335,10 @@ class DisplayServer:
         url = request.host_url.rstrip("/") + "/firmware.bin"
         # The version travels with the URL because the board checks it against
         # the one it rolled back from, before it downloads anything.
-        rsp.headers["X-Server-Firmware-Version"] = image.version
-        rsp.headers["X-Server-Firmware-URL"] = url
+        rsp.headers[self.wire.firmware_version] = image.version
+        rsp.headers[self.wire.firmware_url] = url
+        rsp.headers[LEGACY_FIRMWARE_VERSION] = image.version
+        rsp.headers[LEGACY_FIRMWARE_URL] = url
         if legacy:
             rsp.headers["X-Firmware-Version"] = image.version
             rsp.headers["X-Firmware-URL"] = url
@@ -372,24 +390,35 @@ class DisplayServer:
             as_attachment=True,
             download_name=page.png_filename,
         ))
-        rsp.headers["X-Next-Refresh-Seconds"] = str(seconds)
-        rsp.headers["X-Next-URL"] = next_url
+        rsp.headers[self.wire.next_refresh] = str(seconds)
+        rsp.headers[self.wire.next_url] = next_url
+        rsp.headers[LEGACY_NEXT_REFRESH] = str(seconds)
+        rsp.headers[LEGACY_NEXT_URL] = next_url
         self._firmware_headers(rsp)
         return rsp
 
     @staticmethod
-    def _log_client() -> None:
+    def _header(name: str, legacy: str) -> str | None:
+        """A request header under its current name, or the one it had before."""
+        return request.headers.get(name) or request.headers.get(legacy)
+
+    def _log_client(self) -> None:
         """Log the identity the board stated, when it stated one."""
-        name = request.headers.get("X-Client-Name")
-        version = request.headers.get("X-Client-Version")
+        name = self._header(self.wire.device, LEGACY_DEVICE)
+        version = self._header(self.wire.device_version, LEGACY_DEVICE_VERSION)
         if name or version:
             log.info("%s %s asked for %s", name or "an unnamed client",
                      version or "of no stated version", request.path)
 
-    @staticmethod
-    def _add_server_version(rsp):
-        """Stamp every response with the version of the package serving it."""
-        rsp.headers["X-Server-Version"] = __version__
+    def _add_server_headers(self, rsp):
+        """Stamp every response with who is serving it and when.
+
+        The clock goes out on every response so a board without one of its
+        own can keep time from the server it already has to reach.
+        """
+        rsp.headers[self.wire.server_version] = self.server_version
+        rsp.headers[self.wire.server_epoch] = str(int(time.time()))
+        rsp.headers[LEGACY_SERVER_VERSION] = self.server_version
         return rsp
 
     # ── Lifecycle ─────────────────────────────────────────────────────────

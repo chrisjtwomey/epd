@@ -516,3 +516,74 @@ def test_the_release_watcher_runs_only_with_a_source(tmp_path, monkeypatch):
 
     assert started.wait(2), "the watcher thread never ran"
     assert server.release_watcher is None   # stopped on shutdown
+
+
+# ── The names on the wire ─────────────────────────────────────────────────
+
+def client_for(tmp_path, **kw):
+    (tmp_path / "today.png").write_bytes(PNG)
+    (tmp_path / "hourly.png").write_bytes(PNG)
+    server = make(tmp_path, **kw)
+    server.app.config["TESTING"] = True
+    return server.app.test_client()
+
+
+def test_the_default_prefix_names_every_header(tmp_path):
+    rsp = client_for(tmp_path).get("/today.png")
+
+    assert int(rsp.headers["EPD-Next-Display-Refresh-Seconds"]) >= 0
+    assert rsp.headers["EPD-Next-URL"].startswith("http://localhost/")
+    assert rsp.headers["EPD-Server-Version"]
+    assert int(rsp.headers["EPD-Server-Epoch-Seconds"]) > 0
+
+
+def test_a_product_prefix_renames_every_header(tmp_path):
+    rsp = client_for(tmp_path, header_prefix="Canary").get("/today.png")
+
+    assert "Canary-Next-Display-Refresh-Seconds" in rsp.headers
+    assert "Canary-Next-URL" in rsp.headers
+    assert "Canary-Server-Version" in rsp.headers
+    assert "Canary-Server-Epoch-Seconds" in rsp.headers
+    assert "EPD-Next-Display-Refresh-Seconds" not in rsp.headers
+    assert "EPD-Server-Version" not in rsp.headers
+
+
+def test_the_names_from_before_the_prefix_go_out_beside_the_current_ones(tmp_path):
+    """A board flashed before the prefix existed keeps working unreflashed."""
+    rsp = client_for(tmp_path, header_prefix="Canary").get("/today.png")
+
+    assert rsp.headers["X-Next-Refresh-Seconds"] == rsp.headers["Canary-Next-Display-Refresh-Seconds"]
+    assert rsp.headers["X-Next-URL"] == rsp.headers["Canary-Next-URL"]
+    assert rsp.headers["X-Server-Version"] == rsp.headers["Canary-Server-Version"]
+
+
+def test_the_server_sends_its_clock_on_every_response(tmp_path):
+    client = client_for(tmp_path)
+
+    for path in ("/", "/today.png"):
+        sent = int(client.get(path).headers["EPD-Server-Epoch-Seconds"])
+        assert abs(sent - time.time()) < 5
+
+
+def test_a_project_reports_its_own_version_not_the_package_one(tmp_path):
+    from epd_server import __version__
+
+    rsp = client_for(tmp_path, server_version="canary-v2.0.0").get("/today.png")
+
+    assert rsp.headers["EPD-Server-Version"] == "canary-v2.0.0"
+    assert rsp.headers["EPD-Server-Version"] != __version__
+
+
+def test_the_header_prefix_cannot_be_empty(tmp_path):
+    with pytest.raises(ValueError):
+        client_for(tmp_path, header_prefix="  -  ")
+
+
+def test_a_board_is_recognised_by_its_current_device_headers(tmp_path):
+    _, client = with_firmware(tmp_path)
+
+    rsp = client.get("/today.png", headers={"EPD-Device": "my-display",
+                                            "EPD-Device-Version": "v1.5.1"})
+
+    assert rsp.headers["EPD-Server-Firmware-Version"] == "v1.6.0"
+    assert rsp.headers["X-Server-Firmware-Version"] == "v1.6.0"

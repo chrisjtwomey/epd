@@ -126,7 +126,7 @@ See [Configuration](configuration.md) for the rest of the block.
 An image is offered only when all of these hold:
 
 - The block is enabled and the server holds an image.
-- The panel sent `X-Client-Name` and `X-Client-Version`, and the name equals
+- The panel sent `EPD-Device` and `EPD-Device-Version`, and the name equals
   `client.firmware.product`. Offering one product's image to another
   product's panel would brick it.
 - The panel's version is a clean tag — `v1.5.1`, not `v1.5.1-3-gab12cd4`,

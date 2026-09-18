@@ -29,12 +29,53 @@ esp_err_t configureWiFi(const char* ssid, const char* pass, int retries) {
     return ESP_OK;
 }
 
+// The name a server answering the current contract uses, or the one it used
+// before the prefix existed. Null when it sent neither.
+static const char* present(HTTPClient& http, const char* name, const char* was) {
+    if (http.hasHeader(name)) return name;
+    if (was && http.hasHeader(was)) return was;
+    return nullptr;
+}
+
 // Copy a header value into a fixed field, logging what arrived.
-static void copyHeader(HTTPClient& http, const char* name, char* out, size_t size) {
-    if (!out || size == 0 || !http.hasHeader(name)) return;
-    String value = http.header(name);
+static void copyHeader(HTTPClient& http, const char* name, const char* was, char* out,
+                       size_t size) {
+    const char* found = out && size ? present(http, name, was) : nullptr;
+    if (!found) return;
+    String value = http.header(found);
     strlcpy(out, value.c_str(), size);
-    logf(LOG_INFO, "received header %s: %s", name, out);
+    logf(LOG_INFO, "received header %s: %s", found, out);
+}
+
+// Read a whole-number header into *out, leaving it alone when the header is
+// absent or malformed.
+static void numberHeader(HTTPClient& http, const char* name, const char* was, uint32_t* out) {
+    const char* found = out ? present(http, name, was) : nullptr;
+    if (!found) return;
+    String value = http.header(found);
+    uint32_t parsed = 0;
+    if (parseRefreshTime(value.c_str(), &parsed)) {
+        *out = parsed;
+        logf(LOG_INFO, "received header %s: %u", found, parsed);
+    } else {
+        logf(LOG_WARNING, "%s value '%s' is malformed, ignoring", found, value.c_str());
+    }
+}
+
+// What the server says about itself, on any response.
+static void readServerHeaders(HTTPClient& http, PageResponse* rsp) {
+    if (!rsp) return;
+    copyHeader(http, EPD_H_SERVER_VERSION, EPD_H_WAS_SERVER_VERSION, rsp->serverVersion,
+               sizeof(rsp->serverVersion));
+    numberHeader(http, EPD_H_SERVER_EPOCH, nullptr, &rsp->serverEpoch);
+}
+
+// The headers every request carries: the board decides these, not the
+// User-Agent, so neither end has to parse an identity back out of a
+// formatted string.
+static void addDeviceHeaders(HTTPClient& http) {
+    http.addHeader(EPD_H_DEVICE, CLIENT_NAME);
+    http.addHeader(EPD_H_DEVICE_VERSION, CLIENT_VERSION);
 }
 uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* defaultLen,
                       PageResponse* rsp) {
@@ -46,11 +87,12 @@ uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* defaultLe
     HTTPClient http;
 
     const char* headersToCollect[] = {
-        "X-Next-Refresh-Seconds",
-        "X-Next-URL",
-        "X-Server-Version",
-        "X-Server-Firmware-Version",
-        "X-Server-Firmware-URL",
+        EPD_H_NEXT_REFRESH,     EPD_H_WAS_NEXT_REFRESH,
+        EPD_H_NEXT_URL,         EPD_H_WAS_NEXT_URL,
+        EPD_H_SERVER_VERSION,   EPD_H_WAS_SERVER_VERSION,
+        EPD_H_SERVER_EPOCH,
+        EPD_H_FIRMWARE_VERSION, EPD_H_WAS_FIRMWARE_VERSION,
+        EPD_H_FIRMWARE_URL,     EPD_H_WAS_FIRMWARE_URL,
     };
     http.collectHeaders(headersToCollect,
                         sizeof(headersToCollect) / sizeof(headersToCollect[0]));
@@ -60,10 +102,7 @@ uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* defaultLe
 
     // Connect with HTTP
     http.begin(url);
-    // The server decides on these, not on the User-Agent, so that neither end
-    // has to parse an identity back out of a formatted string.
-    http.addHeader("X-Client-Name", CLIENT_NAME);
-    http.addHeader("X-Client-Version", CLIENT_VERSION);
+    addDeviceHeaders(http);
 
     int httpCode = http.GET();
     if (httpCode != HTTP_CODE_OK) {
@@ -96,28 +135,18 @@ uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* defaultLe
     http.getStream().setTimeout(5);
 
     if (rsp) {
-        if (http.hasHeader("X-Next-Refresh-Seconds")) {
-            // Server is authoritative for *when* to refresh next; we just count
-            // down. No timezone math on the client.
-            String headerVal = http.header("X-Next-Refresh-Seconds");
-            uint32_t parsed = 0;
-            if (parseRefreshTime(headerVal.c_str(), &parsed)) {
-                rsp->nextRefreshSeconds = parsed;
-                logf(LOG_INFO, "received header X-Next-Refresh-Seconds: %u", parsed);
-            } else {
-                logf(LOG_WARNING, "X-Next-Refresh-Seconds value '%s' is malformed, ignoring",
-                     headerVal.c_str());
-            }
-        } else {
-            logf(LOG_WARNING, "header X-Next-Refresh-Seconds not found in response");
-        }
+        // The server is authoritative for when to refresh next; the board just
+        // counts down. No timezone arithmetic on the client.
+        if (!present(http, EPD_H_NEXT_REFRESH, EPD_H_WAS_NEXT_REFRESH))
+            logf(LOG_WARNING, "header %s not found in response", EPD_H_NEXT_REFRESH);
+        numberHeader(http, EPD_H_NEXT_REFRESH, EPD_H_WAS_NEXT_REFRESH, &rsp->nextRefreshSeconds);
 
-        copyHeader(http, "X-Next-URL", rsp->nextURL, sizeof(rsp->nextURL));
-        copyHeader(http, "X-Server-Firmware-Version", rsp->firmwareVersion,
+        copyHeader(http, EPD_H_NEXT_URL, EPD_H_WAS_NEXT_URL, rsp->nextURL, sizeof(rsp->nextURL));
+        copyHeader(http, EPD_H_FIRMWARE_VERSION, EPD_H_WAS_FIRMWARE_VERSION, rsp->firmwareVersion,
                    sizeof(rsp->firmwareVersion));
-        copyHeader(http, "X-Server-Firmware-URL", rsp->firmwareURL, sizeof(rsp->firmwareURL));
-        if (http.hasHeader("X-Server-Version"))
-            logf(LOG_INFO, "server is %s", http.header("X-Server-Version").c_str());
+        copyHeader(http, EPD_H_FIRMWARE_URL, EPD_H_WAS_FIRMWARE_URL, rsp->firmwareURL,
+                   sizeof(rsp->firmwareURL));
+        readServerHeaders(http, rsp);
     }
 
     int32_t total = http.getSize();
@@ -147,15 +176,18 @@ uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* defaultLe
     return buffer;
 }
 
-int postJson(const char* url, const char* userAgent, const char* body) {
+int postJson(const char* url, const char* userAgent, const char* body, PageResponse* rsp) {
     HTTPClient http;
+    const char* headersToCollect[] = {EPD_H_SERVER_VERSION, EPD_H_WAS_SERVER_VERSION,
+                                      EPD_H_SERVER_EPOCH};
+    http.collectHeaders(headersToCollect, sizeof(headersToCollect) / sizeof(headersToCollect[0]));
     if (userAgent && userAgent[0])
         http.setUserAgent(userAgent);
     http.begin(url);
     http.addHeader("Content-Type", "application/json");
-    http.addHeader("X-Client-Name", CLIENT_NAME);
-    http.addHeader("X-Client-Version", CLIENT_VERSION);
+    addDeviceHeaders(http);
     int code = http.POST((uint8_t*)body, strlen(body));
+    readServerHeaders(http, rsp);
     http.end();
     if (code < 0)
         logf(LOG_ERROR, "POST %s failed: %s", url, HTTPClient::errorToString(code).c_str());

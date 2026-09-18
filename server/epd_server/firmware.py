@@ -1,16 +1,17 @@
 """Firmware images: what the server holds, and which client it applies to.
 
-The board states its identity on every page fetch::
+The board states its identity on every page fetch, under the product's own
+header prefix (:mod:`epd_server.headers`)::
 
-    X-Client-Name: my-display
-    X-Client-Version: v1.2.0
+    EPD-Device: my-display
+    EPD-Device-Version: v1.2.0
 
 so the server can answer "is there a newer image for you?" without the board
 knowing anything about releases. It sends a User-Agent too, but that is for
 the access log: the headers are what decide, so nothing is parsed back out
 of a formatted string. When there is, the page response carries
-``X-Server-Firmware-Version`` and ``X-Server-Firmware-URL``, and the board
-fetches the image after it has drawn.
+``EPD-Server-Firmware-Version`` and ``EPD-Server-Firmware-URL``, and the
+board fetches the image after it has drawn.
 
 A :class:`FirmwareStore` is a directory of ``<version>.bin``. The version is
 the filename, so an image built by hand works the moment it is copied in::

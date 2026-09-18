@@ -2,7 +2,7 @@
 
 The generic half of a scheduled e-paper image server: config resolution,
 a plugin registry, a disk cache, HTML-to-PNG page rendering, and the
-DST-correct wake/regeneration maths behind the `X-Next-Refresh-Seconds` /
+DST-correct wake/regeneration maths behind the `EPD-Next-Display-Refresh-Seconds` /
 `X-Next-URL` headers.
 
 A project supplies its pages and its data sources; this package supplies

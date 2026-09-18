@@ -61,7 +61,7 @@ These mirror the [Adafruit GFX](https://github.com/adafruit/Adafruit-GFX-Library
 
 The firmware relies entirely on the hardware RTC for deep-sleep scheduling.
 No NTP math or timezone awareness is required on the client — the server
-sends an `X-Next-Refresh-Seconds` header and the client simply adds that
+sends an `EPD-Next-Display-Refresh-Seconds` header and the client simply adds that
 offset to the current epoch when setting the alarm.
 
 | Method | Notes |

@@ -23,7 +23,7 @@ These go in `build_flags` in `platformio.ini`.
 | `-DUSE_SDCARD` | Read settings from `config.yaml` on the SD card. See below. |
 
 `-DCLIENT_NAME` and `-DCLIENT_VERSION` are what the panel says about
-itself on every request, as `X-Client-Name` and `X-Client-Version`. They also
+itself on every request, as `EPD-Device` and `EPD-Device-Version`. They also
 become its User-Agent, `my-display/v1.0.0 (Inkplate10)`, for your access log.
 See [the HTTP contract](protocol.md).
 

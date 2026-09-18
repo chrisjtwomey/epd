@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "epd_headers.h"
 #include "error_utils.h"
 
 /**
@@ -12,10 +13,12 @@
   value or an empty string means "not said this time".
 */
 struct PageResponse {
-    uint32_t nextRefreshSeconds;   // X-Next-Refresh-Seconds
-    char nextURL[256];             // X-Next-URL
-    char firmwareVersion[32];      // X-Server-Firmware-Version, when one is offered
-    char firmwareURL[256];         // X-Server-Firmware-URL
+    uint32_t nextRefreshSeconds;   // EPD_H_NEXT_REFRESH
+    char nextURL[256];             // EPD_H_NEXT_URL
+    char firmwareVersion[32];      // EPD_H_FIRMWARE_VERSION, when one is offered
+    char firmwareURL[256];         // EPD_H_FIRMWARE_URL
+    char serverVersion[32];        // EPD_H_SERVER_VERSION
+    uint32_t serverEpoch;          // EPD_H_SERVER_EPOCH: UTC seconds when it answered
 };
 /**
   Connect to a WiFi network in Station Mode.
@@ -48,8 +51,13 @@ uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* size,
 /**
   POST body to url as application/json.
 
+  What the server said about itself is written to rsp, which a POST fills
+  only in part: a board that never fetches a page still learns the server's
+  version and clock. Pass nullptr to ignore it.
+
   @returns the HTTP status code, or a negative HTTPClient error code when
   no response arrived.
 */
-int postJson(const char* url, const char* userAgent, const char* body);
+int postJson(const char* url, const char* userAgent, const char* body,
+             PageResponse* rsp = nullptr);
 #endif

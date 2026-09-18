@@ -102,7 +102,7 @@ python3 scripts/version.py 0.3.0    # set every declaration
 
 `server/tests/test_version.py` fails if they ever disagree. That matters more
 than tidiness: the server sends its own version to every client in the
-`X-Server-Version` header.
+`EPD-Server-Version` header.
 
 The registry ships what `library.json`'s `export` rules allow, not the
 directory, so build a consumer against the exact tarball before publishing
@@ -136,7 +136,7 @@ before any of this happens — see the README's quickstart.
 - Tests live with the code they cover. Code that moves here brings its
   tests. Add a test for every behaviour you add or change.
 - Keep the wire contract stable. The client reads exactly two headers,
-  `X-Next-Refresh-Seconds` and `X-Next-URL`; anything else is a breaking
+  `EPD-Next-Display-Refresh-Seconds` and `EPD-Next-URL`; anything else is a breaking
   change for every deployed device.
 - Comments describe the present, not the change. Git holds the history.
 - Please fork the repository and create a new branch for your changes.
