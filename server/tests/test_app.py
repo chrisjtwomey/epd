@@ -587,3 +587,72 @@ def test_a_board_is_recognised_by_its_current_device_headers(tmp_path):
 
     assert rsp.headers["EPD-Server-Firmware-Version"] == "v1.6.0"
     assert rsp.headers["X-Server-Firmware-Version"] == "v1.6.0"
+
+
+# ── Version compatibility ─────────────────────────────────────────────────
+
+def gated(tmp_path, **kw):
+    received = []
+    client = client_for(tmp_path, ingest={"readings": received.append},
+                        server_version="v0.2.2", **kw)
+    return client, received
+
+
+def post(client, version, name="canary-dock"):
+    headers = {"EPD-Device": name}
+    if version is not None:
+        headers["EPD-Device-Version"] = version
+    return client.post("/readings", json={"ts": 1, "device": name}, headers=headers)
+
+
+def test_a_gated_server_refuses_a_board_it_cannot_work_with(tmp_path):
+    client, received = gated(tmp_path, version_gate=True)
+
+    rsp = post(client, "v0.3.0")
+
+    assert rsp.status_code == 409
+    assert rsp.get_json() == {"error": "version", "device": "v0.3.0", "server": "v0.2.2"}
+    assert received == []
+
+
+def test_a_gated_server_takes_a_board_it_can_work_with(tmp_path):
+    client, received = gated(tmp_path, version_gate=True)
+
+    assert post(client, "v0.2.9-3-gabc1234").status_code == 204
+    assert len(received) == 1
+
+
+def test_a_board_whose_version_cannot_be_read_is_let_through(tmp_path):
+    """A development build must not have its readings silently refused."""
+    client, received = gated(tmp_path, version_gate=True)
+
+    assert post(client, "dev").status_code == 204
+    assert post(client, None).status_code == 204
+    assert len(received) == 2
+
+
+def test_a_board_stating_the_old_header_names_is_judged_too(tmp_path):
+    client, received = gated(tmp_path, version_gate=True)
+
+    rsp = client.post("/readings", json={"ts": 1},
+                      headers={"X-Client-Name": "canary-dock", "X-Client-Version": "v0.3.0"})
+
+    assert rsp.status_code == 409
+    assert received == []
+
+
+def test_without_the_gate_every_version_is_taken(tmp_path):
+    client, received = gated(tmp_path)
+
+    assert post(client, "v9.0.0").status_code == 204
+    assert len(received) == 1
+
+
+def test_the_gate_never_refuses_a_page(tmp_path):
+    """A board the server refuses must still fetch pages, or it never learns of an update."""
+    client, _ = gated(tmp_path, version_gate=True)
+
+    rsp = client.get("/today.png", headers={"EPD-Device": "canary-head",
+                                            "EPD-Device-Version": "v0.3.0"})
+
+    assert rsp.status_code == 200

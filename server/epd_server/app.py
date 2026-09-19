@@ -28,7 +28,9 @@ builds the names from it::
       304 when the request's x-ESP32-version is the version held
       404 when the server holds no image
 
-    POST /<name>        a project's ingest route: a JSON object in, 204 out
+    POST /<name>        a project's ingest route: a JSON object in, 204 out;
+                        409 when version_gate is on and the board's version
+                        cannot work with the server's
     GET /<name>?k=v     a project's query route: JSON out, 404 when there
                         is no answer
 
@@ -49,6 +51,7 @@ from typing import Callable, Iterable, Mapping
 from flask import Flask, abort, jsonify, make_response, request, send_file
 from werkzeug.serving import make_server
 
+from .compat import compatible
 from .config import FirmwareSettings, MqttSettings
 from ._version import __version__
 from .headers import (LEGACY_DEVICE, LEGACY_DEVICE_VERSION, LEGACY_FIRMWARE_URL,
@@ -130,6 +133,10 @@ class DisplayServer:
         server_version: what to report as this server's version. Defaults to
             the version of this package, which is right until a project has
             one of its own.
+        version_gate: refuse an ingest post, with 409, from a board whose
+            version cannot work with ``server_version``. Only for a project
+            whose boards and server take their versions from the same tags;
+            see :mod:`epd_server.compat`.
     """
 
     def __init__(
@@ -149,6 +156,7 @@ class DisplayServer:
         firmware: FirmwareSettings | None = None,
         header_prefix: str = "EPD",
         server_version: str | None = None,
+        version_gate: bool = False,
     ):
         self.pages = list(pages)
         self.source = source
@@ -170,6 +178,7 @@ class DisplayServer:
         self.firmware = firmware
         self.wire = Wire(header_prefix)
         self.server_version = server_version or __version__
+        self.version_gate = version_gate
         self.firmware_store = FirmwareStore(firmware.dir) if firmware and firmware.enabled else None
         self.release_watcher: ReleaseWatcher | None = None
 
@@ -281,6 +290,9 @@ class DisplayServer:
 
     def _make_ingest(self, name: str, handler: Callable[[dict], None]):
         def accept():
+            refusal = self._version_refusal()
+            if refusal is not None:
+                return refusal
             doc = request.get_json(silent=True)
             if not isinstance(doc, dict):
                 abort(400, "expected a JSON object")
@@ -291,6 +303,24 @@ class DisplayServer:
             return "", 204
         accept.__name__ = f"ingest_{name}"
         return accept
+
+    def _version_refusal(self):
+        """A 409 for a board whose version cannot work with this server's.
+
+        A board that states no version, or one that cannot be read, is let
+        through: it cannot be judged, and refusing it would silently stop the
+        readings of every development build. The body names both versions so
+        the board can log them.
+        """
+        if not self.version_gate:
+            return None
+        device = self._header(self.wire.device, LEGACY_DEVICE)
+        version = self._header(self.wire.device_version, LEGACY_DEVICE_VERSION)
+        if compatible(version, self.server_version) is not False:
+            return None
+        log.warning("refused %s from %s %s: this server is %s", request.path,
+                    device or "an unnamed client", version, self.server_version)
+        return jsonify(error="version", device=version, server=self.server_version), 409
 
     def _serve_firmware(self):
         """The image itself. The board asks for this after a page offered it."""

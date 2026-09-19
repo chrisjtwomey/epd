@@ -17,7 +17,7 @@ String nowTzFmt();
   Connect to an NTP server and synchronize the on-board real-time clock.
 
   Used for log timestamps and error overlays only; wake scheduling is
-  driven entirely by the server's X-Next-Refresh-Seconds header.
+  driven entirely by the server's refresh header.
 
   @param ntpHost the hostname of the NTP server (eg. pool.ntp.org).
   @param timezoneName the name of the timezone in Olson format (eg.

@@ -99,6 +99,48 @@ schedule falls due. Hold it as an offset from the board's own uptime rather
 than setting a clock from it, so a correction can never send timestamps
 backwards.
 
+## When a board and a server cannot work together
+
+A project whose boards and server take their versions from the same tags can
+ask the server to refuse readings from a board that speaks a different
+contract:
+
+```python
+DisplayServer(..., server_version="v0.2.2", version_gate=True)
+```
+
+Two versions match when their major numbers match, or, while the major is 0,
+their major and minor. That is semantic versioning's own rule: before 1.0.0 a
+minor release may break the contract, and after it only a major one may.
+`epd_server.compat` and the firmware's `version_compat.h` apply the same
+rule, so both ends reach the same answer about each other.
+
+A post from a board that does not match is refused before its handler runs:
+
+```
+POST /readings
+  EPD-Device-Version: v0.3.0
+
+  409 application/json
+  {"error": "version", "device": "v0.3.0", "server": "v0.2.2"}
+```
+
+409 is the one refusal a sender should hold on to rather than drop. The
+document is sound; only the pairing is wrong, and fixing whichever end is
+older makes it acceptable again.
+
+Three things the gate never does:
+
+- **Refuse a board whose version cannot be read.** `dev`, a bare commit hash
+  and a missing header all pass. Refusing them would silently stop the
+  readings of every development build.
+- **Refuse a page.** A board the server will not take readings from still
+  fetches its pages, because the page response is where an update is
+  offered. Refusing the page would leave it no way back.
+- **Apply without being asked.** A server whose version comes from a
+  different stream than its boards', such as the `epd-server` package's own
+  default, would refuse everything.
+
 ## Offering a firmware update
 
 When the server holds an image for this client's product, and that image is
