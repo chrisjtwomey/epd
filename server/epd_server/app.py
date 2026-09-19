@@ -22,6 +22,9 @@ builds the names from it::
       EPD-Server-Epoch-Seconds: <UTC seconds>     its clock, on every response
       EPD-Server-Firmware-Version: <version>      only when an update applies
       EPD-Server-Firmware-URL: http://host/firmware.bin
+      EPD-Next-Sensor-Poll-Seconds: <seconds>     when a board that posts readings
+                                                  should post next, on every response
+                                                  when the project sets sensor_poll
 
     GET /firmware.bin
       200 application/octet-stream, Content-Length, x-MD5
@@ -140,6 +143,9 @@ class DisplayServer:
             version cannot work with ``server_version``. Only for a project
             whose boards and server take their versions from the same tags;
             see :mod:`epd_server.compat`.
+        sensor_poll: the seconds until a board that posts readings should post
+            next, given the epoch now. Sent on every response when given, so
+            a board learns it from whatever request it last made.
     """
 
     def __init__(
@@ -160,6 +166,7 @@ class DisplayServer:
         header_prefix: str = "EPD",
         server_version: str | None = None,
         version_gate: bool = False,
+        sensor_poll: Callable[[float], int] | None = None,
     ):
         self.pages = list(pages)
         self.source = source
@@ -182,6 +189,7 @@ class DisplayServer:
         self.wire = Wire(header_prefix)
         self.server_version = server_version or __version__
         self.version_gate = version_gate
+        self.sensor_poll = sensor_poll
         self.firmware_store = FirmwareStore(firmware.dir) if firmware and firmware.enabled else None
         self.release_watcher: ReleaseWatcher | None = None
 
@@ -452,9 +460,12 @@ class DisplayServer:
         The clock goes out on every response so a board without one of its
         own can keep time from the server it already has to reach.
         """
+        now = time.time()
         rsp.headers[self.wire.server_version] = self.server_version
-        rsp.headers[self.wire.server_epoch] = str(int(time.time()))
+        rsp.headers[self.wire.server_epoch] = str(int(now))
         rsp.headers[LEGACY_SERVER_VERSION] = self.server_version
+        if self.sensor_poll is not None:
+            rsp.headers[self.wire.next_sensor_poll] = str(int(self.sensor_poll(now)))
         return rsp
 
     # ── Lifecycle ─────────────────────────────────────────────────────────

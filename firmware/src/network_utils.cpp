@@ -68,6 +68,7 @@ static void readServerHeaders(HTTPClient& http, PageResponse* rsp) {
     copyHeader(http, EPD_H_SERVER_VERSION, EPD_H_WAS_SERVER_VERSION, rsp->serverVersion,
                sizeof(rsp->serverVersion));
     numberHeader(http, EPD_H_SERVER_EPOCH, nullptr, &rsp->serverEpoch);
+    numberHeader(http, EPD_H_NEXT_SENSOR_POLL, nullptr, &rsp->nextSensorPollSeconds);
 }
 
 // The headers every request carries: the board decides these, not the
@@ -90,7 +91,7 @@ uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* defaultLe
         EPD_H_NEXT_REFRESH,     EPD_H_WAS_NEXT_REFRESH,
         EPD_H_NEXT_URL,         EPD_H_WAS_NEXT_URL,
         EPD_H_SERVER_VERSION,   EPD_H_WAS_SERVER_VERSION,
-        EPD_H_SERVER_EPOCH,
+        EPD_H_SERVER_EPOCH,     EPD_H_NEXT_SENSOR_POLL,
         EPD_H_FIRMWARE_VERSION, EPD_H_WAS_FIRMWARE_VERSION,
         EPD_H_FIRMWARE_URL,     EPD_H_WAS_FIRMWARE_URL,
     };
@@ -179,7 +180,7 @@ uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* defaultLe
 int postJson(const char* url, const char* userAgent, const char* body, PageResponse* rsp) {
     HTTPClient http;
     const char* headersToCollect[] = {EPD_H_SERVER_VERSION, EPD_H_WAS_SERVER_VERSION,
-                                      EPD_H_SERVER_EPOCH};
+                                      EPD_H_SERVER_EPOCH, EPD_H_NEXT_SENSOR_POLL};
     http.collectHeaders(headersToCollect, sizeof(headersToCollect) / sizeof(headersToCollect[0]));
     if (userAgent && userAgent[0])
         http.setUserAgent(userAgent);

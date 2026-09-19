@@ -99,6 +99,27 @@ schedule falls due. Hold it as an offset from the board's own uptime rather
 than setting a clock from it, so a correction can never send timestamps
 backwards.
 
+## When a sensor board posts next
+
+A board that posts readings on a schedule can take the schedule from the
+server too. The project passes a function of the time now:
+
+```python
+DisplayServer(..., sensor_poll=lambda now: seconds_until_next_post(now))
+```
+
+and every response then carries its answer:
+
+```
+EPD-Next-Sensor-Poll-Seconds: 240
+```
+
+It goes on every response, not only the one to a readings post, so a board
+learns it from whatever it last asked, and it is independent of
+`EPD-Next-Display-Refresh-Seconds`: the panel and the sensors keep their own
+schedules. The client reads it into `PageResponse::nextSensorPollSeconds`,
+which stays 0 when the server sends none.
+
 ## When a board and a server cannot work together
 
 A project whose boards and server take their versions from the same tags can

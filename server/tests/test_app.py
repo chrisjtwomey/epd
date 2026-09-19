@@ -600,6 +600,25 @@ def test_the_server_sends_its_clock_on_every_response(tmp_path):
         assert abs(sent - time.time()) < 5
 
 
+def test_the_sensor_poll_goes_on_every_response_when_the_project_sets_one(tmp_path):
+    asked = []
+
+    def poll(now):
+        asked.append(now)
+        return 240
+    client = client_for(tmp_path, header_prefix="Canary", sensor_poll=poll,
+                        ingest={"readings": lambda docs: None})
+
+    for rsp in (client.get("/today.png"), client.post("/readings", json={"ts": 1})):
+        assert rsp.headers["Canary-Next-Sensor-Poll-Seconds"] == "240"
+        assert abs(asked[-1] - int(rsp.headers["Canary-Server-Epoch-Seconds"])) < 1
+
+
+def test_without_a_sensor_poll_there_is_no_header(tmp_path):
+    rsp = client_for(tmp_path).get("/today.png")
+    assert "EPD-Next-Sensor-Poll-Seconds" not in rsp.headers
+
+
 def test_a_project_reports_its_own_version_not_the_package_one(tmp_path):
     from epd_server import __version__
 

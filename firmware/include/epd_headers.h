@@ -27,6 +27,7 @@
 // What to do next, and what firmware is on offer.
 #define EPD_H_NEXT_REFRESH    EPD_HEADER("-Next-Display-Refresh-Seconds")
 #define EPD_H_NEXT_URL        EPD_HEADER("-Next-URL")
+#define EPD_H_NEXT_SENSOR_POLL EPD_HEADER("-Next-Sensor-Poll-Seconds")
 #define EPD_H_FIRMWARE_VERSION EPD_HEADER("-Server-Firmware-Version")
 #define EPD_H_FIRMWARE_URL     EPD_HEADER("-Server-Firmware-URL")
 
