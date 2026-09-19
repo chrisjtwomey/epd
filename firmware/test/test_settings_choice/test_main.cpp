@@ -38,7 +38,7 @@ void test_with_nothing_anywhere_the_image_value_stands(void) {
 }
 
 void test_the_broker_says_whether_an_image_carries_mqtt_settings(void) {
-    TEST_ASSERT_TRUE(mqttSettingsAreSet("roci.local"));
+    TEST_ASSERT_TRUE(mqttSettingsAreSet("broker.example.com"));
     TEST_ASSERT_TRUE(mqttSettingsAreSet("192.168.1.10"));
     // A placeholder means the block comes from the board's own store, which
     // is what lets an image built by CI keep logging somewhere real.
