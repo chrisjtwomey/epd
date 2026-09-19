@@ -28,7 +28,8 @@ builds the names from it::
       304 when the request's x-ESP32-version is the version held
       404 when the server holds no image
 
-    POST /<name>        a project's ingest route: a JSON object in, 204 out;
+    POST /<name>        a project's ingest route: a JSON object, or an array
+                        of them, in; 204 out, or 200 with the handler's JSON;
                         409 when version_gate is on and the board's version
                         cannot work with the server's
     GET /<name>?k=v     a project's query route: JSON out, 404 when there
@@ -119,9 +120,11 @@ class DisplayServer:
         mqtt: if given and ``enabled``, relay the client's log topic into
             the ``client`` logger while running.
         mqtt_client_id: the id this server connects to the broker with.
-        ingest: routes that accept a JSON object by POST, as
-            ``{name: handler}``. ``POST /<name>`` parses the body and calls
-            ``handler(doc)``; a ``ValueError`` from the handler is a 400.
+        ingest: routes that accept documents by POST, as ``{name: handler}``.
+            ``POST /<name>`` takes one JSON object or an array of them and
+            calls ``handler(docs)`` once with the list, so a batch can be
+            written in one transaction. What the handler returns is sent as
+            JSON with a 200, and None is a 204; a ``ValueError`` is a 400.
         queries: routes that answer a GET with JSON, as ``{name: handler}``.
             ``GET /<name>`` calls ``handler(args)`` with the query string as
             a dict and sends what it returns; None is a 404 and a
@@ -151,7 +154,7 @@ class DisplayServer:
         port: int = 8080,
         mqtt: MqttSettings | None = None,
         mqtt_client_id: str = "epd-server",
-        ingest: Mapping[str, Callable[[dict], None]] | None = None,
+        ingest: Mapping[str, Callable[[list[dict]], dict | None]] | None = None,
         queries: Mapping[str, Callable[[dict], object]] | None = None,
         firmware: FirmwareSettings | None = None,
         header_prefix: str = "EPD",
@@ -288,19 +291,22 @@ class DisplayServer:
         answer.__name__ = f"query_{name}"
         return answer
 
-    def _make_ingest(self, name: str, handler: Callable[[dict], None]):
+    def _make_ingest(self, name: str, handler: Callable[[list[dict]], dict | None]):
         def accept():
             refusal = self._version_refusal()
             if refusal is not None:
                 return refusal
-            doc = request.get_json(silent=True)
-            if not isinstance(doc, dict):
-                abort(400, "expected a JSON object")
+            body = request.get_json(silent=True)
+            docs = [body] if isinstance(body, dict) else body
+            if not isinstance(docs, list) or not docs or not all(isinstance(d, dict) for d in docs):
+                abort(400, "expected a JSON object or a non-empty array of objects")
             try:
-                handler(doc)
+                result = handler(docs)
             except ValueError as exc:
                 abort(400, str(exc))
-            return "", 204
+            if result is None:
+                return "", 204
+            return jsonify(result)
         accept.__name__ = f"ingest_{name}"
         return accept
 

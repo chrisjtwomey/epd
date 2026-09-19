@@ -104,14 +104,16 @@ from epd_server import IngestSource, ReadingsStore
 
 store = ReadingsStore("readings.db")
 DisplayServer(..., source=IngestSource(store, hours=(24, 72)),
-              ingest={"readings": store.add})
+              ingest={"readings": store.add_many})
 ```
 
 The pages then ask for `latest`, the newest document or None before the
 first, and `history_24h` and `history_72h`, the documents of each window,
 oldest first. A document is kept by its own `ts`, so one a board held while
 the server was down lands where it belongs, and a second copy of the same
-`device` and `ts` is ignored. `store.prune(before)` deletes older ones.
+`device` and `ts` is ignored. `add_many` writes a batch in one transaction
+and answers with which documents were new. `store.prune(before)` deletes
+older ones.
 
 ## Config
 

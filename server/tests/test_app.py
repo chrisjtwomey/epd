@@ -220,7 +220,7 @@ def test_align_process_timezone_ignores_zones_without_a_key(monkeypatch):
 
 def test_ingest_route_parses_json_and_calls_the_handler(tmp_path):
     seen = []
-    server = make(tmp_path, ingest={"readings": seen.append})
+    server = make(tmp_path, ingest={"readings": seen.extend})
     client = server._build_app().test_client()
 
     rsp = client.post("/readings", json={"ts": 1, "co2_ppm": 640})
@@ -232,11 +232,14 @@ def test_ingest_route_parses_json_and_calls_the_handler(tmp_path):
 @pytest.mark.parametrize("data, content_type", [
     (b"not json", "application/json"),
     (b"[1, 2]", "application/json"),
+    (b'[{"ts": 1}, 2]', "application/json"),
+    (b"[]", "application/json"),
+    (b"7", "application/json"),
     (b'{"ts": 1}', "text/plain"),
 ])
-def test_ingest_rejects_anything_but_a_json_object(tmp_path, data, content_type):
+def test_ingest_rejects_anything_but_an_object_or_an_array_of_them(tmp_path, data, content_type):
     seen = []
-    server = make(tmp_path, ingest={"readings": seen.append})
+    server = make(tmp_path, ingest={"readings": seen.extend})
     client = server._build_app().test_client()
 
     rsp = client.post("/readings", data=data, content_type=content_type)
@@ -244,8 +247,40 @@ def test_ingest_rejects_anything_but_a_json_object(tmp_path, data, content_type)
     assert rsp.status_code == 400 and seen == []
 
 
+def test_ingest_hands_an_array_to_the_handler_in_one_call(tmp_path):
+    calls = []
+    server = make(tmp_path, ingest={"readings": calls.append})
+    client = server._build_app().test_client()
+
+    rsp = client.post("/readings", json=[{"ts": 1}, {"ts": 2}])
+
+    assert rsp.status_code == 204
+    assert calls == [[{"ts": 1}, {"ts": 2}]]
+
+
+def test_ingest_sends_what_the_handler_returns_as_json(tmp_path):
+    server = make(tmp_path, ingest={"readings": lambda docs: {"new": len(docs)}})
+    client = server._build_app().test_client()
+
+    rsp = client.post("/readings", json=[{"ts": 1}, {"ts": 2}])
+
+    assert rsp.status_code == 200 and rsp.get_json() == {"new": 2}
+
+
+def test_a_store_as_the_handler_takes_a_repeat_once(tmp_path):
+    from epd_server import ReadingsStore
+    store = ReadingsStore(":memory:")
+    client = make(tmp_path, ingest={"readings": store.add_many})._build_app().test_client()
+
+    assert client.post("/readings", json={"ts": 1, "device": "a"}).get_json() == [True]
+    rsp = client.post("/readings", json=[{"ts": 1, "device": "a"}, {"ts": 2, "device": "a"}])
+
+    assert rsp.status_code == 200 and rsp.get_json() == [False, True]
+    assert store.count() == 2
+
+
 def test_ingest_handler_value_error_is_a_400_with_its_message(tmp_path):
-    def reject(doc):
+    def reject(docs):
         raise ValueError("ts is required")
     server = make(tmp_path, ingest={"readings": reject})
     client = server._build_app().test_client()
@@ -292,7 +327,7 @@ def test_query_handler_none_is_a_404_and_value_error_a_400(tmp_path):
 
 def test_one_name_can_take_a_post_and_answer_a_get(tmp_path):
     seen = []
-    server = make(tmp_path, ingest={"notes": seen.append}, queries={"notes": lambda args: seen})
+    server = make(tmp_path, ingest={"notes": seen.extend}, queries={"notes": lambda args: seen})
     client = server._build_app().test_client()
 
     assert client.post("/notes", json={"ts": 1}).status_code == 204
@@ -593,7 +628,7 @@ def test_a_board_is_recognised_by_its_current_device_headers(tmp_path):
 
 def gated(tmp_path, **kw):
     received = []
-    client = client_for(tmp_path, ingest={"readings": received.append},
+    client = client_for(tmp_path, ingest={"readings": received.extend},
                         server_version="v0.2.2", **kw)
     return client, received
 

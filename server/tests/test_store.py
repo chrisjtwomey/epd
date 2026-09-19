@@ -57,6 +57,24 @@ def test_add_rejects_a_missing_or_wrong_ts_or_device(store, doc):
     assert store.count() == 0
 
 
+def test_add_many_says_which_documents_were_new(store):
+    store.add({"ts": 2, "device": "a"})
+    assert store.add_many([{"ts": 1, "device": "a"}, {"ts": 2, "device": "a"},
+                           {"ts": 3, "device": "a"}, {"ts": 3, "device": "a"}]) == [True, False, True, False]
+    assert [d["ts"] for d in store.between(0)] == [1, 2, 3]
+
+
+def test_add_many_writes_nothing_when_one_document_is_bad(store):
+    with pytest.raises(ValueError):
+        store.add_many([{"ts": 1, "device": "a"}, {"ts": "2", "device": "a"}])
+    assert store.count() == 0
+
+
+def test_add_many_of_nothing_writes_nothing(store):
+    assert store.add_many([]) == []
+    assert store.count() == 0
+
+
 def test_a_document_without_a_device_is_kept_under_an_empty_one(store):
     assert store.add({"ts": 1})
     assert store.latest("") == {"ts": 1}

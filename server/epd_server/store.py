@@ -28,6 +28,21 @@ _SCHEMA = (
 )
 
 
+def key(doc: dict) -> tuple[str, int]:
+    """``(device, ts)``, the two keys the store reads.
+
+    Raises:
+        ValueError: ``ts`` is not an integer, or ``device`` is not a string.
+    """
+    ts = doc.get("ts")
+    if isinstance(ts, bool) or not isinstance(ts, int):
+        raise ValueError("ts must be an integer epoch")
+    device = doc.get("device", "")
+    if not isinstance(device, str):
+        raise ValueError("device must be a string")
+    return device, ts
+
+
 class ReadingsStore:
     """Timestamped JSON documents in one SQLite table.
 
@@ -52,17 +67,23 @@ class ReadingsStore:
         Raises:
             ValueError: ``ts`` is not an integer, or ``device`` is not a string.
         """
-        ts = doc.get("ts")
-        if isinstance(ts, bool) or not isinstance(ts, int):
-            raise ValueError("ts must be an integer epoch")
-        device = doc.get("device", "")
-        if not isinstance(device, str):
-            raise ValueError("device must be a string")
+        return self.add_many([doc])[0]
+
+    def add_many(self, docs: list[dict]) -> list[bool]:
+        """Keep each of ``docs`` in one transaction, and say which were new.
+
+        Every document is checked before any is written, so a bad one keeps
+        the whole batch out.
+
+        Raises:
+            ValueError: a ``ts`` is not an integer, or a ``device`` is not a string.
+        """
+        rows = [key(doc) + (json.dumps(doc, separators=(",", ":")),) for doc in docs]
         with self._lock, self._db:
-            cur = self._db.execute(
-                "INSERT OR IGNORE INTO readings (device, ts, doc) VALUES (?, ?, ?)",
-                (device, ts, json.dumps(doc, separators=(",", ":"))))
-            return cur.rowcount == 1
+            return [self._db.execute(
+                        "INSERT OR IGNORE INTO readings (device, ts, doc) VALUES (?, ?, ?)",
+                        row).rowcount == 1
+                    for row in rows]
 
     def latest(self, device: str | None = None) -> dict | None:
         """The document with the highest ``ts``, or None when there is none."""

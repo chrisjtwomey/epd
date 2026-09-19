@@ -202,7 +202,11 @@ A panel that is awake can post to the server:
 POST /<name>
   Content-Type: application/json
   {"temperature": 19.4, "humidity": 58}
+  204, or 200 with the handler's JSON
 ```
+
+The body is one JSON object or an array of them, so a board that held
+documents while the server was down can send them in one request.
 
 The client call is `postJson(url, userAgent, body, rsp)`, which returns the
 HTTP status. A POST response carries the server's version and clock like any
@@ -213,12 +217,15 @@ other, so `rsp` is how a board that never fetches a page gets them; pass
 DisplayServer(..., ingest={"readings": handler})
 ```
 
-`POST /readings` then parses the body as a JSON object and calls
-`handler(doc)`. A `ValueError` raised by the handler becomes a 400.
+`POST /readings` then parses the body and calls `handler(docs)` once, with
+the list: a single object arrives as a list of one. What the handler returns
+goes back as JSON with a 200, and None is a 204. A `ValueError` raised by
+the handler becomes a 400.
 
-To keep what arrives, the handler can be `ReadingsStore.add`: the store
-keeps each document by its `device` and `ts` keys and ignores a second copy
-of the same pair. That makes the route safe to retry. A sender that loses
+To keep what arrives, the handler can be `ReadingsStore.add_many`: the store
+writes the batch in one transaction, keeps each document by its `device`
+and `ts` keys, ignores a second copy of the same pair, and answers with
+which documents were new. That makes the route safe to retry. A sender that loses
 the reply to a POST can send the same document again and change nothing, so
 it never has to choose between a duplicate and a gap. See
 [server/README.md](../server/README.md).
