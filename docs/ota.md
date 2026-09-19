@@ -39,6 +39,10 @@ update.
 [`examples/ota`](../examples/ota) is a whole project that does this, with a
 walk-through of an update, and of a rollback, on the bench.
 
+`applyFirmwareUpdate()` takes an optional progress callback, called with the
+bytes written and the image's size, for a board that wants to show how far
+along it is.
+
 A panel that rolled back remembers the version it rejected and will not take
 that version again. Without that memory it would roll back, be offered the
 same image, take it again, and loop. Publish the fix under a new version
@@ -99,8 +103,25 @@ The server holds a directory of images named for their versions:
 cp firmware.bin server/firmware/v1.6.0.bin
 ```
 
-The filename **is** the version. Nothing else has to be written down, and
-the newest file is the one offered.
+The filename **is** the version. Nothing else has to be written down.
+Without `version_gate` the newest file is the one offered; with it, the
+newest that can work with the server's own version, which may be older than
+what a board runs. So the server keeps every image it is given, and nothing
+it does removes one.
+
+A server for several products lists them, and keeps each in a subdirectory
+of its name:
+
+```yaml
+client:
+  firmware:
+    enabled: true
+    products: [my-display, my-sensor]
+```
+
+```sh
+cp firmware.bin server/firmware/my-sensor/v1.6.0.bin
+```
 
 To have the server fetch releases itself, give it a `source` block:
 
@@ -126,14 +147,17 @@ See [Configuration](configuration.md) for the rest of the block.
 An image is offered only when all of these hold:
 
 - The block is enabled and the server holds an image.
-- The panel sent `EPD-Device` and `EPD-Device-Version`, and the name equals
-  `client.firmware.product`. Offering one product's image to another
-  product's panel would brick it.
+- The panel sent `EPD-Device` and `EPD-Device-Version`, and the name is
+  `client.firmware.product` or one of `products`. Offering one product's
+  image to another product's panel would brick it.
 - The panel's version is a clean tag — `v1.5.1`, not `v1.5.1-3-gab12cd4`,
   `-dirty` or `dev`. A panel on your bench built from a working tree is left
   alone, so you are not flashed back to the last release mid-experiment. Set
   `offer_dev_builds: true` to override that, on a bench server only.
-- The version differs from the one the panel reports.
+- The version differs from the one the panel reports, higher or lower.
+
+The offer goes on any response to the panel, not only a page, so a board
+that only posts readings is offered its image too.
 
 Battery is the panel's own decision, not the server's. A typical `setup()`
 skips the update below about 20% and takes it at the next wake instead.

@@ -131,8 +131,9 @@ image:
 client:                        # what the panels run, not what this server does
   firmware:
     enabled: false
-    dir: firmware              # a directory of <version>.bin, newest wins
+    dir: firmware              # a directory of <version>.bin; see Updates over the air
     product: my-display        # the client name a panel reports
+    # products: [my-display, my-sensor]   # several, each in dir/<product>/
     offer_dev_builds: false
     # source:                  # optional: fill dir from a repository's releases
     #   github: owner/repo

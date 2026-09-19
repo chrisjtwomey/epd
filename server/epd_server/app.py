@@ -20,16 +20,16 @@ builds the names from it::
       EPD-Next-URL: http://host/<the page to fetch at that wake>
       EPD-Server-Version: <version>               this server, on every response
       EPD-Server-Epoch-Seconds: <UTC seconds>     its clock, on every response
-      EPD-Server-Firmware-Version: <version>      only when an update applies
+      EPD-Server-Firmware-Version: <version>      on any response, when an update applies
       EPD-Server-Firmware-URL: http://host/firmware.bin
       EPD-Next-Sensor-Poll-Seconds: <seconds>     when a board that posts readings
                                                   should post next, on every response
                                                   when the project sets sensor_poll
 
-    GET /firmware.bin
+    GET /firmware.bin[?product=<name>&version=<version>]
       200 application/octet-stream, Content-Length, x-MD5
       304 when the request's x-ESP32-version is the version held
-      404 when the server holds no image
+      404 when the server holds no such image
 
     POST /<name>        a project's ingest route: a JSON object, or an array
                         of them, in; 204 out, or 200 with the handler's JSON;
@@ -51,17 +51,18 @@ import threading
 import time
 from datetime import datetime
 from typing import Callable, Iterable, Mapping
+from urllib.parse import urlencode
 
 from flask import Flask, abort, jsonify, make_response, request, send_file
 from werkzeug.serving import make_server
 
-from .compat import compatible
+from .compat import compatible, version_order
 from .config import FirmwareSettings, MqttSettings
 from ._version import __version__
 from .headers import (LEGACY_DEVICE, LEGACY_DEVICE_VERSION, LEGACY_FIRMWARE_URL,
                       LEGACY_FIRMWARE_VERSION, LEGACY_NEXT_REFRESH, LEGACY_NEXT_URL,
                       LEGACY_SERVER_VERSION, Wire)
-from .firmware import (FirmwareStore, ReleaseWatcher, client_from_headers,
+from .firmware import (FirmwareImage, FirmwareStore, ReleaseWatcher, client_from_headers,
                        parse_user_agent, update_applies)
 from .mqtt import client_log_subscriber
 from .page import Page
@@ -132,17 +133,23 @@ class DisplayServer:
             ``GET /<name>`` calls ``handler(args)`` with the query string as
             a dict and sends what it returns; None is a 404 and a
             ``ValueError`` a 400. A name may have both kinds of route.
-        firmware: if given and ``enabled``, offer the image in its directory
-            to the boards it is for, and serve it at ``/firmware.bin``.
+        firmware: if given and ``enabled``, offer an image from its directory
+            to the boards it is for, on any response to one, and serve it at
+            ``/firmware.bin``. With ``version_gate`` the offer is the newest
+            image that can work with ``server_version``, older than the
+            board's own or newer; without it, the newest file.
         header_prefix: the product's name, which every header on the wire
             starts with. See :mod:`epd_server.headers`.
         server_version: what to report as this server's version. Defaults to
             the version of this package, which is right until a project has
             one of its own.
         version_gate: refuse an ingest post, with 409, from a board whose
-            version cannot work with ``server_version``. Only for a project
-            whose boards and server take their versions from the same tags;
-            see :mod:`epd_server.compat`.
+            version cannot work with ``server_version``, and offer each board
+            the image its server calls for. Only for a project whose boards
+            and server take their versions from the same tags; see
+            :mod:`epd_server.compat`.
+        on_refused: called with the board's name and version each time the
+            version gate refuses one, so the project can say so on its pages.
         sensor_poll: the seconds until a board that posts readings should post
             next, given the epoch now. Sent on every response when given, so
             a board learns it from whatever request it last made.
@@ -167,6 +174,7 @@ class DisplayServer:
         server_version: str | None = None,
         version_gate: bool = False,
         sensor_poll: Callable[[float], int] | None = None,
+        on_refused: Callable[[str, str], None] | None = None,
     ):
         self.pages = list(pages)
         self.source = source
@@ -190,7 +198,11 @@ class DisplayServer:
         self.server_version = server_version or __version__
         self.version_gate = version_gate
         self.sensor_poll = sensor_poll
-        self.firmware_store = FirmwareStore(firmware.dir) if firmware and firmware.enabled else None
+        self.on_refused = on_refused
+        self.firmware_stores = ({p: FirmwareStore(firmware.dir_for(p)) for p in firmware.names()}
+                                if firmware and firmware.enabled else {})
+        # The default product's: what the release watcher fills and / reports.
+        self.firmware_store = self.firmware_stores.get(firmware.product) if firmware else None
         self.release_watcher: ReleaseWatcher | None = None
 
         if not self.pages:
@@ -249,7 +261,7 @@ class DisplayServer:
         @app.route("/")
         def index():
             seconds, path = self.next_wake()
-            image = self.firmware_store.current() if self.firmware_store else None
+            image = self._offer_image(self.firmware.product) if self.firmware else None
             return jsonify(
                 pages=[p.png_filename for p in self.pages],
                 schedule=self.schedule.describe(),
@@ -334,11 +346,33 @@ class DisplayServer:
             return None
         log.warning("refused %s from %s %s: this server is %s", request.path,
                     device or "an unnamed client", version, self.server_version)
+        if self.on_refused is not None:
+            self.on_refused(device or "", version or "")
         return jsonify(error="version", device=version, server=self.server_version), 409
 
+    def _offer_image(self, product: str) -> FirmwareImage | None:
+        """The image a board of ``product`` should run, before asking whether
+        it runs it already."""
+        store = self.firmware_stores.get(product)
+        if store is None:
+            return None
+        return store.newest_compatible(self.server_version) if self.version_gate else store.current()
+
+    def _firmware_url(self, image: FirmwareImage, product: str) -> str:
+        url = request.host_url.rstrip("/") + "/firmware.bin"
+        if self.firmware is not None and self.firmware.products:
+            url += "?" + urlencode({"product": product, "version": image.version})
+        return url
+
     def _serve_firmware(self):
-        """The image itself. The board asks for this after a page offered it."""
-        image = self.firmware_store.current() if self.firmware_store else None
+        """The image itself. The board asks for this after a response offered it."""
+        assert self.firmware is not None   # the route exists only when it does
+        product = request.args.get("product") or self.firmware.product
+        version = request.args.get("version")
+        store = self.firmware_stores.get(product)
+        if store is None:
+            abort(404)
+        image = store.image(version) if version else self._offer_image(product)
         if image is None:
             abort(404)
         # HTTPUpdate sends the running version, so an image it already has
@@ -362,21 +396,21 @@ class DisplayServer:
 
     def _firmware_headers(self, rsp) -> None:
         """Add the offer headers when the requesting board has an update."""
-        if self.firmware_store is None:
+        if not self.firmware_stores or request.endpoint == "firmware":
             return
         firmware = self.firmware
-        assert firmware is not None   # the store exists only when it does
-        image = self.firmware_store.current()
+        assert firmware is not None   # the stores exist only when it does
         client = client_from_headers(self._header(self.wire.device, LEGACY_DEVICE),
                                      self._header(self.wire.device_version,
                                                   LEGACY_DEVICE_VERSION))
         legacy = client is None
         if legacy:
             client = self._parse_client_from_user_agent()
+        image = self._offer_image(client.name) if client is not None else None
         if not update_applies(client, image, firmware):
             return
         assert image is not None and client is not None   # update_applies said so
-        url = request.host_url.rstrip("/") + "/firmware.bin"
+        url = self._firmware_url(image, client.name)
         # The version travels with the URL because the board checks it against
         # the one it rolled back from, before it downloads anything.
         rsp.headers[self.wire.firmware_version] = image.version
@@ -386,7 +420,12 @@ class DisplayServer:
         if legacy:
             rsp.headers["X-Firmware-Version"] = image.version
             rsp.headers["X-Firmware-URL"] = url
-        log.info("Offering firmware %s to %s %s", image.version, client.name, client.version)
+        older = version_order(image.version) or (0, 0, 0)
+        if older < (version_order(client.version) or (0, 0, 0)):
+            log.warning("Offering %s %s an older firmware, %s: this server is %s",
+                        client.name, client.version, image.version, self.server_version)
+        else:
+            log.info("Offering firmware %s to %s %s", image.version, client.name, client.version)
 
     def _parse_client_from_user_agent(self):
         """The board this User-Agent names, when it is one of ours.
@@ -438,7 +477,6 @@ class DisplayServer:
         rsp.headers[self.wire.next_url] = next_url
         rsp.headers[LEGACY_NEXT_REFRESH] = str(seconds)
         rsp.headers[LEGACY_NEXT_URL] = next_url
-        self._firmware_headers(rsp)
         return rsp
 
     @staticmethod
@@ -466,6 +504,7 @@ class DisplayServer:
         rsp.headers[LEGACY_SERVER_VERSION] = self.server_version
         if self.sensor_poll is not None:
             rsp.headers[self.wire.next_sensor_poll] = str(int(self.sensor_poll(now)))
+        self._firmware_headers(rsp)
         return rsp
 
     # ── Lifecycle ─────────────────────────────────────────────────────────

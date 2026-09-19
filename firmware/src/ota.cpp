@@ -23,8 +23,11 @@
 // asks through this weak symbol, so the trial lasts until otaConfirm().
 extern "C" bool verifyRollbackLater() { return true; }
 
+static OtaProgress progressHook = nullptr;
+
 static void logProgress(int done, int total) {
     static int lastTenth = -1;
+    if (progressHook) progressHook(done, total);
     if (total <= 0) return;
     int tenth = (int)((int64_t)done * 10 / total);
     if (tenth == lastTenth) return;
@@ -33,7 +36,8 @@ static void logProgress(int done, int total) {
 }
 
 esp_err_t applyFirmwareUpdate(const char* url, const char* offeredVersion,
-                              const char* userAgent) {
+                              const char* userAgent, OtaProgress onProgress) {
+    progressHook = onProgress;
     logf(LOG_NOTICE, "firmware update offered: %s -> %s from %s", CLIENT_VERSION,
          offeredVersion, url);
 

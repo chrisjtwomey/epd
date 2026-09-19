@@ -481,6 +481,69 @@ def test_no_firmware_headers_and_no_route_without_the_block(client):
     assert client.get("/firmware.bin").status_code == 404
 
 
+def two_products(tmp_path, images, **kw):
+    """A gated server at v0.3.1 holding images for a display and a sensor board."""
+    fw_dir = tmp_path / "fw"
+    for product, versions in images.items():
+        (fw_dir / product).mkdir(parents=True, exist_ok=True)
+        for v in versions:
+            (fw_dir / product / f"{v}.bin").write_bytes(BIN + v.encode())
+    settings = FirmwareSettings(enabled=True, dir=str(fw_dir), product="my-display",
+                                offer_dev_builds=False, products=("my-display", "my-sensor"))
+    (tmp_path / "today.png").write_bytes(PNG)
+    (tmp_path / "hourly.png").write_bytes(PNG)
+    server = make(tmp_path, firmware=settings, server_version="v0.3.1", version_gate=True,
+                  ingest={"readings": lambda docs: None}, **kw)
+    return server.app.test_client()
+
+
+def board(name, version):
+    return {"EPD-Device": name, "EPD-Device-Version": version}
+
+
+def test_a_readings_post_carries_the_offer_for_its_own_product(tmp_path):
+    client = two_products(tmp_path, {"my-display": ["v0.3.0"], "my-sensor": ["v0.3.0", "v0.3.2"]})
+
+    rsp = client.post("/readings", json={"ts": 1}, headers=board("my-sensor", "v0.3.0"))
+
+    assert rsp.status_code == 204
+    assert rsp.headers["EPD-Server-Firmware-Version"] == "v0.3.2"
+    url = rsp.headers["EPD-Server-Firmware-URL"]
+    assert url == "http://localhost/firmware.bin?product=my-sensor&version=v0.3.2"
+    image = client.get(url.replace("http://localhost", ""))
+    assert image.status_code == 200 and image.data == BIN + b"v0.3.2"
+
+
+def test_a_board_ahead_of_the_server_is_offered_the_servers_line(tmp_path, caplog):
+    client = two_products(tmp_path, {"my-display": ["v0.3.0", "v0.4.0"]})
+
+    with caplog.at_level("WARNING"):
+        rsp = client.get("/today.png", headers=board("my-display", "v0.4.0"))
+
+    assert rsp.headers["EPD-Server-Firmware-Version"] == "v0.3.0"
+    assert "Offering my-display v0.4.0 an older firmware, v0.3.0: this server is v0.3.1" in caplog.text
+
+
+def test_a_refused_board_hears_about_the_image_that_would_fix_it(tmp_path):
+    refused = []
+    client = two_products(tmp_path, {"my-sensor": ["v0.3.0"]},
+                          on_refused=lambda name, version: refused.append((name, version)))
+
+    rsp = client.post("/readings", json={"ts": 1}, headers=board("my-sensor", "v0.4.0"))
+
+    assert rsp.status_code == 409
+    assert rsp.headers["EPD-Server-Firmware-Version"] == "v0.3.0"
+    assert refused == [("my-sensor", "v0.4.0")]
+
+
+def test_no_image_for_the_servers_line_offers_nothing(tmp_path):
+    client = two_products(tmp_path, {"my-sensor": ["v0.4.0"]})
+    rsp = client.post("/readings", json={"ts": 1}, headers=board("my-sensor", "v0.3.0"))
+    assert "EPD-Server-Firmware-Version" not in rsp.headers
+    assert client.get("/firmware.bin?product=my-sensor").status_code == 404
+    assert client.get("/firmware.bin?product=nobody&version=v0.4.0").status_code == 404
+
+
 def test_the_image_is_served_with_its_length_and_md5(tmp_path):
     import hashlib
     _, client = with_firmware(tmp_path)

@@ -147,8 +147,11 @@ POST /readings
 ```
 
 409 is the one refusal a sender should hold on to rather than drop. The
-document is sound; only the pairing is wrong, and fixing whichever end is
-older makes it acceptable again.
+document is sound; only the pairing is wrong. The same response offers the
+image the server's version calls for, when it holds one, so taking it makes
+the document acceptable again. A project that passes `on_refused` hears of
+each refusal, with the board's name and version, and can say so on its
+pages.
 
 Three things the gate never does:
 
@@ -165,13 +168,25 @@ Three things the gate never does:
 ## Offering a firmware update
 
 When the server holds an image for this client's product, and that image is
-a different version, it adds two headers to the page response:
+a different version, it adds two headers to any response to that client: a
+page, a readings post, a query, even a refusal.
 
 ```
 GET /<page>.png
   EPD-Server-Firmware-Version: v1.6.0
   EPD-Server-Firmware-URL: http://host/firmware.bin
 ```
+
+Which image depends on `version_gate`. Without it the server offers the
+newest file. With it, it offers the highest version that can work with its
+own, by the rule above, whether that is newer than the board's or older: the
+server's version is the one the boards follow. A gated server whose own
+version cannot be read offers nothing, and it logs a warning each time it
+offers a board an older image than the one it runs.
+
+A server that holds several products (`client.firmware.products`) names the
+image in the URL, `/firmware.bin?product=my-sensor&version=v1.6.0`, since the
+one route serves them all.
 
 The version travels beside the URL because the panel checks it before it
 downloads anything: against the version it is running, and against the one
@@ -200,11 +215,13 @@ arrives by the User-Agent route, so you can see when none do.
 The image itself is a separate route:
 
 ```
-GET /firmware.bin
+GET /firmware.bin[?product=<name>&version=<version>]
   200 application/octet-stream, with Content-Length and x-MD5
   304 when the request's x-ESP32-version equals the version held
-  404 when the server holds no image
+  404 when the server holds no such image
 ```
+
+Without the query it serves the image it would offer the default product.
 
 `x-MD5` is what the ESP32 update library checks the download against, so it
 must be the md5 of the exact bytes served.

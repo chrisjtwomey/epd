@@ -164,10 +164,20 @@ class FirmwareSource:
 @dataclass(frozen=True)
 class FirmwareSettings:
     enabled: bool
-    dir: str                        # a directory of <version>.bin
+    dir: str                        # a directory of <version>.bin, or of one per product
     product: str                    # the client name an image is for
     offer_dev_builds: bool          # offer to boards not built from a tag
     source: FirmwareSource | None = None
+    products: tuple[str, ...] = ()  # several products, each in dir/<product>/
+
+    def names(self) -> tuple[str, ...]:
+        """Every product this server holds images for."""
+        return self.products or ((self.product,) if self.product else ())
+
+    def dir_for(self, product: str) -> str:
+        """Where one product's images are: its own subdirectory when the
+        server holds several, the directory itself when it holds one."""
+        return os.path.join(self.dir, product) if self.products else self.dir
 
 
 @dataclass(frozen=True)
@@ -361,6 +371,9 @@ def parse_firmware(config: dict, *, default_product: str | None = None,
     block is enabled, because offering one product's image to another
     product's board would brick it. A relative ``dir`` is resolved against
     ``base_dir``, which a project sets to wherever its config.yaml is.
+
+    ``products`` names several products instead, each with its images in a
+    subdirectory of its own name; ``product`` then defaults to the first.
     """
     enabled = bool(get_prop_by_keys(config, "client", "firmware", "enabled", default=False))
     directory = str(get_prop_by_keys(config, "client", "firmware", "dir", default="firmware"))
@@ -370,13 +383,20 @@ def parse_firmware(config: dict, *, default_product: str | None = None,
     source = _parse_firmware_source(config)
     if source and not default_product:
         default_product = source.github.split("/")[-1]
+    products = get_prop_by_keys(config, "client", "firmware", "products", default=None,
+                                required=False) or ()
+    if isinstance(products, str) or not all(isinstance(p, str) and p.strip() for p in products):
+        raise ConfigError("client.firmware.products must be a list of client names")
+    products = tuple(p.strip() for p in products)
+    if products and not default_product:
+        default_product = products[0]
     product = str(get_prop_by_keys(config, "client", "firmware", "product",
                                    default=default_product or "", required=False) or "").strip()
     if enabled and not product:
         raise ConfigError("client.firmware.product is required when it is enabled: "
                           "the client name the board sends, e.g. my-display")
     return FirmwareSettings(enabled=enabled, dir=directory, product=product,
-                            offer_dev_builds=offer_dev, source=source)
+                            offer_dev_builds=offer_dev, source=source, products=products)
 
 
 def load_core_config(

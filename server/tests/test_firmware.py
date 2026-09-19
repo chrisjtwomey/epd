@@ -113,6 +113,19 @@ def test_a_developer_build_is_offered_only_when_asked_for(tmp_path):
     assert update_applies(client, image, settings(offer_dev_builds=True)) is True
 
 
+def test_an_update_applies_to_each_product_the_server_holds(tmp_path):
+    image = FirmwareStore(str(tmp_path)).put("v1.6.0", IMAGE)
+    two = settings(products=("my-display", "my-sensor"))
+    assert update_applies(ClientId("my-sensor", "v1.5.1"), image, two) is True
+    assert update_applies(ClientId("other", "v1.5.1"), image, two) is False
+
+
+def test_an_older_image_applies_too(tmp_path):
+    """The server's version decides, so a board ahead of it is brought back."""
+    image = FirmwareStore(str(tmp_path)).put("v1.5.1", IMAGE)
+    assert update_applies(ClientId("my-display", "v1.6.0"), image, settings()) is True
+
+
 def test_nothing_applies_without_a_client_or_an_image():
     assert update_applies(None, None, settings()) is False
     assert update_applies(ClientId("my-display", "v1.5.1"), None, settings()) is False
@@ -138,13 +151,39 @@ def test_put_names_the_file_for_the_version_and_reports_size_and_md5(tmp_path):
     assert store.current() == image
 
 
-def test_put_replaces_the_previous_image_and_leaves_no_temporary_file(tmp_path):
+def test_put_keeps_the_images_before_it_and_leaves_no_temporary_file(tmp_path):
+    """A board may be sent back to an older image, so none is thrown away."""
     store = FirmwareStore(str(tmp_path))
     store.put("v1.6.0", IMAGE)
     store.put("v1.7.0", IMAGE + b"\x01")
 
-    assert sorted(os.listdir(tmp_path)) == ["v1.7.0.bin"]
+    assert sorted(os.listdir(tmp_path)) == ["v1.6.0.bin", "v1.7.0.bin"]
     assert current(store).version == "v1.7.0"
+    assert store.image("v1.6.0").size == len(IMAGE)
+
+
+def test_an_image_is_found_by_its_version(tmp_path):
+    store = FirmwareStore(str(tmp_path))
+    store.put("v1.6.0", IMAGE)
+    assert store.image("v1.6.0").version == "v1.6.0"
+    assert store.image("v1.9.0") is None
+    assert store.image("../v1.6.0") is None
+
+
+@pytest.mark.parametrize("server, offered", [
+    ("v0.3.1", "v0.3.2"),              # the newest of the server's line, above it too
+    ("v0.3.1-4-gab12cd4", "v0.3.2"),   # a server built past a tag judges by the tag
+    ("v0.2.0", "v0.2.10"),             # ordered as numbers, not as text
+    ("v0.4.0", None),                  # nothing for the server's line
+    ("dev", None),                     # a server that cannot be judged moves nobody
+    ("v1.0.0", "v1.2.0"),              # after 1.0 only the major has to match
+])
+def test_the_offer_is_the_newest_image_the_server_can_work_with(tmp_path, server, offered):
+    store = FirmwareStore(str(tmp_path))
+    for version in ("v0.2.9", "v0.2.10", "v0.3.0", "v0.3.2", "v1.0.0", "v1.2.0", "nightly"):
+        store.put(version, IMAGE)
+    image = store.newest_compatible(server)
+    assert (image.version if image else None) == offered
 
 
 def test_an_image_copied_in_by_hand_is_current(tmp_path):

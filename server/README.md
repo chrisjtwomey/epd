@@ -165,8 +165,9 @@ image:
 client:                          # what the boards this server serves run
   firmware:                      # server-driven client updates
     enabled: false
-    dir: firmware                # a directory of <version>.bin, newest wins
+    dir: firmware                # a directory of <version>.bin; nothing is removed from it
     product: my-display          # the client name a board reports
+    # products: [my-display, my-sensor]   # several, each in dir/<product>/
     offer_dev_builds: false      # true also offers to boards not built from a tag
 mqtt:                            # relay the client's log topic
   enabled: false
@@ -180,8 +181,12 @@ debug: false
 `client` because every key in it describes the board rather than this
 server. Put an image in `dir` named for its version, `v1.6.0.bin`, and every
 board of that product running a different version is offered it on its next
-page fetch. The version is the filename, so nothing else has to be written.
-A relative `dir` is resolved against the directory holding `config.yaml`.
+request. The version is the filename, so nothing else has to be written.
+With `version_gate` the offer is the newest image that can work with the
+server's own version rather than the newest file, so older images stay. A
+relative `dir` is resolved against the directory holding `config.yaml`.
+`products` lists several products, each with its images in a subdirectory of
+its name.
 
 A board built from a tag takes the update; one built from a working tree
 (`v1.5.1-3-gab12cd4`, `-dirty`, `dev`) is left alone unless

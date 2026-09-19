@@ -27,6 +27,15 @@ def compatibility_key(version: str | None) -> tuple[int, ...] | None:
     return (0, minor) if major == 0 else (major,)
 
 
+def version_order(version: str | None) -> tuple[int, int, int] | None:
+    """``(major, minor, patch)`` for sorting versions, or None when it is not
+    a version that can be read."""
+    if not version:
+        return None
+    m = _VERSION.fullmatch(version.strip())
+    return None if m is None else (int(m[1]), int(m[2]), int(m[3]))
+
+
 def compatible(a: str | None, b: str | None) -> bool | None:
     """True or False when both can be judged; None when either cannot."""
     ka, kb = compatibility_key(a), compatibility_key(b)

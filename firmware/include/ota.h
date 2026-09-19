@@ -4,6 +4,9 @@
 #include "error_utils.h"
 #include "ota_offer.h"
 
+/** Bytes written so far, of the whole image; total is 0 while unknown. */
+typedef void (*OtaProgress)(int done, int total);
+
 /**
   Fetch the image at url and write it to the idle app slot, then restart.
 
@@ -13,10 +16,12 @@
   @param url where to fetch the image.
   @param offeredVersion the version the server offered, for the log.
   @param userAgent the User-Agent to send, so the server knows who asked.
+  @param onProgress called as the image is written, from the task that
+  called this one; null for none.
   @returns ESP_OK never (the board restarts), ESP_FAIL on any failure.
 */
 esp_err_t applyFirmwareUpdate(const char* url, const char* offeredVersion,
-                              const char* userAgent);
+                              const char* userAgent, OtaProgress onProgress = nullptr);
 
 /**
   Whether this is the first boot of a freshly written image.

@@ -262,6 +262,21 @@ def test_the_project_supplies_the_product_so_the_config_need_not():
                           default_product="my-display").product == "other"
 
 
+def test_several_products_each_keep_their_images_in_a_subdirectory():
+    fw = parse_firmware(firmware_cfg(enabled=True, dir="/srv/images",
+                                     products=["my-display", "my-sensor"]))
+    assert fw.product == "my-display" and fw.names() == ("my-display", "my-sensor")
+    assert fw.dir_for("my-sensor") == "/srv/images/my-sensor"
+    one = parse_firmware(firmware_cfg(enabled=True, dir="/srv/images", product="my-display"))
+    assert one.names() == ("my-display",) and one.dir_for("my-display") == "/srv/images"
+
+
+@pytest.mark.parametrize("products", ["my-display", ["my-display", ""], [3]])
+def test_products_must_be_a_list_of_names(products):
+    with pytest.raises(ConfigError, match="products must be a list"):
+        parse_firmware(firmware_cfg(enabled=True, products=products))
+
+
 def test_an_enabled_block_without_a_product_is_refused():
     with pytest.raises(ConfigError, match="client.firmware.product is required"):
         parse_firmware(firmware_cfg(enabled=True))

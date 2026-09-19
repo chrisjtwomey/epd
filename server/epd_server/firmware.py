@@ -17,6 +17,10 @@ A :class:`FirmwareStore` is a directory of ``<version>.bin``. The version is
 the filename, so an image built by hand works the moment it is copied in::
 
     server/firmware/v1.6.0.bin
+
+A server that holds several products keeps each in a subdirectory of its
+name (``server/firmware/canary-dock/v1.6.0.bin``). Every image stays: a board
+is offered the one its server calls for, which may be older than its own.
 """
 from __future__ import annotations
 
@@ -29,6 +33,8 @@ import threading
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
+
+from .compat import compatibility_key, version_order
 
 log = logging.getLogger(__name__)
 
@@ -107,7 +113,7 @@ def update_applies(client: ClientId | None, image: FirmwareImage | None, setting
     """
     if settings is None or not settings.enabled or image is None or client is None:
         return False
-    if client.name != settings.product:
+    if client.name not in settings.names():
         return False
     if not settings.offer_dev_builds and not is_clean_tag(client.version):
         return False
@@ -115,37 +121,55 @@ def update_applies(client: ClientId | None, image: FirmwareImage | None, setting
 
 
 class FirmwareStore:
-    """A directory of ``<version>.bin``. The newest file is the current image.
+    """A directory of ``<version>.bin``.
 
     Nothing is held open between calls, so an image copied in while the
-    server runs is offered at the next fetch. The md5 is computed once per
+    server runs is offered at the next fetch. Each md5 is computed once per
     file and kept while its size and modification time are unchanged.
     """
 
     def __init__(self, directory: str):
         self.dir = directory
-        self._cache: tuple[tuple, FirmwareImage] | None = None
+        self._cache: dict[str, tuple[tuple, FirmwareImage]] = {}
 
     def current(self) -> FirmwareImage | None:
-        """The image to offer, or ``None`` when the directory holds none."""
+        """The newest file, or ``None`` when the directory holds none."""
         path = self._newest_bin()
-        if path is None:
+        return None if path is None else self._image(path)
+
+    def newest_compatible(self, server_version: str | None) -> FirmwareImage | None:
+        """The highest version that can work with ``server_version``, by the
+        rule in :mod:`epd_server.compat`. None when there is none, or when
+        the server's own version cannot be judged: a server that does not
+        know what it is has no business moving boards."""
+        key = compatibility_key(server_version)
+        if key is None:
             return None
+        matching = [p for p in self._usable() if compatibility_key(_version_of(p)) == key]
+        if not matching:
+            return None
+        return self._image(max(matching, key=lambda p: version_order(_version_of(p))))
+
+    def image(self, version: str) -> FirmwareImage | None:
+        """The image of one version, or None."""
+        if not _VERSION_CHARS.match(version or ""):
+            return None
+        path = os.path.join(self.dir, version + ".bin")
+        return self._image(path) if os.path.isfile(path) else None
+
+    def _image(self, path: str) -> FirmwareImage:
         stat = os.stat(path)
-        key = (path, stat.st_mtime_ns, stat.st_size)
-        if self._cache and self._cache[0] == key:
-            return self._cache[1]
-        image = FirmwareImage(
-            version=os.path.basename(path)[: -len(".bin")],
-            path=path,
-            size=stat.st_size,
-            md5=_md5_of(path),
-        )
-        self._cache = (key, image)
+        key = (stat.st_mtime_ns, stat.st_size)
+        held = self._cache.get(path)
+        if held and held[0] == key:
+            return held[1]
+        image = FirmwareImage(version=_version_of(path), path=path, size=stat.st_size,
+                              md5=_md5_of(path))
+        self._cache[path] = (key, image)
         return image
 
     def put(self, version: str, data: bytes) -> FirmwareImage:
-        """Store ``data`` as ``<version>.bin`` and remove any older image."""
+        """Store ``data`` as ``<version>.bin``, beside the images already held."""
         if not _VERSION_CHARS.match(version or ""):
             raise ValueError(f"version {version!r} cannot be a filename")
         if not data.startswith(b"\xe9"):
@@ -156,14 +180,8 @@ class FirmwareStore:
         with open(tmp, "wb") as f:
             f.write(data)
         os.replace(tmp, path)
-        for old in self._bins():
-            if old != path:
-                os.remove(old)
-        self._cache = None
         log.info("Stored firmware %s (%d bytes)", version, len(data))
-        image = self.current()
-        assert image is not None      # just written
-        return image
+        return self._image(path)
 
     def _bins(self) -> list[str]:
         try:
@@ -172,17 +190,24 @@ class FirmwareStore:
             return []
         return [os.path.join(self.dir, n) for n in names if n.endswith(".bin")]
 
-    def _newest_bin(self) -> str | None:
+    def _usable(self) -> list[str]:
         usable = []
         for path in self._bins():
-            version = os.path.basename(path)[: -len(".bin")]
-            if _VERSION_CHARS.match(version):
+            if _VERSION_CHARS.match(_version_of(path)):
                 usable.append(path)
             else:
                 log.warning("%s: the filename is the version, so rename it to <version>.bin", path)
+        return usable
+
+    def _newest_bin(self) -> str | None:
+        usable = self._usable()
         if not usable:
             return None
         return max(usable, key=lambda p: os.stat(p).st_mtime_ns)
+
+
+def _version_of(path: str) -> str:
+    return os.path.basename(path)[: -len(".bin")]
 
 
 def _md5_of(path: str) -> str:
