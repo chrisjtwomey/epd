@@ -135,9 +135,10 @@ before any of this happens — see the README's quickstart.
 
 - Tests live with the code they cover. Code that moves here brings its
   tests. Add a test for every behaviour you add or change.
-- Keep the wire contract stable. The client reads exactly two headers,
-  `EPD-Next-Display-Refresh-Seconds` and `EPD-Next-URL`; anything else is a breaking
-  change for every deployed device.
+- Keep the wire contract stable. [docs/protocol.md](docs/protocol.md) lists
+  every header a board reads and sends; renaming or removing one is a breaking
+  change for every deployed device, so the server sends the old name beside
+  the new one until no board needs it.
 - Comments describe the present, not the change. Git holds the history.
 - Please fork the repository and create a new branch for your changes.
 - Follow the policy in the [AI-Assisted Code](#ai-assisted-code) section when AI tools are used.
