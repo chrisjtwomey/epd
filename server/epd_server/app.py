@@ -59,11 +59,9 @@ from werkzeug.serving import make_server
 from .compat import compatible, version_order
 from .config import FirmwareSettings, MqttSettings
 from ._version import __version__
-from .headers import (LEGACY_DEVICE, LEGACY_DEVICE_VERSION, LEGACY_FIRMWARE_URL,
-                      LEGACY_FIRMWARE_VERSION, LEGACY_NEXT_REFRESH, LEGACY_NEXT_URL,
-                      LEGACY_SERVER_VERSION, Wire)
+from .headers import Wire
 from .firmware import (FirmwareImage, FirmwareStore, ReleaseWatcher, client_from_headers,
-                       parse_user_agent, update_applies)
+                       update_applies)
 from .mqtt import client_log_subscriber
 from .page import Page
 from .pipeline import regenerate as _regenerate
@@ -340,8 +338,8 @@ class DisplayServer:
         """
         if not self.version_gate:
             return None
-        device = self._header(self.wire.device, LEGACY_DEVICE)
-        version = self._header(self.wire.device_version, LEGACY_DEVICE_VERSION)
+        device = request.headers.get(self.wire.device)
+        version = request.headers.get(self.wire.device_version)
         if compatible(version, self.server_version) is not False:
             return None
         log.warning("refused %s from %s %s: this server is %s", request.path,
@@ -400,12 +398,8 @@ class DisplayServer:
             return
         firmware = self.firmware
         assert firmware is not None   # the stores exist only when it does
-        client = client_from_headers(self._header(self.wire.device, LEGACY_DEVICE),
-                                     self._header(self.wire.device_version,
-                                                  LEGACY_DEVICE_VERSION))
-        legacy = client is None
-        if legacy:
-            client = self._parse_client_from_user_agent()
+        client = client_from_headers(request.headers.get(self.wire.device),
+                                     request.headers.get(self.wire.device_version))
         image = self._offer_image(client.name) if client is not None else None
         if not update_applies(client, image, firmware):
             return
@@ -415,39 +409,12 @@ class DisplayServer:
         # the one it rolled back from, before it downloads anything.
         rsp.headers[self.wire.firmware_version] = image.version
         rsp.headers[self.wire.firmware_url] = url
-        rsp.headers[LEGACY_FIRMWARE_VERSION] = image.version
-        rsp.headers[LEGACY_FIRMWARE_URL] = url
-        if legacy:
-            rsp.headers["X-Firmware-Version"] = image.version
-            rsp.headers["X-Firmware-URL"] = url
         older = version_order(image.version) or (0, 0, 0)
         if older < (version_order(client.version) or (0, 0, 0)):
             log.warning("Offering %s %s an older firmware, %s: this server is %s",
                         client.name, client.version, image.version, self.server_version)
         else:
             log.info("Offering firmware %s to %s %s", image.version, client.name, client.version)
-
-    def _parse_client_from_user_agent(self):
-        """The board this User-Agent names, when it is one of ours.
-
-        Only a board flashed before ``X-Client-Name`` existed reaches here. It
-        states itself in the User-Agent alone and reads the offer under the
-        old ``X-Firmware-*`` names, so a server speaking only the current
-        contract could never update it. This is how it takes the one image
-        that teaches it that contract.
-
-        Remove this, and the ``X-Firmware-*`` headers beside it, once no board
-        reaches here any more: it says so in the log every time one does.
-        """
-        firmware = self.firmware
-        assert firmware is not None   # only reached from _firmware_headers
-        client = parse_user_agent(request.headers.get("User-Agent"))
-        if client is None or client.name != firmware.product:
-            return None
-        log.info("%s %s states itself only in its User-Agent, so it predates "
-                 "X-Client-Name; it needs one update to speak the current contract",
-                 client.name, client.version)
-        return client
 
     def _make_view(self, page: Page):
         def serve():
@@ -475,19 +442,12 @@ class DisplayServer:
         ))
         rsp.headers[self.wire.next_refresh] = str(seconds)
         rsp.headers[self.wire.next_url] = next_url
-        rsp.headers[LEGACY_NEXT_REFRESH] = str(seconds)
-        rsp.headers[LEGACY_NEXT_URL] = next_url
         return rsp
-
-    @staticmethod
-    def _header(name: str, legacy: str) -> str | None:
-        """A request header under its current name, or the one it had before."""
-        return request.headers.get(name) or request.headers.get(legacy)
 
     def _log_client(self) -> None:
         """Log the identity the board stated, when it stated one."""
-        name = self._header(self.wire.device, LEGACY_DEVICE)
-        version = self._header(self.wire.device_version, LEGACY_DEVICE_VERSION)
+        name = request.headers.get(self.wire.device)
+        version = request.headers.get(self.wire.device_version)
         if name or version:
             log.info("%s %s asked for %s", name or "an unnamed client",
                      version or "of no stated version", request.path)
@@ -501,7 +461,6 @@ class DisplayServer:
         now = time.time()
         rsp.headers[self.wire.server_version] = self.server_version
         rsp.headers[self.wire.server_epoch] = str(int(now))
-        rsp.headers[LEGACY_SERVER_VERSION] = self.server_version
         if self.sensor_poll is not None:
             rsp.headers[self.wire.next_sensor_poll] = str(int(self.sensor_poll(now)))
         self._firmware_headers(rsp)

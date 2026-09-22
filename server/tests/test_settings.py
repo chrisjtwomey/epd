@@ -66,13 +66,6 @@ def test_display_is_required_when_no_default():
         load_core_config({})
 
 
-def test_the_old_display_schedule_key_is_refused_with_directions():
-    with pytest.raises(ConfigError, match="display_schedule has moved"):
-        load_core_config({"display_schedule": {"09:00:00": "today.png"}, "display": DISPLAY})
-
-
-# ---------- parse_display: times ----------
-
 def test_times_schedule_is_sorted_and_pool_names_stripped():
     s = parse_server(display({"a": ["a.png"], "b": [" b.png "]}, type="times",
                              **{"21:00:00": " b ", "09:00:00": "a"})).schedule

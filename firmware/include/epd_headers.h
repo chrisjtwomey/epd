@@ -31,20 +31,4 @@
 #define EPD_H_FIRMWARE_VERSION EPD_HEADER("-Server-Firmware-Version")
 #define EPD_H_FIRMWARE_URL     EPD_HEADER("-Server-Firmware-URL")
 
-/**
-  The names this library used before a project could choose its own.
-
-  A board reads them when the current name is absent, so firmware flashed
-  ahead of its server keeps working. The server sends them beside the
-  current names for the same reason, in the other direction.
-
-  Remove these, and the code that reads them, once no server sends only
-  these names.
-*/
-#define EPD_H_WAS_SERVER_VERSION   "X-Server-Version"
-#define EPD_H_WAS_NEXT_REFRESH     "X-Next-Refresh-Seconds"
-#define EPD_H_WAS_NEXT_URL         "X-Next-URL"
-#define EPD_H_WAS_FIRMWARE_VERSION "X-Server-Firmware-Version"
-#define EPD_H_WAS_FIRMWARE_URL     "X-Server-Firmware-URL"
-
 #endif  // EPD_HEADERS_H

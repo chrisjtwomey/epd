@@ -1,4 +1,4 @@
-// Native tests for X-Next-Refresh-Seconds header parsing.
+// Native tests for EPD-Next-Display-Refresh-Seconds header parsing.
 //
 // parseRefreshTime() reads the server's integer seconds-until-next-refresh
 // from the header value. The server is the authority on *when* the next

@@ -1,4 +1,4 @@
-"""Firmware: the User-Agent parser, the applies rule, and the image store."""
+"""Firmware: the applies rule, and the image store."""
 import os
 
 import pytest
@@ -10,7 +10,6 @@ from epd_server.firmware import (
     FirmwareStore,
     is_clean_tag,
     client_from_headers,
-    parse_user_agent,
     update_applies,
 )
 
@@ -27,28 +26,6 @@ def current(store) -> FirmwareImage:
     image = store.current()
     assert image is not None, "the store holds no image"
     return image
-
-
-# ---------- parse_user_agent ----------
-
-@pytest.mark.parametrize("ua, expected", [
-    ("my-display/v1.5.1 (Inkplate10)", ClientId("my-display", "v1.5.1", "Inkplate10")),
-    ("EpdClient/dev", ClientId("EpdClient", "dev", "")),
-    ("  EpdClient/v1.0.0 (Inkplate5V2)  ", ClientId("EpdClient", "v1.0.0", "Inkplate5V2")),
-    ("cal/v1.5.1-3-gab12cd4-dirty (Inkplate10)", ClientId("cal", "v1.5.1-3-gab12cd4-dirty", "Inkplate10")),
-])
-def test_parses_the_user_agent_the_client_builds(ua, expected):
-    assert parse_user_agent(ua) == expected
-
-
-@pytest.mark.parametrize("ua", [
-    None, "", "   ",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",   # two products
-    "curl 8.4.0",                                                          # no slash
-    "/v1.0.0",                                                             # no name
-])
-def test_anything_else_does_not_parse(ua):
-    assert parse_user_agent(ua) is None
 
 
 # ---------- client_from_headers ----------
@@ -91,7 +68,7 @@ def test_only_a_version_built_from_a_tag_is_clean(version, clean):
 def test_a_newer_image_applies_to_a_release_board(tmp_path):
     store = FirmwareStore(str(tmp_path))
     image = store.put("v1.6.0", IMAGE)
-    client = ClientId("my-display", "v1.5.1", "Inkplate10")
+    client = ClientId("my-display", "v1.5.1")
     assert update_applies(client, image, settings()) is True
 
 

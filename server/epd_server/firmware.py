@@ -40,7 +40,6 @@ log = logging.getLogger(__name__)
 
 # name/version, then an optional parenthesised device: the shape
 # buildUserAgent() writes in the client library.
-_USER_AGENT = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*)/(\S+)(?:\s+\(([^)]*)\))?\s*$")
 
 # What `git describe` gives at a tag, and nothing more: v1.5.1 or 1.5.1.
 # A build past the tag adds -3-gab12cd4, a dirty tree adds -dirty, and a
@@ -50,7 +49,7 @@ _CLEAN_TAG = re.compile(r"^v?\d+\.\d+(\.\d+)?$")
 # A version has to be a filename, since the filename is where it is kept.
 _VERSION_CHARS = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]*$")
 
-# A product name, in the same shape the User-Agent allows.
+# A product name, as a board states it.
 _NAME_CHARS = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 
@@ -60,7 +59,6 @@ class ClientId:
 
     name: str
     version: str
-    device: str = ""
 
 
 @dataclass(frozen=True)
@@ -71,17 +69,6 @@ class FirmwareImage:
     path: str
     size: int
     md5: str
-
-
-def parse_user_agent(ua: str | None) -> ClientId | None:
-    """``"my-display/v1.2.0 (Inkplate10)"`` -> :class:`ClientId`, else ``None``."""
-    if not ua:
-        return None
-    match = _USER_AGENT.match(ua.strip())
-    if not match:
-        return None
-    name, version, device = match.groups()
-    return ClientId(name=name, version=version, device=(device or "").strip())
 
 
 def client_from_headers(name: str | None, version: str | None) -> ClientId | None:

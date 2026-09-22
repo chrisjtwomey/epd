@@ -194,8 +194,6 @@ def _positive_int(key: str, value) -> int:
     return value
 
 
-_DISPLAY_MOVED = ("display_schedule has moved: put the images under display.pools and the "
-                  "wake times under display.schedule with a type of times or interval; see the README")
 _SCHEDULE_COMMON = {"type", "reshuffle_hours", "seed"}
 
 
@@ -206,8 +204,6 @@ def parse_display(config: dict, tz: _tzinfo, default_display: dict | None = None
     ``order`` every ``every`` seconds. Either may set ``reshuffle_hours`` and
     ``seed`` for the pools' random starts.
     """
-    if "display_schedule" in config:
-        raise ConfigError(_DISPLAY_MOVED)
     raw = get_prop_by_keys(config, "display", default=default_display, required=False)
     if raw is None:
         raise ConfigError("display is required: pools of images and a schedule with a type")

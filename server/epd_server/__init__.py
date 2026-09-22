@@ -38,7 +38,6 @@ from .firmware import (  # noqa: E402
     FirmwareStore,
     ReleaseWatcher,
     is_clean_tag,
-    parse_user_agent,
     update_applies,
 )
 from .page import Page, SkipPage  # noqa: E402
@@ -59,7 +58,7 @@ __all__ = [
     "ConfigError", "CoreConfig", "ServerSettings", "ImageSettings", "MqttSettings",
     "FirmwareSettings", "FirmwareSource", "load_core_config", "load_yaml",
     "ClientId", "FirmwareImage", "FirmwareStore", "ReleaseWatcher",
-    "parse_user_agent", "is_clean_tag", "update_applies",
+    "is_clean_tag", "update_applies",
     "Page", "SkipPage",
     "DataSource", "StaticSource", "CompositeSource", "IngestSource", "ReadingsStore",
     "regenerate", "select_pages",

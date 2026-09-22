@@ -192,26 +192,6 @@ The version travels beside the URL because the panel checks it before it
 downloads anything: against the version it is running, and against the one
 it last rolled back from. A URL on its own would let a bad release loop.
 
-### Panels flashed before these header names
-
-The names have changed twice, and the server still speaks both older sets so
-that no deployed panel needs a cable to catch up.
-
-Before the prefix, every name began with `X-` and the identity headers were
-called `X-Client-Name` and `X-Client-Version`. The server reads those from a
-request when the current ones are absent, and sends `X-Next-Refresh-Seconds`,
-`X-Next-URL`, `X-Server-Version`, `X-Server-Firmware-Version` and
-`X-Server-Firmware-URL` beside the current names on every response.
-
-Before that, a panel stated itself only in its User-Agent and read the offer
-as `X-Firmware-Version` and `X-Firmware-URL`. When no identity header of
-either generation is present, the server falls back to parsing the
-User-Agent and sends that pair too. Such a panel takes the one update that
-teaches it the current contract and never needs the fallback again.
-
-Both fallbacks are temporary. The server logs a line naming any panel that
-arrives by the User-Agent route, so you can see when none do.
-
 The image itself is a separate route:
 
 ```

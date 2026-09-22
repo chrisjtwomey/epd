@@ -61,12 +61,12 @@ def test_a_retained_message_is_ignored(on_message, caplog):
 def test_a_line_that_is_not_utf8_is_logged_and_does_not_raise(on_message, caplog):
     # What a board sent whose log queue handed out a record with no
     # terminator: a readable line, then whatever followed it in memory.
-    payload = b"NOTICE - received header X-Next-URL: http://host/hourly.png" + b"\xff\xfe\x80"
+    payload = b"NOTICE - received header EPD-Next-URL: http://host/hourly.png" + b"\xff\xfe\x80"
 
     with caplog.at_level(logging.INFO, logger="client"):
         deliver(on_message, payload)
 
-    assert "received header X-Next-URL" in caplog.text
+    assert "received header EPD-Next-URL" in caplog.text
 
 
 def test_trailing_padding_is_trimmed(on_message, caplog):

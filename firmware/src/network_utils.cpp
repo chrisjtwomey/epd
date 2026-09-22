@@ -29,36 +29,25 @@ esp_err_t configureWiFi(const char* ssid, const char* pass, int retries) {
     return ESP_OK;
 }
 
-// The name a server answering the current contract uses, or the one it used
-// before the prefix existed. Null when it sent neither.
-static const char* present(HTTPClient& http, const char* name, const char* was) {
-    if (http.hasHeader(name)) return name;
-    if (was && http.hasHeader(was)) return was;
-    return nullptr;
-}
-
 // Copy a header value into a fixed field, logging what arrived.
-static void copyHeader(HTTPClient& http, const char* name, const char* was, char* out,
-                       size_t size) {
-    const char* found = out && size ? present(http, name, was) : nullptr;
-    if (!found) return;
-    String value = http.header(found);
+static void copyHeader(HTTPClient& http, const char* name, char* out, size_t size) {
+    if (!out || !size || !http.hasHeader(name)) return;
+    String value = http.header(name);
     strlcpy(out, value.c_str(), size);
-    logf(LOG_INFO, "received header %s: %s", found, out);
+    logf(LOG_INFO, "received header %s: %s", name, out);
 }
 
 // Read a whole-number header into *out, leaving it alone when the header is
 // absent or malformed.
-static void numberHeader(HTTPClient& http, const char* name, const char* was, uint32_t* out) {
-    const char* found = out ? present(http, name, was) : nullptr;
-    if (!found) return;
-    String value = http.header(found);
+static void numberHeader(HTTPClient& http, const char* name, uint32_t* out) {
+    if (!out || !http.hasHeader(name)) return;
+    String value = http.header(name);
     uint32_t parsed = 0;
     if (parseRefreshTime(value.c_str(), &parsed)) {
         *out = parsed;
-        logf(LOG_INFO, "received header %s: %u", found, parsed);
+        logf(LOG_INFO, "received header %s: %u", name, parsed);
     } else {
-        logf(LOG_WARNING, "%s value '%s' is malformed, ignoring", found, value.c_str());
+        logf(LOG_WARNING, "%s value '%s' is malformed, ignoring", name, value.c_str());
     }
 }
 
@@ -66,14 +55,11 @@ static void numberHeader(HTTPClient& http, const char* name, const char* was, ui
 // response.
 static void readServerHeaders(HTTPClient& http, PageResponse* rsp) {
     if (!rsp) return;
-    copyHeader(http, EPD_H_SERVER_VERSION, EPD_H_WAS_SERVER_VERSION, rsp->serverVersion,
-               sizeof(rsp->serverVersion));
-    copyHeader(http, EPD_H_FIRMWARE_VERSION, EPD_H_WAS_FIRMWARE_VERSION, rsp->firmwareVersion,
-               sizeof(rsp->firmwareVersion));
-    copyHeader(http, EPD_H_FIRMWARE_URL, EPD_H_WAS_FIRMWARE_URL, rsp->firmwareURL,
-               sizeof(rsp->firmwareURL));
-    numberHeader(http, EPD_H_SERVER_EPOCH, nullptr, &rsp->serverEpoch);
-    numberHeader(http, EPD_H_NEXT_SENSOR_POLL, nullptr, &rsp->nextSensorPollSeconds);
+    copyHeader(http, EPD_H_SERVER_VERSION, rsp->serverVersion, sizeof(rsp->serverVersion));
+    copyHeader(http, EPD_H_FIRMWARE_VERSION, rsp->firmwareVersion, sizeof(rsp->firmwareVersion));
+    copyHeader(http, EPD_H_FIRMWARE_URL, rsp->firmwareURL, sizeof(rsp->firmwareURL));
+    numberHeader(http, EPD_H_SERVER_EPOCH, &rsp->serverEpoch);
+    numberHeader(http, EPD_H_NEXT_SENSOR_POLL, &rsp->nextSensorPollSeconds);
 }
 
 // The headers every request carries: the board decides these, not the
@@ -93,12 +79,9 @@ uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* defaultLe
     HTTPClient http;
 
     const char* headersToCollect[] = {
-        EPD_H_NEXT_REFRESH,     EPD_H_WAS_NEXT_REFRESH,
-        EPD_H_NEXT_URL,         EPD_H_WAS_NEXT_URL,
-        EPD_H_SERVER_VERSION,   EPD_H_WAS_SERVER_VERSION,
-        EPD_H_SERVER_EPOCH,     EPD_H_NEXT_SENSOR_POLL,
-        EPD_H_FIRMWARE_VERSION, EPD_H_WAS_FIRMWARE_VERSION,
-        EPD_H_FIRMWARE_URL,     EPD_H_WAS_FIRMWARE_URL,
+        EPD_H_NEXT_REFRESH,     EPD_H_NEXT_URL,         EPD_H_SERVER_VERSION,
+        EPD_H_SERVER_EPOCH,     EPD_H_NEXT_SENSOR_POLL, EPD_H_FIRMWARE_VERSION,
+        EPD_H_FIRMWARE_URL,
     };
     http.collectHeaders(headersToCollect,
                         sizeof(headersToCollect) / sizeof(headersToCollect[0]));
@@ -143,11 +126,11 @@ uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* defaultLe
     if (rsp) {
         // The server is authoritative for when to refresh next; the board just
         // counts down. No timezone arithmetic on the client.
-        if (!present(http, EPD_H_NEXT_REFRESH, EPD_H_WAS_NEXT_REFRESH))
+        if (!http.hasHeader(EPD_H_NEXT_REFRESH))
             logf(LOG_WARNING, "header %s not found in response", EPD_H_NEXT_REFRESH);
-        numberHeader(http, EPD_H_NEXT_REFRESH, EPD_H_WAS_NEXT_REFRESH, &rsp->nextRefreshSeconds);
+        numberHeader(http, EPD_H_NEXT_REFRESH, &rsp->nextRefreshSeconds);
 
-        copyHeader(http, EPD_H_NEXT_URL, EPD_H_WAS_NEXT_URL, rsp->nextURL, sizeof(rsp->nextURL));
+        copyHeader(http, EPD_H_NEXT_URL, rsp->nextURL, sizeof(rsp->nextURL));
         readServerHeaders(http, rsp);
     }
 
@@ -180,10 +163,9 @@ uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* defaultLe
 
 int postJson(const char* url, const char* userAgent, const char* body, PageResponse* rsp) {
     HTTPClient http;
-    const char* headersToCollect[] = {EPD_H_SERVER_VERSION,   EPD_H_WAS_SERVER_VERSION,
-                                      EPD_H_SERVER_EPOCH,     EPD_H_NEXT_SENSOR_POLL,
-                                      EPD_H_FIRMWARE_VERSION, EPD_H_WAS_FIRMWARE_VERSION,
-                                      EPD_H_FIRMWARE_URL,     EPD_H_WAS_FIRMWARE_URL};
+    const char* headersToCollect[] = {EPD_H_SERVER_VERSION,   EPD_H_SERVER_EPOCH,
+                                      EPD_H_NEXT_SENSOR_POLL, EPD_H_FIRMWARE_VERSION,
+                                      EPD_H_FIRMWARE_URL};
     http.collectHeaders(headersToCollect, sizeof(headersToCollect) / sizeof(headersToCollect[0]));
     if (userAgent && userAgent[0])
         http.setUserAgent(userAgent);

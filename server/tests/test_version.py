@@ -2,7 +2,7 @@
 
 They are in different languages and no build step reconciles them, so this is
 what stops them drifting. Two of them do real work: the server sends its own
-to every client in the X-Server-Version header, which makes a stale one
+to every client in the EPD-Server-Version header, which makes a stale one
 actively misleading, and EpdBoardInkplate's dependency on EpdClient decides
 which pair of published libraries a project can resolve.
 """

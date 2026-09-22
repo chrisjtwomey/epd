@@ -3,7 +3,7 @@
 The generic half of a scheduled e-paper image server: config resolution,
 a plugin registry, a disk cache, HTML-to-PNG page rendering, and the
 DST-correct wake/regeneration maths behind the `EPD-Next-Display-Refresh-Seconds` /
-`X-Next-URL` headers.
+`EPD-Next-URL` headers.
 
 A project supplies its pages and its data sources; this package supplies
 everything that does not depend on what is being displayed.
@@ -45,7 +45,7 @@ wherever this is installed; add one to your Dockerfile.
 | `epd_server.source` | `DataSource` — named, lazily fetched datasets; `StaticSource` for constants; `CompositeSource` to merge; `IngestSource` — what a board posted, from a `ReadingsStore` |
 | `epd_server.store` | `ReadingsStore` — what a board posts, in SQLite, kept by its `device` and `ts` and read back by time |
 | `epd_server.pipeline` | `regenerate(pages, source, only=, force_refresh=)` — fetch what the selected pages need, once each; render; save |
-| `epd_server.app` | `DisplayServer(pages, source, schedule, tz, …).run()` — routes, `X-Next-*` headers, ingest and query routes, regen loop, client log relay, signals. `align_process_timezone()` |
+| `epd_server.app` | `DisplayServer(pages, source, schedule, tz, …).run()` — routes, `EPD-Next-*` headers, ingest and query routes, regen loop, client log relay, signals. `align_process_timezone()` |
 
 ## Tests
 
