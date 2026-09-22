@@ -122,7 +122,7 @@ def test_interval_order_defaults_to_every_pool():
     ({"pools": {"a": ["a.png"]}, "schedule": {"type": "interval", "every": 300, "order": ["zz"]}}, "names pools \\['zz'\\]"),
     ({"pools": {"a": ["a.png"]}, "schedule": {"type": "interval", "every": 300, "reshuffle_hours": 0}}, "positive number"),
     ({"pools": {"a": ["a.png"]}, "schedule": {"type": "times", "09:00:00": "a"}, "extra": 1}, "display takes pools and schedule"),
-    ("nope", "display must be a mapping"),
+    ("nope", "display needs pools and schedule"),
 ])
 def test_display_rejects_bad_shapes(bad, match):
     with pytest.raises(ConfigError, match=match):

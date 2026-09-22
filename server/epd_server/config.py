@@ -208,7 +208,7 @@ def parse_display(config: dict, tz: _tzinfo, default_display: dict | None = None
     if raw is None:
         raise ConfigError("display is required: pools of images and a schedule with a type")
     if not isinstance(raw, dict):
-        raise ConfigError("display must be a mapping with pools and schedule")
+        raise ConfigError("display needs pools and schedule.")
     unknown = sorted(set(raw) - {"pools", "schedule"})
     if unknown:
         raise ConfigError(f"display takes pools and schedule (got {unknown})")
@@ -270,7 +270,7 @@ def parse_server(
 ) -> ServerSettings:
     port = _positive_int("server.port", get_prop_by_keys(config, "server", "port", default=default_port))
     if port > 65535:
-        raise ConfigError(f"server.port must be <= 65535 (got {port})")
+        raise ConfigError(f"server.port must be 65535 or less. It is {port}.")
 
     regen_lead = get_prop_by_keys(config, "server", "regen_lead_seconds",
                                   default=default_regen_lead_seconds)
