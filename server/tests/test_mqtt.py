@@ -15,6 +15,7 @@ from epd_server import mqtt as relay
 class FakeMessage:
     payload: bytes
     retain: bool = False
+    topic: str = "mqtt/epd/my-display"
 
 
 class FakeClient:
@@ -33,17 +34,33 @@ class FakeClient:
 
 
 @pytest.fixture
-def on_message(monkeypatch):
+def kept():
+    """The lines the subscriber handed on, as (board, text)."""
+    return []
+
+
+@pytest.fixture
+def on_message(monkeypatch, kept):
     """The subscriber's message callback, wired to a fake broker."""
     monkeypatch.setattr(relay.mqtt, "Client", FakeClient)
-    client = relay.client_log_subscriber("localhost", 1883, "mqtt/epd-client")
+    client = relay.client_log_subscriber("localhost", 1883, "mqtt/epd",
+                                         on_line=lambda board, text: kept.append((board, text)))
     assert isinstance(client, FakeClient)   # it connected, and it is our fake
-    assert client.subscribed == "mqtt/epd-client"
+    assert client.subscribed == "mqtt/epd/+", "every board's topic, with one subscription"
     return client.on_message
 
 
-def deliver(on_message, payload, retain=False):
-    on_message(None, None, FakeMessage(payload, retain))
+def deliver(on_message, payload, retain=False, topic="mqtt/epd/my-display"):
+    on_message(None, None, FakeMessage(payload, retain, topic))
+
+
+def test_each_line_names_the_board_its_topic_does(on_message, kept, caplog):
+    with caplog.at_level(logging.INFO, logger="client"):
+        deliver(on_message, b"INFO - fetched", topic="mqtt/epd/canary-dock")
+        deliver(on_message, b"INFO - drawn", topic="mqtt/epd/canary-head")
+    assert kept == [("canary-dock", "INFO - fetched"), ("canary-head", "INFO - drawn")]
+    assert [r.getMessage() for r in caplog.records] == \
+        ["canary-dock: INFO - fetched", "canary-head: INFO - drawn"]
 
 
 def test_a_log_line_reaches_the_client_logger(on_message, caplog):
@@ -56,6 +73,11 @@ def test_a_retained_message_is_ignored(on_message, caplog):
     with caplog.at_level(logging.INFO, logger="client"):
         deliver(on_message, b"stale", retain=True)
     assert caplog.text == ""
+
+
+def test_a_retained_message_is_not_kept(on_message, kept):
+    deliver(on_message, b"stale", retain=True)
+    assert kept == []
 
 
 def test_a_line_that_is_not_utf8_is_logged_and_does_not_raise(on_message, caplog):
@@ -72,7 +94,7 @@ def test_a_line_that_is_not_utf8_is_logged_and_does_not_raise(on_message, caplog
 def test_trailing_padding_is_trimmed(on_message, caplog):
     with caplog.at_level(logging.INFO, logger="client"):
         deliver(on_message, b"NOTICE - a short line\x00\x00\x00")
-    assert caplog.records[0].getMessage() == "NOTICE - a short line"
+    assert caplog.records[0].getMessage() == "my-display: NOTICE - a short line"
 
 
 def test_nothing_a_client_sends_escapes_the_callback(on_message, caplog, monkeypatch):

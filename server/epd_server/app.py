@@ -62,6 +62,7 @@ from ._version import __version__
 from .headers import Wire
 from .firmware import (FirmwareImage, FirmwareStore, ReleaseWatcher, client_from_headers,
                        update_applies)
+from .logs import LogStore
 from .mqtt import client_log_subscriber
 from .page import Page
 from .pipeline import regenerate as _regenerate
@@ -119,8 +120,9 @@ class DisplayServer:
         tz: the timezone the schedule times are in.
         regen_lead_seconds: regenerate this long before each wake.
         host, port: where to listen.
-        mqtt: if given and ``enabled``, relay the client's log topic into
+        mqtt: if given and ``enabled``, relay every board's log topic into
             the ``client`` logger while running.
+        client_logs: where the relayed lines are kept, if anywhere.
         mqtt_client_id: the id this server connects to the broker with.
         ingest: routes that accept documents by POST, as ``{name: handler}``.
             ``POST /<name>`` takes one JSON object or an array of them and
@@ -165,6 +167,7 @@ class DisplayServer:
         port: int = 8080,
         mqtt: MqttSettings | None = None,
         mqtt_client_id: str = "epd-server",
+        client_logs: LogStore | None = None,
         ingest: Mapping[str, Callable[[list[dict]], dict | None]] | None = None,
         queries: Mapping[str, Callable[[dict], object]] | None = None,
         firmware: FirmwareSettings | None = None,
@@ -189,6 +192,7 @@ class DisplayServer:
         self.port = port
         self.mqtt = mqtt
         self.mqtt_client_id = mqtt_client_id
+        self.client_logs = client_logs
         self.ingest = dict(ingest or {})
         self.queries = dict(queries or {})
         self.firmware = firmware
@@ -481,7 +485,8 @@ class DisplayServer:
 
         if self.mqtt is not None and self.mqtt.enabled:
             self.mqtt_client = client_log_subscriber(
-                self.mqtt.host, self.mqtt.port, self.mqtt.topic, client_id=self.mqtt_client_id,
+                self.mqtt.host, self.mqtt.port, self.mqtt.prefix, client_id=self.mqtt_client_id,
+                on_line=self.client_logs.add if self.client_logs is not None else None,
             )
 
         source = self.firmware.source if self.firmware else None

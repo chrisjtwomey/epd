@@ -148,7 +148,7 @@ class MqttSettings:
     enabled: bool
     host: str
     port: int
-    topic: str
+    prefix: str   # each board logs to <prefix>/<board>
 
 
 @dataclass(frozen=True)
@@ -325,12 +325,12 @@ def parse_image(config: dict, *, default_width: int = 825, default_height: int =
     return ImageSettings(width, height, inner_w, inner_h, align_x, align_y)
 
 
-def parse_mqtt(config: dict, *, default_topic: str = "mqtt/epd-client") -> MqttSettings:
+def parse_mqtt(config: dict, *, default_prefix: str = "mqtt/epd") -> MqttSettings:
     enabled = bool(get_prop_by_keys(config, "mqtt", "enabled", default=False))
     host = str(get_prop_by_keys(config, "mqtt", "host", default="localhost"))
     port = _positive_int("mqtt.port", get_prop_by_keys(config, "mqtt", "port", default=1883))
-    topic = str(get_prop_by_keys(config, "mqtt", "topic", default=default_topic))
-    return MqttSettings(enabled, host, port, topic)
+    prefix = str(get_prop_by_keys(config, "mqtt", "prefix", default=default_prefix))
+    return MqttSettings(enabled, host, port, prefix)
 
 
 _GITHUB_REPO = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$")
@@ -405,7 +405,7 @@ def load_core_config(
     default_regen_lead_seconds: int = 120,
     default_width: int = 825,
     default_height: int = 1200,
-    default_mqtt_topic: str = "mqtt/epd-client",
+    default_mqtt_prefix: str = "mqtt/epd",
 ) -> CoreConfig:
     """Validate the generic blocks of a config dict.
 
@@ -417,7 +417,7 @@ def load_core_config(
         server=parse_server(config, default_display=default_display, default_port=default_port,
                             default_regen_lead_seconds=default_regen_lead_seconds),
         image=parse_image(config, default_width=default_width, default_height=default_height),
-        mqtt=parse_mqtt(config, default_topic=default_mqtt_topic),
+        mqtt=parse_mqtt(config, default_prefix=default_mqtt_prefix),
         firmware=parse_firmware(config, default_product=default_firmware_product,
                                 base_dir=base_dir),
     )

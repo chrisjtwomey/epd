@@ -45,20 +45,20 @@ def test_defaults_with_only_a_display():
     assert (cfg.image.inner_width, cfg.image.inner_height) == (825, 1200)
     assert (cfg.image.inner_align_x, cfg.image.inner_align_y) == ("center", "center")
     assert cfg.mqtt.enabled is False
-    assert (cfg.mqtt.host, cfg.mqtt.port, cfg.mqtt.topic) == ("localhost", 1883, "mqtt/epd-client")
+    assert (cfg.mqtt.host, cfg.mqtt.port, cfg.mqtt.prefix) == ("localhost", 1883, "mqtt/epd")
 
 
 def test_project_can_change_every_default():
     cfg = load_core_config(
         {}, default_display=display({"a": ["a.png"]}, type="times", **{"07:00:00": "a"})["display"],
         default_port=9000, default_regen_lead_seconds=30, default_width=600, default_height=448,
-        default_mqtt_topic="mqtt/x",
+        default_mqtt_prefix="mqtt/x",
     )
     assert cfg.server.port == 9000 and cfg.server.regen_lead_seconds == 30
     assert isinstance(cfg.server.schedule, TimesSchedule)   # the block said type: times
     assert list(cfg.server.schedule) == [("07:00:00", "a")]
     assert (cfg.image.width, cfg.image.height) == (600, 448)
-    assert cfg.mqtt.topic == "mqtt/x"
+    assert cfg.mqtt.prefix == "mqtt/x"
 
 
 def test_display_is_required_when_no_default():
@@ -202,7 +202,7 @@ def test_mqtt_env_override_coerces_types(monkeypatch):
     monkeypatch.setenv("MQTT_ENABLED", "yes")
     monkeypatch.setenv("MQTT_PORT", "1884")
     m = parse_mqtt({"mqtt": {"host": "broker"}})
-    assert (m.enabled, m.host, m.port, m.topic) == (True, "broker", 1884, "mqtt/epd-client")
+    assert (m.enabled, m.host, m.port, m.prefix) == (True, "broker", 1884, "mqtt/epd")
 
 
 def test_mqtt_port_validated():

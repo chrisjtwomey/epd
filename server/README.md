@@ -134,7 +134,7 @@ except (ConfigError, KeyError) as exc:
 
 core.server.port, core.server.timezone, core.server.schedule
 core.image.page_kwargs()          # -> kwargs for Page(...)
-core.mqtt.enabled, core.mqtt.host, core.mqtt.port, core.mqtt.topic
+core.mqtt.enabled, core.mqtt.host, core.mqtt.port, core.mqtt.prefix
 ```
 
 ```yaml
@@ -169,11 +169,11 @@ client:                          # what the boards this server serves run
     product: my-display          # the client name a board reports
     # products: [my-display, my-sensor]   # several, each in dir/<product>/
     offer_dev_builds: false      # true also offers to boards not built from a tag
-mqtt:                            # relay the client's log topic
+mqtt:                            # relay every board's log topic, <prefix>/<board>
   enabled: false
   host: localhost
   port: 1883
-  topic: mqtt/epd-client
+  prefix: mqtt/epd
 debug: false
 ```
 

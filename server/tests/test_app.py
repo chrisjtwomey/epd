@@ -9,6 +9,7 @@ import pytest
 
 from epd_server.app import DisplayServer, align_process_timezone
 from epd_server.config import MqttSettings
+from epd_server.logs import LogStore
 from epd_server.source import StaticSource
 
 from .test_pipeline import RecordingPage
@@ -195,7 +196,19 @@ def test_mqtt_relay_is_only_started_when_enabled(tmp_path, monkeypatch):
     srv = make(tmp_path, port=0, mqtt=MqttSettings(True, "h", 1883, "t"), mqtt_client_id="me")
     srv.shutdown_event = OneTickEvent()
     srv.run(install_signal_handlers=False)
-    assert started == [(("h", 1883, "t"), {"client_id": "me"})]
+    assert started == [(("h", 1883, "t"), {"client_id": "me", "on_line": None})]
+
+
+def test_the_relay_keeps_each_line_when_given_a_store(tmp_path, monkeypatch):
+    started = []
+    monkeypatch.setattr("epd_server.app.client_log_subscriber",
+                        lambda *a, **k: started.append(k) or None)
+    logs = LogStore(":memory:")
+    srv = make(tmp_path, port=0, mqtt=MqttSettings(True, "h", 1883, "t"), client_logs=logs)
+    srv.shutdown_event = OneTickEvent()
+    srv.run(install_signal_handlers=False)
+    started[0]["on_line"]("canary-dock", "INFO - hello")
+    assert [line["text"] for line in logs.lines()] == ["INFO - hello"]
 
 
 # ---------- align_process_timezone ----------
