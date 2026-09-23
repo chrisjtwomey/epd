@@ -2,12 +2,14 @@
 import os
 import threading
 import time
+import urllib.error
+import urllib.request
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import pytest
 
-from epd_server.app import DisplayServer, align_process_timezone
+from epd_server.app import FIRST_RENDER_RETRY_AFTER_S, DisplayServer, align_process_timezone
 from epd_server.config import MqttSettings
 from epd_server.logs import LogStore
 from epd_server.source import StaticSource
@@ -77,6 +79,17 @@ def test_missing_png_is_404(tmp_path):
     srv = make(tmp_path)  # no files written
     srv.app.config["TESTING"] = True
     with srv.app.test_client() as c:
+        assert c.get("/today.png").status_code == 404
+
+
+def test_a_page_not_rendered_since_the_start_is_a_503_that_says_when_to_retry(tmp_path):
+    srv = make(tmp_path)  # no files written
+    srv.first_render_pending.set()
+    with srv.app.test_client() as c:
+        rsp = c.get("/today.png")
+        assert rsp.status_code == 503
+        assert rsp.headers["Retry-After"] == str(FIRST_RENDER_RETRY_AFTER_S)
+        srv.first_render_pending.clear()
         assert c.get("/today.png").status_code == 404
 
 
@@ -182,6 +195,41 @@ def test_run_starts_and_stops_http_on_a_free_port(tmp_path):
     srv.shutdown_event = OneTickEvent()
     srv.run(install_signal_handlers=False)
     assert srv.http is None            # shut down cleanly
+
+
+def test_run_answers_before_the_first_render_is_done(tmp_path, monkeypatch):
+    srv = make(tmp_path, port=0)
+    rendering, finish = threading.Event(), threading.Event()
+
+    def slow(only=None, force_refresh=False):
+        rendering.set()
+        finish.wait(5)
+        return []
+    monkeypatch.setattr(srv, "regenerate", slow)
+    runner = threading.Thread(target=srv.run, kwargs={"install_signal_handlers": False},
+                              daemon=True)
+    runner.start()
+    try:
+        assert rendering.wait(5)
+        port = srv.http.server.server_port
+        with pytest.raises(urllib.error.HTTPError) as answer:
+            urllib.request.urlopen(f"http://127.0.0.1:{port}/today.png", timeout=5)
+        assert answer.value.code == 503
+    finally:
+        finish.set()
+        srv.stop()
+        runner.join(5)
+    assert not srv.first_render_pending.is_set()
+
+
+def test_a_failed_first_render_leaves_the_server_serving(server, monkeypatch, caplog):
+    def boom(only=None, force_refresh=False):
+        raise RuntimeError("weather api down")
+    monkeypatch.setattr(server, "regenerate", boom)
+    server.first_render_pending.set()
+    server._first_render()   # must not raise
+    assert not server.first_render_pending.is_set()
+    assert "First render failed" in caplog.text
 
 
 def test_mqtt_relay_is_only_started_when_enabled(tmp_path, monkeypatch):

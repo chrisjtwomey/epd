@@ -87,6 +87,11 @@ def align_process_timezone(tz) -> None:
         time.tzset()
 
 
+# What a page asked for before the first render has written it tells the
+# board to wait: about as long as rendering every page takes.
+FIRST_RENDER_RETRY_AFTER_S = 30
+
+
 class ServerThread(threading.Thread):
     """Werkzeug's dev server on a daemon thread, with a clean shutdown."""
 
@@ -226,6 +231,9 @@ class DisplayServer:
         # Serialises regenerations; a page's PNG is replaced atomically, so
         # readers never wait on it.
         self.regen_lock = threading.Lock()
+        # Set while run() renders every page for the first time, on its own
+        # thread, with the server already answering.
+        self.first_render_pending = threading.Event()
         self.shutdown_event = threading.Event()
         self.http: ServerThread | None = None
         self.mqtt_client = None
@@ -429,6 +437,10 @@ class DisplayServer:
     def _serve(self, page: Page):
         path = page.png_path
         if not os.path.exists(path):
+            if self.first_render_pending.is_set():
+                rsp = make_response("The pages are still being rendered after a start.\n", 503)
+                rsp.headers["Retry-After"] = str(FIRST_RENDER_RETRY_AFTER_S)
+                return rsp
             log.error("%s: no such file exists", path)
             abort(404)
 
@@ -473,15 +485,18 @@ class DisplayServer:
     # ── Lifecycle ─────────────────────────────────────────────────────────
 
     def run(self, once: bool = False, install_signal_handlers: bool = True) -> None:
-        """Regenerate everything, then serve and follow the schedule until stopped.
+        """Serve at once, render every page on a thread of its own, and follow
+        the schedule until stopped.
 
-        ``once=True`` regenerates and returns without starting the HTTP
-        server, the log relay, or the loop — handy while iterating on pages.
+        ``once=True`` renders everything and returns without starting the
+        HTTP server, the log relay, or the loop — handy while iterating on
+        pages.
         """
-        self.regenerate()
         if once:
+            self.regenerate()
             log.info("once: images generated, not starting the server")
             return
+        self.first_render_pending.set()
 
         if self.mqtt is not None and self.mqtt.enabled:
             self.mqtt_client = client_log_subscriber(
@@ -499,6 +514,7 @@ class DisplayServer:
 
         self.http = ServerThread(self.app, self.host, self.port)
         self.http.start()
+        threading.Thread(target=self._first_render, name="epd-first-render", daemon=True).start()
 
         if install_signal_handlers:
             def handle(signum, _frame):
@@ -511,6 +527,16 @@ class DisplayServer:
             self._loop()
         finally:
             self._shutdown()
+
+    def _first_render(self) -> None:
+        """Render every page, once, while the server already answers. A
+        failure leaves each page to its scheduled render."""
+        try:
+            self.regenerate()
+        except Exception:  # noqa: BLE001 - the server keeps serving what it has
+            log.exception("First render failed; each page renders at its scheduled time")
+        finally:
+            self.first_render_pending.clear()
 
     def stop(self) -> None:
         """Ask :meth:`run` to return. Safe to call from a signal handler or another thread."""

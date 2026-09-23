@@ -81,10 +81,12 @@ DisplayServer(
 ).run(once="--once" in sys.argv)
 ```
 
-`run()` regenerates every page, starts the HTTP server on a thread, relays
-the client's MQTT log topic if enabled, and then sleeps until
-`regen_lead_seconds` before each scheduled wake, regenerating that wake's
-page with a fresh fetch. `SIGTERM` / `SIGINT` stop it cleanly.
+`run()` starts the HTTP server on a thread, relays the client's MQTT log
+topic if enabled, and renders every page on a thread of its own, so the
+server answers while it renders. A page asked for before its first render
+gets `503` with `Retry-After`. `run()` then sleeps until `regen_lead_seconds`
+before each scheduled wake, regenerating that wake's page with a fresh
+fetch. `SIGTERM` / `SIGINT` stop it cleanly.
 
 Routes come from the page list — `/<page>.png` for each — plus `/`, which
 returns the page list, the schedule and the next wake as JSON. The schedule
