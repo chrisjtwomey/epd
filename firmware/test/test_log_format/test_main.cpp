@@ -61,6 +61,34 @@ void test_nothing_is_written_without_a_buffer(void) {
     TEST_ASSERT_EQUAL_UINT(0, formatLog(nullptr, 16, "INFO - ", "hello", args));
 }
 
+// ezTime's RFC 3339 form, the longest a stamp gets.
+static const char* kStamp = "2026-09-22T09:27:36+01:00";
+
+void test_the_prefix_has_the_time_and_the_level(void) {
+    size_t n = formatPrefix(out, sizeof(out), kStamp, "INFO");
+    TEST_ASSERT_EQUAL_STRING("2026-09-22T09:27:36+01:00 - INFO - ", out);
+    TEST_ASSERT_EQUAL_UINT(strlen(out), n);
+}
+
+void test_the_longest_prefix_fits_its_buffer(void) {
+    char prefix[LOG_PREFIX_MAX];
+    size_t n = formatPrefix(prefix, sizeof(prefix), kStamp, "CRITICAL");
+    TEST_ASSERT_EQUAL_STRING("2026-09-22T09:27:36+01:00 - CRITICAL - ", prefix);
+    TEST_ASSERT_LESS_THAN_UINT(sizeof(prefix), n + 1);
+}
+
+void test_a_short_buffer_truncates_the_prefix_and_writes_nothing_past_it(void) {
+    size_t n = formatPrefix(out, 10, kStamp, "DEBUG");
+    TEST_ASSERT_EQUAL_STRING("2026-09-2", out);
+    TEST_ASSERT_EQUAL_UINT(9, n);
+    TEST_ASSERT_EQUAL_CHAR('x', out[10]);
+}
+
+void test_no_prefix_is_written_without_a_buffer(void) {
+    TEST_ASSERT_EQUAL_UINT(0, formatPrefix(out, 0, kStamp, "INFO"));
+    TEST_ASSERT_EQUAL_CHAR('x', out[0]);
+}
+
 int main(int argc, char** argv) {
     UNITY_BEGIN();
     RUN_TEST(test_the_prefix_comes_first);
@@ -70,5 +98,9 @@ int main(int argc, char** argv) {
     RUN_TEST(test_a_long_line_is_truncated_and_terminated);
     RUN_TEST(test_a_prefix_longer_than_the_buffer_is_truncated);
     RUN_TEST(test_nothing_is_written_without_a_buffer);
+    RUN_TEST(test_the_prefix_has_the_time_and_the_level);
+    RUN_TEST(test_the_longest_prefix_fits_its_buffer);
+    RUN_TEST(test_a_short_buffer_truncates_the_prefix_and_writes_nothing_past_it);
+    RUN_TEST(test_no_prefix_is_written_without_a_buffer);
     return UNITY_END();
 }

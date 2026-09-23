@@ -1,6 +1,7 @@
 #ifndef EPD_LOG_UTILS_H
 #define EPD_LOG_UTILS_H
 #include "error_utils.h"
+#include "log_format.h"
 #include "time_utils.h"
 
 // Enum of log verbosity levels.
@@ -63,12 +64,13 @@ void log(uint16_t pri, const char* msg);
 void logf(uint16_t pri, const char* fmt, ...);
 
 /**
-  Converts a priority into a log level prefix.
+  Write a line's prefix, the local time and the level's name, into out.
 
   @param pri the log level / priority of the message, see LOG_LEVEL.
-  @returns the string value of the priority.
+  @param size out's size; LOG_PREFIX_MAX holds any prefix whole.
+  @returns out.
 */
-const char* msgPrefix(uint16_t pri);
+const char* msgPrefix(uint16_t pri, char* out, size_t size);
 
 /**
   Write one log line out, to the serial port and to the broker.

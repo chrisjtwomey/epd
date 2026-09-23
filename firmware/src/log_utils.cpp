@@ -57,43 +57,27 @@ void keepMQTTConnected() {
     log(LOG_INFO, "reconnected to the MQTT broker");
 }
 
-const char* msgPrefix(uint16_t pri) {
-    char* priority;
-
+static const char* levelName(uint16_t pri) {
     switch (pri) {
-        case LOG_CRIT:
-            priority = (char*)"CRITICAL";
-            break;
-        case LOG_ERROR:
-            priority = (char*)"ERROR";
-            break;
-        case LOG_WARNING:
-            priority = (char*)"WARNING";
-            break;
-        case LOG_NOTICE:
-            priority = (char*)"NOTICE";
-            break;
-        case LOG_INFO:
-            priority = (char*)"INFO";
-            break;
-        case LOG_DEBUG:
-            priority = (char*)"DEBUG";
-            break;
-        default:
-            priority = (char*)"INFO";
-            break;
+        case LOG_CRIT:    return "CRITICAL";
+        case LOG_ERROR:   return "ERROR";
+        case LOG_WARNING: return "WARNING";
+        case LOG_NOTICE:  return "NOTICE";
+        case LOG_DEBUG:   return "DEBUG";
+        default:          return "INFO";
     }
+}
 
-    char* prefix = new char[35];
-    String nowFmt = nowTzFmt();
-    sprintf(prefix, "%s - %s - ", nowFmt.c_str(), priority);
-    return prefix;
+const char* msgPrefix(uint16_t pri, char* out, size_t size) {
+    formatPrefix(out, size, nowTzFmt().c_str(), levelName(pri));
+    return out;
 }
 
 void log(uint16_t pri, const char* msg) {
     if (pri > LOG_LEVEL) return;
 
-    const char* prefix = msgPrefix(pri);
+    char prefix[LOG_PREFIX_MAX];
+    msgPrefix(pri, prefix, sizeof(prefix));
     size_t prefixLen = strlen(prefix);
     size_t msgLen = strlen(msg);
     char buf[prefixLen + msgLen + 1];
@@ -106,9 +90,10 @@ void logf(uint16_t pri, const char* fmt, ...) {
     if (pri > LOG_LEVEL) return;
 
     char line[LOG_LINE_MAX];
+    char prefix[LOG_PREFIX_MAX];
     va_list args;
     va_start(args, fmt);
-    formatLog(line, sizeof(line), msgPrefix(pri), fmt, args);
+    formatLog(line, sizeof(line), msgPrefix(pri, prefix, sizeof(prefix)), fmt, args);
     va_end(args);
     writeLog(line);
 }
