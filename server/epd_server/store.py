@@ -90,6 +90,15 @@ class ReadingsStore:
         docs = self._select([], [], "ORDER BY ts DESC LIMIT 1", device)
         return docs[0] if docs else None
 
+    def latest_each(self) -> list[dict]:
+        """Each device's document with the highest ``ts``, newest first."""
+        sql = ("SELECT r.doc FROM readings r"
+               " JOIN (SELECT device, MAX(ts) AS ts FROM readings GROUP BY device) m"
+               " ON r.device = m.device AND r.ts = m.ts ORDER BY r.ts DESC")
+        with self._lock:
+            rows = self._db.execute(sql).fetchall()
+        return [json.loads(doc) for (doc,) in rows]
+
     def between(self, start: int, end: int | None = None,
                 device: str | None = None) -> list[dict]:
         """Documents with ``start <= ts``, and ``ts <= end`` when given, oldest first."""

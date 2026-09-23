@@ -43,8 +43,17 @@ def test_device_limits_every_read(store):
     assert store.count("a") == 1 and store.count() == 2
 
 
+def test_latest_each_is_every_devices_newest_newest_first(store):
+    for doc in ({"ts": 1, "device": "a"}, {"ts": 5, "device": "b"},
+                {"ts": 3, "device": "a"}, {"ts": 2, "device": "b"}, {"ts": 4}):
+        store.add(doc)
+    assert store.latest_each() == [{"ts": 5, "device": "b"}, {"ts": 4},
+                                   {"ts": 3, "device": "a"}]
+
+
 def test_an_empty_store(store):
     assert store.latest() is None
+    assert store.latest_each() == []
     assert store.between(0) == []
     assert store.count() == 0
 
