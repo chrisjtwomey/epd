@@ -24,6 +24,10 @@ struct PageResponse {
 /**
   Connect to a WiFi network in Station Mode.
 
+  ssid and pass are kept, not copied, for keepWiFiConnected() to reconnect
+  with. Both must outlive the connection, so pass static storage, never a
+  local buffer.
+
   @param ssid the network SSID.
   @param pass the network password.
   @param retries the number of connection attempts to make before returning an
@@ -33,6 +37,18 @@ struct PageResponse {
   - ESP_ERR_TIMEOUT if number of retries is exceeded without success.
 */
 esp_err_t configureWiFi(const char* ssid, const char* pass, int retries);
+
+/**
+  Reconnect to Wi-Fi once the link drops, without blocking.
+
+  The framework reconnects by itself only for some disconnect reasons, so an
+  access point that restarts can leave a board off the network for good. A
+  board that stays awake calls this on every pass of its loop; while the link
+  is down it starts a new attempt every 30 s. Once the link is back it logs
+  how long it was down and the reason it dropped. A board that sleeps after
+  each wake does not need it.
+*/
+void keepWiFiConnected();
 
 /**
   Download a file at the given URL into a buffer the caller frees.
