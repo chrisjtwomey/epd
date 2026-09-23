@@ -59,7 +59,6 @@ esp_err_t connectNetwork(const ClientConfig& cfg) {
     if (configureTime(cfg.ntpHost, cfg.ntpTimezone) != ESP_OK)
         log(LOG_WARNING, "failed to synchronize RTC with network time");
 
-    // Static: the MQTT logger keeps the pointer for as long as it runs.
     static char topic[128];
     if (cfg.mqttEnabled &&
         boardLogTopic(cfg.mqttPrefix, CLIENT_NAME, topic, sizeof(topic)) &&

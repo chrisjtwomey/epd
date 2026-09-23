@@ -25,9 +25,13 @@
 /**
   Connect to a MQTT broker for remote logging.
 
+  topic and clientID are kept, not copied: every later log line publishes to
+  topic, and a reconnect uses clientID. Both must outlive the logger, so
+  pass a literal or static storage, never a local buffer.
+
   @param broker the hostname of the MQTT broker.
   @param port the port of the MQTT broker.
-  @param topic the topic to publish logs to.
+  @param topic the topic to publish logs to; see boardLogTopic().
   @param clientID the name of the logger client to appear as.
   @param max_retries the number of connection attempts to make before fallback
   to serial-only logging.
