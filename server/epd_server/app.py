@@ -413,8 +413,8 @@ class DisplayServer:
         # the one it rolled back from, before it downloads anything.
         rsp.headers[self.wire.firmware_version] = image.version
         rsp.headers[self.wire.firmware_url] = url
-        older = version_order(image.version) or (0, 0, 0)
-        if older < (version_order(client.version) or (0, 0, 0)):
+        older = version_order(image.version) or (0, 0, 0, 0)
+        if older < (version_order(client.version) or (0, 0, 0, 0)):
             log.warning("Offering %s %s an older firmware, %s: this server is %s",
                         client.name, client.version, image.version, self.server_version)
         else:

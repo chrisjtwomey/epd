@@ -179,7 +179,8 @@ GET /<page>.png
 
 Which image depends on `version_gate`. Without it the server offers the
 newest file. With it, it offers the highest version that can work with its
-own, by the rule above, whether that is newer than the board's or older: the
+own, by the rule above (a build past a tag counts as higher the more commits
+it is past it), whether that is newer than the board's or older: the
 server's version is the one the boards follow. A gated server whose own
 version cannot be read offers nothing, and it logs a warning each time it
 offers a board an older image than the one it runs.

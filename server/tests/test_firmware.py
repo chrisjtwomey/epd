@@ -163,6 +163,13 @@ def test_the_offer_is_the_newest_image_the_server_can_work_with(tmp_path, server
     assert (image.version if image else None) == offered
 
 
+def test_the_offer_is_the_build_furthest_past_the_tag(tmp_path):
+    store = FirmwareStore(str(tmp_path))
+    for version in ("v0.3.1-4-gab12cd4", "v0.3.1", "v0.3.1-1-g57fab37"):
+        store.put(version, IMAGE)
+    assert store.newest_compatible("v0.3.1").version == "v0.3.1-4-gab12cd4"
+
+
 def test_an_image_copied_in_by_hand_is_current(tmp_path):
     (tmp_path / "v2.0.0.bin").write_bytes(IMAGE)
     assert current(FirmwareStore(str(tmp_path))).version == "v2.0.0"

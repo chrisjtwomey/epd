@@ -1,7 +1,7 @@
 """Whether a board and a server can work together, judged by their versions."""
 import pytest
 
-from epd_server.compat import compatibility_key, compatible
+from epd_server.compat import compatibility_key, compatible, version_order
 
 
 @pytest.mark.parametrize("a, b, expected", [
@@ -24,3 +24,10 @@ def test_the_rule(a, b, expected):
 def test_what_is_not_a_version_cannot_be_judged(version):
     assert compatibility_key(version) is None
     assert compatible(version, "v0.2.2") is None
+
+
+def test_builds_past_a_tag_sort_after_it_by_how_far_past():
+    ordered = ["v0.3.1", "v0.3.1-1-g57fab37", "v0.3.1-4-gab12cd4", "v0.3.2"]
+    assert sorted(reversed(ordered), key=version_order) == ordered
+    assert version_order("v0.3.1-4-gab12cd4-dirty") == version_order("v0.3.1-4-gab12cd4")
+    assert version_order("v0.3.1+build.7") == version_order("v0.3.1")

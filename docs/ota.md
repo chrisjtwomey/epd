@@ -107,7 +107,9 @@ The filename **is** the version. Nothing else has to be written down.
 Without `version_gate` the newest file is the one offered; with it, the
 newest that can work with the server's own version, which may be older than
 what a board runs. So the server keeps every image it is given, and nothing
-it does removes one.
+it does removes one. Versions sort by major, minor and patch, then by how
+many commits a build is past its tag: `v1.5.1-4-gab12cd4` comes after
+`v1.5.1-1-g57fab37`, which comes after `v1.5.1`.
 
 A server for several products lists them, and keeps each in a subdirectory
 of its name:
