@@ -12,7 +12,7 @@
 #define LOG_INFO 4
 #define LOG_DEBUG 5
 #ifndef LOG_LEVEL
-// Debug logging by default.
+// The most a build logs, and the level it starts at: debug by default.
 #define LOG_LEVEL LOG_DEBUG
 #endif
 
@@ -50,6 +50,15 @@ esp_err_t configureMQTT(const char* broker, int port, const char* topic,
   that sleeps after each wake does not need it.
 */
 void keepMQTTConnected();
+
+/**
+  Drop every line above level from here on: LOG_ERROR keeps errors and worse,
+  LOG_DEBUG keeps everything. A level above LOG_LEVEL is held at LOG_LEVEL,
+  the most the build logs.
+
+  @param level one of the LOG_* levels.
+*/
+void setLogLevel(uint16_t level);
 
 /**
   Log a message.

@@ -19,7 +19,7 @@ These go in `build_flags` in `platformio.ini`.
 | `-DBOARD_HAS_PSRAM` | The Inkplate has external RAM, and the image buffer needs it. |
 | `-DCLIENT_NAME='"my-display"'` | The name the panel introduces itself with. The server matches firmware images against it. Defaults to `EpdClient`. |
 | `-DCLIENT_VERSION='"v1.0.0"'` | The version it reports. Defaults to `dev`, which is never offered an update. Normally derived from `git describe` by a script. |
-| `-DLOG_LEVEL=4` | 5 is verbose and for development; 4 is normal. |
+| `-DLOG_LEVEL=4` | 5 is verbose and for development; 4 is normal. The most the build logs, and the level it starts at; `setLogLevel()` lowers it while the board runs. |
 | `-DUSE_SDCARD` | Read settings from `config.yaml` on the SD card. See below. |
 
 `-DCLIENT_NAME` and `-DCLIENT_VERSION` are what the panel says about
