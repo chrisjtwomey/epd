@@ -137,8 +137,9 @@ before any of this happens — see the README's quickstart.
   tests. Add a test for every behaviour you add or change.
 - Keep the wire contract stable. [docs/protocol.md](docs/protocol.md) lists
   every header a board reads and sends; renaming or removing one is a breaking
-  change for every deployed device, so the server sends the old name beside
-  the new one until no board needs it.
+  change for every deployed device. Before 1.0 that is a minor release, with
+  no old names kept beside the new ones: a board on older firmware is
+  reflashed.
 - Comments describe the present, not the change. Git holds the history.
 - Please fork the repository and create a new branch for your changes.
 - Follow the policy in the [AI-Assisted Code](#ai-assisted-code) section when AI tools are used.
