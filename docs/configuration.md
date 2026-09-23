@@ -77,7 +77,7 @@ mqtt_logger:
   broker: localhost
   port: 1883
   clientId: my-display
-  topic: mqtt/my-display
+  prefix: mqtt/epd
   retries: 3
 ```
 
@@ -145,7 +145,7 @@ mqtt:                          # relay the panel's log topic into this server's 
   enabled: false
   host: localhost
   port: 1883
-  topic: mqtt/epd-client
+  prefix: mqtt/epd               # boards log to <prefix>/<board>
 
 debug: false
 ```

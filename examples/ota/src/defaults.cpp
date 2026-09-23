@@ -20,7 +20,7 @@ ClientConfig builtInSettings() {
     cfg.mqttBroker = "XXXX";
     cfg.mqttPort = 1883;
     cfg.mqttClientID = "my-display";
-    cfg.mqttTopic = "mqtt/my-display";
+    cfg.mqttPrefix = "mqtt/epd";
     cfg.mqttRetries = 3;
 
     return cfg;

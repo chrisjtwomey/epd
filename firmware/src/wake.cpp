@@ -7,6 +7,7 @@
 #include "battery.h"
 #include "image.h"
 #include "log_utils.h"
+#include "mqtt_topic.h"
 #include "ota.h"
 #include "version.h"
 
@@ -58,8 +59,11 @@ esp_err_t connectNetwork(const ClientConfig& cfg) {
     if (configureTime(cfg.ntpHost, cfg.ntpTimezone) != ESP_OK)
         log(LOG_WARNING, "failed to synchronize RTC with network time");
 
+    // Static: the MQTT logger keeps the pointer for as long as it runs.
+    static char topic[128];
     if (cfg.mqttEnabled &&
-        configureMQTT(cfg.mqttBroker, cfg.mqttPort, cfg.mqttTopic, cfg.mqttClientID,
+        boardLogTopic(cfg.mqttPrefix, CLIENT_NAME, topic, sizeof(topic)) &&
+        configureMQTT(cfg.mqttBroker, cfg.mqttPort, topic, cfg.mqttClientID,
                       cfg.mqttRetries) == ESP_ERR_TIMEOUT)
         log(LOG_WARNING, "failed to connect remote logging, fallback to serial");
 

@@ -56,7 +56,7 @@ static void readCard(ClientConfig* cfg) {
     static String sdNtpTimezone;
     static String sdMqttBroker;
     static String sdMqttClientID;
-    static String sdMqttTopic;
+    static String sdMqttPrefix;
 
     sdServerURL = cfgServerURL;
     sdWifiSSID = cfgWifiSSID;
@@ -78,13 +78,13 @@ static void readCard(ClientConfig* cfg) {
 
     JsonObject mqttCfg = doc["mqtt_logger"];
     cfg->mqttEnabled = mqttCfg["enabled"] | cfg->mqttEnabled;
-    if (mqttCfg["broker"] && mqttCfg["clientId"] && mqttCfg["topic"]) {
+    if (mqttCfg["broker"] && mqttCfg["clientId"] && mqttCfg["prefix"]) {
         sdMqttBroker = mqttCfg["broker"].as<const char*>();
         sdMqttClientID = mqttCfg["clientId"].as<const char*>();
-        sdMqttTopic = mqttCfg["topic"].as<const char*>();
+        sdMqttPrefix = mqttCfg["prefix"].as<const char*>();
         cfg->mqttBroker = sdMqttBroker.c_str();
         cfg->mqttClientID = sdMqttClientID.c_str();
-        cfg->mqttTopic = sdMqttTopic.c_str();
+        cfg->mqttPrefix = sdMqttPrefix.c_str();
     }
     cfg->mqttPort = mqttCfg["port"] | cfg->mqttPort;
     cfg->mqttRetries = mqttCfg["retries"] | cfg->mqttRetries;

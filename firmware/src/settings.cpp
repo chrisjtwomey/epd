@@ -34,14 +34,14 @@ static void resolveMqtt(Preferences& prefs, const ClientConfig& builtIn,
                         ClientConfig* cfg) {
     static String broker;
     static String clientID;
-    static String topic;
+    static String prefix;
 
     if (mqttSettingsAreSet(builtIn.mqttBroker)) {
         prefs.putBool("mqttEnabled", builtIn.mqttEnabled);
         prefs.putString("mqttBroker", builtIn.mqttBroker);
         prefs.putInt("mqttPort", builtIn.mqttPort);
         prefs.putString("mqttClientID", builtIn.mqttClientID);
-        prefs.putString("mqttTopic", builtIn.mqttTopic);
+        prefs.putString("mqttPrefix", builtIn.mqttPrefix);
         log(LOG_INFO, "MQTT settings stored from this image");
         return;  // cfg already holds them
     }
@@ -52,12 +52,12 @@ static void resolveMqtt(Preferences& prefs, const ClientConfig& builtIn,
 
     broker = prefs.getString("mqttBroker", "");
     clientID = prefs.getString("mqttClientID", "");
-    topic = prefs.getString("mqttTopic", "");
+    prefix = prefs.getString("mqttPrefix", "");
     cfg->mqttEnabled = prefs.getBool("mqttEnabled", cfg->mqttEnabled);
     cfg->mqttBroker = broker.c_str();
     cfg->mqttPort = prefs.getInt("mqttPort", cfg->mqttPort);
     cfg->mqttClientID = clientID.c_str();
-    cfg->mqttTopic = topic.c_str();
+    cfg->mqttPrefix = prefix.c_str();
     log(LOG_INFO, "MQTT settings read from the store");
 }
 

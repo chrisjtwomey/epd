@@ -28,7 +28,8 @@ struct ClientConfig {
     const char* mqttBroker;
     int mqttPort;
     const char* mqttClientID;
-    const char* mqttTopic;
+    // Each board logs to <mqttPrefix>/<CLIENT_NAME>: see boardLogTopic().
+    const char* mqttPrefix;
     int mqttRetries;
 };
 
