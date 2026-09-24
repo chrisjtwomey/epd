@@ -54,7 +54,7 @@ from typing import Callable, Iterable, Mapping
 from urllib.parse import urlencode
 
 from flask import Flask, abort, jsonify, make_response, request, send_file
-from werkzeug.serving import make_server
+from werkzeug.serving import WSGIRequestHandler, make_server
 
 from .compat import compatible, version_order
 from .config import FirmwareSettings, MqttSettings
@@ -92,12 +92,17 @@ def align_process_timezone(tz) -> None:
 FIRST_RENDER_RETRY_AFTER_S = 30
 
 
-class ServerThread(threading.Thread):
-    """Werkzeug's dev server on a daemon thread, with a clean shutdown."""
+CONNECTION_TIMEOUT_S = 30
 
-    def __init__(self, app: Flask, host: str, port: int):
+
+class ServerThread(threading.Thread):
+    """Werkzeug's threaded dev server on a daemon thread, with a clean shutdown."""
+
+    def __init__(self, app: Flask, host: str, port: int,
+                 timeout_s: float = CONNECTION_TIMEOUT_S):
         super().__init__(daemon=True, name="epd-http")
-        self.server = make_server(host, port, app)
+        handler = type("TimedRequestHandler", (WSGIRequestHandler,), {"timeout": timeout_s})
+        self.server = make_server(host, port, app, threaded=True, request_handler=handler)
         self.ctx = app.app_context()
         self.ctx.push()
 

@@ -1,5 +1,6 @@
 """DisplayServer: routes, headers, schedule checks, regeneration, lifecycle."""
 import os
+import socket
 import threading
 import time
 import urllib.error
@@ -9,7 +10,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from epd_server.app import FIRST_RENDER_RETRY_AFTER_S, DisplayServer, align_process_timezone
+from epd_server.app import (FIRST_RENDER_RETRY_AFTER_S, DisplayServer, ServerThread,
+                            align_process_timezone)
 from epd_server.config import MqttSettings
 from epd_server.logs import LogStore
 from epd_server.source import StaticSource
@@ -220,6 +222,35 @@ def test_run_answers_before_the_first_render_is_done(tmp_path, monkeypatch):
         srv.stop()
         runner.join(5)
     assert not srv.first_render_pending.is_set()
+
+
+@pytest.fixture
+def live(server):
+    """The server's app on a free port, with a short connection timeout."""
+    http = ServerThread(server.app, "127.0.0.1", 0, timeout_s=0.5)
+    http.start()
+    yield http.server.server_port
+    http.shutdown()
+
+
+def test_an_idle_connection_does_not_hold_up_other_requests(live):
+    idle = socket.create_connection(("127.0.0.1", live))   # connects, sends nothing
+    try:
+        started = time.monotonic()
+        with urllib.request.urlopen(f"http://127.0.0.1:{live}/today.png", timeout=5) as rsp:
+            assert rsp.status == 200
+        assert time.monotonic() - started < 2
+    finally:
+        idle.close()
+
+
+def test_an_idle_connection_is_closed_after_the_timeout(live):
+    idle = socket.create_connection(("127.0.0.1", live))
+    idle.settimeout(5)
+    try:
+        assert idle.recv(1) == b""          # the server hung up
+    finally:
+        idle.close()
 
 
 def test_a_failed_first_render_leaves_the_server_serving(server, monkeypatch, caplog):
