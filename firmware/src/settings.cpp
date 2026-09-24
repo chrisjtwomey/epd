@@ -52,7 +52,8 @@ static void resolveMqtt(Preferences& prefs, const ClientConfig& builtIn,
 
     broker = prefs.getString("mqttBroker", "");
     clientID = prefs.getString("mqttClientID", "");
-    prefix = prefs.getString("mqttPrefix", "");
+    prefix = prefs.isKey("mqttPrefix") ? prefs.getString("mqttPrefix", "")
+                                       : String(builtIn.mqttPrefix);
     cfg->mqttEnabled = prefs.getBool("mqttEnabled", cfg->mqttEnabled);
     cfg->mqttBroker = broker.c_str();
     cfg->mqttPort = prefs.getInt("mqttPort", cfg->mqttPort);

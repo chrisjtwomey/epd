@@ -45,6 +45,7 @@ No device, network, or browser is needed for any test.
 cd firmware
 pio test -e native              # pure helpers: back-off, battery, refresh header parsing
 pio test -e native_mock         # display + sleep against MockBoard
+pio test -e native_settings     # loadConfig against a Preferences stub
 cd ../examples/minimal
 pio run                         # an ESP32 build; the host tests never see the framework
 ```

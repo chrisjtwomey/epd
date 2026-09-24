@@ -31,6 +31,9 @@ jobs:
       - name: Run native_mock tests
         run: pio test -e native_mock
 
+      - name: Run native_settings tests
+        run: pio test -e native_settings
+
   example-build:
     name: Example project (ESP32)
     runs-on: ubuntu-latest
