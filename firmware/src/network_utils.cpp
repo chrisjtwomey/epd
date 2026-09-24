@@ -164,8 +164,6 @@ uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* defaultLe
     if (rsp) {
         // The server is authoritative for when to refresh next; the board just
         // counts down. No timezone arithmetic on the client.
-        if (!http.hasHeader(EPD_H_NEXT_REFRESH))
-            logf(LOG_WARNING, "header %s not found in response", EPD_H_NEXT_REFRESH);
         numberHeader(http, EPD_H_NEXT_REFRESH, &rsp->nextRefreshSeconds);
 
         copyHeader(http, EPD_H_NEXT_URL, rsp->nextURL, sizeof(rsp->nextURL));
