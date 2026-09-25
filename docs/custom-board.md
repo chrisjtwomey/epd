@@ -26,6 +26,8 @@ pure-virtual method, and swap the instance in `src/main.cpp`.
 |---|---|
 | `clearDisplay()` | Erase the in-memory frame buffer to white. |
 | `display()` | Flush the in-memory frame buffer to the physical panel. |
+| `setBlackAndWhite(on)` | Optional; the base class ignores it. Draw in black and white, or in greys. Colour values are the mode's own. `InkplateBoard` switches the library's mode, since its partial updates work only in black and white. |
+| `partialDisplay()` | Optional; the base class calls `display()`. Push only the pixels that changed, without the flashing of a full refresh. |
 
 ### Image drawing (into the frame buffer)
 

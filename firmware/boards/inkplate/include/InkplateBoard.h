@@ -25,6 +25,13 @@ public:
     // Display output
     void clearDisplay() override;
     void display() override;
+    // In black and white, 1 is black and 0 white.
+    void setBlackAndWhite(bool on) override;
+    // A partial update in black and white, a full one in greys: the library
+    // does partial updates only in black and white, and only after a
+    // display() there. It makes every eleventh partial update a full one,
+    // against ghosting; a display() does not restart that count.
+    void partialDisplay() override;
 
     // Image drawing
     bool drawPngFromBuffer(uint8_t* buf, int32_t len,

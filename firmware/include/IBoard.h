@@ -49,6 +49,22 @@ public:
     /** Push the in-memory frame buffer to the physical display. */
     virtual void display() = 0;
 
+    /**
+     * Draw in black and white, or in the board's greys.
+     *
+     * Optional: a board with one mode ignores it. Colour values are the
+     * mode's own. The panel keeps what it shows until the next push.
+     */
+    virtual void setBlackAndWhite(bool on) { (void)on; }
+
+    /**
+     * Push only the pixels that changed since the last push, without the
+     * flashing of a full refresh.
+     *
+     * Optional: the base class calls display().
+     */
+    virtual void partialDisplay() { display(); }
+
     // -------------------------------------------------------------------------
     // Image drawing (into the frame buffer)
     // -------------------------------------------------------------------------

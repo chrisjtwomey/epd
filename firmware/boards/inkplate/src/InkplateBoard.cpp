@@ -61,20 +61,39 @@ void InkplateBoard::display() {
     _inkplate.display();
 }
 
+void InkplateBoard::setBlackAndWhite(bool on) {
+    _inkplate.selectDisplayMode(on ? INKPLATE_1BIT : INKPLATE_3BIT);
+}
+
+void InkplateBoard::partialDisplay() {
+    if (_inkplate.getDisplayMode() == INKPLATE_1BIT)
+        _inkplate.partialUpdate();
+    else
+        _inkplate.display();
+}
+
 // -----------------------------------------------------------------------------
 // Image drawing
 // -----------------------------------------------------------------------------
 
+// In black and white, the library's undithered PNG path writes each pixel's
+// 3-bit grey as its colour, which draws black as white and every other grey
+// as black. Dithering maps each pixel to black or white, and leaves an image
+// that is already black and white as it is.
+static bool pngDither(Inkplate& inkplate, bool dither) {
+    return dither || inkplate.getDisplayMode() == INKPLATE_1BIT;
+}
+
 bool InkplateBoard::drawPngFromBuffer(uint8_t* buf, int32_t len,
                                       int x, int y,
                                       bool dither, bool invert) {
-    return _inkplate.image.drawPngFromBuffer(buf, len, x, y, dither, invert);
+    return _inkplate.image.drawPngFromBuffer(buf, len, x, y, pngDither(_inkplate, dither), invert);
 }
 
 bool InkplateBoard::drawPngFromSd(const char* path,
                                   int x, int y,
                                   bool dither, bool invert) {
-    return _inkplate.image.drawPngFromSd(path, x, y, dither, invert);
+    return _inkplate.image.drawPngFromSd(path, x, y, pngDither(_inkplate, dither), invert);
 }
 
 bool InkplateBoard::drawBitmap(uint8_t* buf,
