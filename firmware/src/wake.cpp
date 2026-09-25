@@ -100,7 +100,7 @@ bool drawPage(const PageFetch& page, const char* filePath, int retries,
 }
 
 void takeOfferedUpdate(const PageResponse& rsp, const char* userAgent, int batteryPercent,
-                       int minBatteryPercent) {
+                       int minBatteryPercent, OtaProgress onProgress) {
     const char* rejected = otaRejectedVersion();
 
     if (updateRefusedBefore(rsp.firmwareVersion, rejected)) {
@@ -115,5 +115,5 @@ void takeOfferedUpdate(const PageResponse& rsp, const char* userAgent, int batte
              batteryPercent);
         return;
     }
-    applyFirmwareUpdate(rsp.firmwareURL, rsp.firmwareVersion, userAgent);
+    applyFirmwareUpdate(rsp.firmwareURL, rsp.firmwareVersion, userAgent, onProgress);
 }

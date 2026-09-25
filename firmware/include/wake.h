@@ -7,6 +7,7 @@
 
 #include "error_utils.h"
 #include "network_utils.h"
+#include "ota.h"
 #include "settings.h"
 
 /**
@@ -82,8 +83,10 @@ bool drawPage(const PageFetch& page, const char* filePath, int retries,
 
   @param minBatteryPercent below which an update waits for a charge; 0 for a
   board on mains power.
+  @param onProgress called as the image is written, as applyFirmwareUpdate()
+  calls it; null for none.
 */
 void takeOfferedUpdate(const PageResponse& rsp, const char* userAgent, int batteryPercent,
-                       int minBatteryPercent);
+                       int minBatteryPercent, OtaProgress onProgress = nullptr);
 
 #endif  // EPD_WAKE_H
