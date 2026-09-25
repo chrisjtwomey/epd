@@ -99,24 +99,26 @@ schedule falls due. Hold it as an offset from the board's own uptime rather
 than setting a clock from it, so a correction can never send timestamps
 backwards.
 
-## When a sensor board posts next
+## When a board posts or syncs next
 
-A board that posts readings on a schedule can take the schedule from the
-server too. The project passes a function of the time now:
+A board that posts readings, or syncs its state, on a schedule can take the
+schedule from the server too. The project passes a function of the time now
+and the name the board states in `EPD-Device`, None when it states none:
 
 ```python
-DisplayServer(..., sensor_poll=lambda now: seconds_until_next_post(now))
+DisplayServer(..., sensor_poll=lambda now, name: seconds_until_next_sync(name, now))
 ```
 
-and every response then carries its answer:
+and every response to that board then carries its answer:
 
 ```
 EPD-Next-Sensor-Poll-Seconds: 240
 ```
 
-It goes on every response, not only the one to a readings post, so a board
-learns it from whatever it last asked, and it is independent of
-`EPD-Next-Display-Refresh-Seconds`: the panel and the sensors keep their own
+A board the function answers None for gets no header. It goes on every
+response, not only the one to a readings post, so a board learns it from
+whatever it last asked, and it is independent of
+`EPD-Next-Display-Refresh-Seconds`: the panel and the sync keep their own
 schedules. The client reads it into `PageResponse::nextSensorPollSeconds`,
 which stays 0 when the server sends none.
 

@@ -22,9 +22,9 @@ builds the names from it::
       EPD-Server-Epoch-Seconds: <UTC seconds>     its clock, on every response
       EPD-Server-Firmware-Version: <version>      on any response, when an update applies
       EPD-Server-Firmware-URL: http://host/firmware.bin
-      EPD-Next-Sensor-Poll-Seconds: <seconds>     when a board that posts readings
-                                                  should post next, on every response
-                                                  when the project sets sensor_poll
+      EPD-Next-Sensor-Poll-Seconds: <seconds>     when the board should post or sync
+                                                  next, on every response when the
+                                                  project's sensor_poll gives one for it
 
     GET /firmware.bin[?product=<name>&version=<version>]
       200 application/octet-stream, Content-Length, x-MD5
@@ -160,9 +160,11 @@ class DisplayServer:
             :mod:`epd_server.compat`.
         on_refused: called with the board's name and version each time the
             version gate refuses one, so the project can say so on its pages.
-        sensor_poll: the seconds until a board that posts readings should post
-            next, given the epoch now. Sent on every response when given, so
-            a board learns it from whatever request it last made.
+        sensor_poll: the seconds until a board should post or sync next,
+            given the epoch now and the name the board states, None when it
+            states none; None back sends no header. Sent on every response
+            it answers, so a board learns it from whatever request it last
+            made.
     """
 
     def __init__(
@@ -184,7 +186,7 @@ class DisplayServer:
         header_prefix: str = "EPD",
         server_version: str | None = None,
         version_gate: bool = False,
-        sensor_poll: Callable[[float], int] | None = None,
+        sensor_poll: Callable[[float, str | None], int | None] | None = None,
         on_refused: Callable[[str, str], None] | None = None,
     ):
         self.pages = list(pages)
@@ -483,7 +485,10 @@ class DisplayServer:
         rsp.headers[self.wire.server_version] = self.server_version
         rsp.headers[self.wire.server_epoch] = str(int(now))
         if self.sensor_poll is not None:
-            rsp.headers[self.wire.next_sensor_poll] = str(int(self.sensor_poll(now)))
+            name = (request.headers.get(self.wire.device) or "").strip() or None
+            seconds = self.sensor_poll(now, name)
+            if seconds is not None:
+                rsp.headers[self.wire.next_sensor_poll] = str(int(seconds))
         self._firmware_headers(rsp)
         return rsp
 

@@ -716,7 +716,7 @@ def test_the_server_sends_its_clock_on_every_response(tmp_path):
 def test_the_sensor_poll_goes_on_every_response_when_the_project_sets_one(tmp_path):
     asked = []
 
-    def poll(now):
+    def poll(now, name):
         asked.append(now)
         return 240
     client = client_for(tmp_path, header_prefix="Canary", sensor_poll=poll,
@@ -725,6 +725,22 @@ def test_the_sensor_poll_goes_on_every_response_when_the_project_sets_one(tmp_pa
     for rsp in (client.get("/today.png"), client.post("/readings", json={"ts": 1})):
         assert rsp.headers["Canary-Next-Sensor-Poll-Seconds"] == "240"
         assert abs(asked[-1] - int(rsp.headers["Canary-Server-Epoch-Seconds"])) < 1
+
+
+def test_each_board_gets_its_own_sensor_poll_and_none_goes_without(tmp_path):
+    polls = {"canary-dock": 240, "canary-head": 1800}
+    client = client_for(tmp_path, header_prefix="Canary",
+                        sensor_poll=lambda now, name: polls.get(name))
+
+    def poll_for(name):
+        headers = {"Canary-Device": name} if name else {}
+        return client.get("/today.png", headers=headers).headers.get(
+            "Canary-Next-Sensor-Poll-Seconds")
+
+    assert poll_for("canary-dock") == "240"
+    assert poll_for("canary-head") == "1800"
+    assert poll_for("weather-cal") is None
+    assert poll_for(None) is None
 
 
 def test_without_a_sensor_poll_there_is_no_header(tmp_path):
