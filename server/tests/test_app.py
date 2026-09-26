@@ -433,15 +433,18 @@ def test_query_route_is_get_only_and_cannot_shadow_a_page(tmp_path):
         make(tmp_path, queries={"today.png": lambda args: {}})
 
 
-# ---------- interval schedules ----------
+# ---------- time ranges ----------
 
-from epd_server.scheduling import IntervalSchedule, Pools  # noqa: E402
+from epd_server.scheduling import Pools, TimeRangesSchedule  # noqa: E402
+from epd_server.timeranges import TimeRanges, parse_hhmm  # noqa: E402
+
+EVERY_5_MIN = TimeRanges([(parse_hhmm("00:00"), 300)], UTC)
 
 
-def test_interval_schedule_drives_the_headers_and_the_index(tmp_path):
+def test_timeranges_drive_the_headers_and_the_index(tmp_path):
     (tmp_path / "today.png").write_bytes(PNG)
     (tmp_path / "hourly.png").write_bytes(PNG)
-    sched = IntervalSchedule(300, Pools({"a": ["today.png"], "b": ["hourly.png"]}, seed=1), UTC)
+    sched = TimeRangesSchedule(EVERY_5_MIN, Pools({"a": ["today.png"], "b": ["hourly.png"]}, seed=1))
     server = make(tmp_path, schedule=sched)
     client = server._build_app().test_client()
 
@@ -450,10 +453,10 @@ def test_interval_schedule_drives_the_headers_and_the_index(tmp_path):
     assert 0 < int(rsp.headers["EPD-Next-Display-Refresh-Seconds"]) <= 300
     assert rsp.headers["EPD-Next-URL"].rsplit("/", 1)[1] in {"today.png", "hourly.png"}
     index = client.get("/").get_json()
-    assert index["schedule"]["type"] == "interval" and index["schedule"]["order"] == ["a", "b"]
+    assert index["schedule"]["type"] == "timeranges" and index["schedule"]["order"] == ["a", "b"]
 
     with pytest.raises(ValueError, match="nope.png"):
-        make(tmp_path, schedule=IntervalSchedule(300, Pools({"a": ["nope.png"]}), UTC))
+        make(tmp_path, schedule=TimeRangesSchedule(EVERY_5_MIN, Pools({"a": ["nope.png"]})))
 
 
 # ---------- firmware ----------

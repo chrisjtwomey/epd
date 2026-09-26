@@ -116,7 +116,7 @@ display:                       # what to show, and when
     today: [today.png]
     hourly: [hourly.png]
   schedule:
-    type: times                # or: interval
+    type: times                # or: timeranges
     "08:00:00": today
     "10:00:00": hourly
 
@@ -151,8 +151,22 @@ debug: false
 ```
 
 A **pool** is a list of images shown in turn; a pool of one is just that
-image. A `times` schedule names a pool at each time of day. An `interval`
-schedule visits pools in order every `every` seconds instead.
+image. A `times` schedule names a pool at each time of day. A `timeranges`
+schedule visits the pools in `order` at each slot of its `ranges` instead:
+
+```yaml
+  schedule:
+    type: timeranges
+    ranges:                    # each runs until the next starts, the last past midnight
+      - {from: "07:00", every: 300}
+      - {from: "23:00", every: 0}      # 0: no page changes until 07:00
+    order: [today, hourly]     # default: every pool, as listed
+```
+
+A range's slots fall on the wall clock where its interval, in whole minutes,
+divides the seconds past midnight: every 300 gives :00, :05, :10 and so on.
+One range from 00:00 is a page every so often all day. There are at most 8
+ranges, and one of them must have an interval.
 
 `client.firmware` sits under `client` because every key in it describes the
 panel rather than the server. A relative `dir` is resolved against the

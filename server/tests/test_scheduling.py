@@ -165,7 +165,8 @@ def test_validate_time_list_rejects_malformed(bad):
 
 # ---------- pools and schedule objects ----------
 
-from epd_server.scheduling import IntervalSchedule, Pools, TimesSchedule  # noqa: E402
+from epd_server.scheduling import Pools, TimeRangesSchedule, TimesSchedule  # noqa: E402
+from epd_server.timeranges import TimeRanges, parse_hhmm  # noqa: E402
 
 DUB = ZoneInfo("Europe/Dublin")
 POOL_LISTS = {"co2": ["breathe.png", "co2-trace.png", "co2-delta.png"],
@@ -226,23 +227,50 @@ def test_times_schedule_rejects_unknown_pools_and_bad_times():
         TimesSchedule([], POOLS, DUB)
 
 
-def test_interval_schedule_visits_pools_in_order_each_on_its_own_count():
-    it = IntervalSchedule(300, POOLS, DUB, order=["co2", "air", "day"])
-    block = BLOCK // 300
-    slots = list(range(28 * block, 28 * block + 12))          # inside one block
-    names = [it.order[s % 3] for s in slots]
-    assert names == ["co2", "air", "day"] * 4
-    pages = [it.page_for_slot(s) for s in slots]
+def ranges(*pairs):
+    return TimeRanges([(parse_hhmm(t), every) for t, every in pairs], DUB, "display.schedule.ranges")
+
+
+def pool_of(page):
+    return next(n for n, pool in POOL_LISTS.items() if page in pool)
+
+
+def in_turn(order, first, count):
+    """``count`` pool names from ``first``, each the next in ``order``."""
+    start = order.index(first)
+    return [order[(start + k) % len(order)] for k in range(count)]
+
+
+def test_timeranges_visit_pools_in_order_each_on_its_own_count():
+    it = TimeRangesSchedule(ranges(("00:00", 300)), POOLS, order=["co2", "air", "day"])
+    t = datetime(2026, 9, 4, 10, 1, tzinfo=DUB)         # 12 slots inside one reshuffle block
+    wakes = []
+    for _ in range(12):
+        t, page = it.next_wake(t)
+        wakes.append(page)
+    names = [pool_of(p) for p in wakes]
+    assert names == in_turn(it.order, names[0], 12)
     for name, pool in POOL_LISTS.items():
-        seen = [p for p, n in zip(pages, names) if n == name]
+        seen = [p for p, n in zip(wakes, names) if n == name]
         start = pool.index(seen[0])
         assert seen == [pool[(start + k) % len(pool)] for k in range(len(seen))], name
     assert it.pages() == POOLS.pages()
-    assert it.describe()["order"] == ["co2", "air", "day"] and it.describe()["type"] == "interval"
+    assert it.describe() == {"type": "timeranges", "ranges": [{"from": "00:00", "every": 300}],
+                             "order": ["co2", "air", "day"], "pools": POOL_LISTS}
 
 
-def test_interval_schedule_wake_and_regen_land_on_slot_boundaries():
-    it = IntervalSchedule(300, POOLS, DUB)
+def test_timeranges_turn_on_through_midnight():
+    it = TimeRangesSchedule(ranges(("00:00", 3600)), POOLS, order=["co2", "air", "day"])
+    t = datetime(2026, 9, 4, 22, 30, tzinfo=DUB)
+    names = []
+    for _ in range(4):                                   # 23:00, 00:00, 01:00, 02:00
+        t, page = it.next_wake(t)
+        names.append(pool_of(page))
+    assert names == in_turn(it.order, names[0], 4)
+
+
+def test_timeranges_wake_and_regen_land_on_slots():
+    it = TimeRangesSchedule(ranges(("00:00", 300)), POOLS)
     now = datetime(2026, 9, 4, 10, 2, 30, tzinfo=DUB)
     wake, page = it.next_wake(now)
     assert wake == datetime(2026, 9, 4, 10, 5, tzinfo=DUB) and page in it.pages()
@@ -253,10 +281,21 @@ def test_interval_schedule_wake_and_regen_land_on_slot_boundaries():
     assert wake3 == datetime(2026, 9, 4, 10, 10, tzinfo=DUB) and regen3 == datetime(2026, 9, 4, 10, 9, tzinfo=DUB)
 
 
-def test_interval_schedule_order_can_leave_a_pool_out_and_is_checked():
-    it = IntervalSchedule(300, POOLS, DUB, order=["co2"])
+def test_a_range_that_is_off_changes_no_page():
+    it = TimeRangesSchedule(ranges(("07:00", 1800), ("23:00", 0)), POOLS)
+    assert it.next_wake(datetime(2026, 9, 4, 22, 45, tzinfo=DUB))[0] == \
+        datetime(2026, 9, 5, 7, 0, tzinfo=DUB)
+    regen, wake, _ = it.next_regen(120, datetime(2026, 9, 4, 23, 30, tzinfo=DUB))
+    assert wake == datetime(2026, 9, 5, 7, 0, tzinfo=DUB) and regen == datetime(2026, 9, 5, 6, 58, tzinfo=DUB)
+
+
+def test_timeranges_order_can_leave_a_pool_out_and_is_checked():
+    it = TimeRangesSchedule(ranges(("00:00", 300)), POOLS, order=["co2"])
     assert it.pages() == set(POOL_LISTS["co2"])
     with pytest.raises(ValueError, match="names pools"):
-        IntervalSchedule(300, POOLS, DUB, order=["nope"])
-    with pytest.raises(ValueError, match="divide a day"):
-        IntervalSchedule(7, POOLS, DUB)
+        TimeRangesSchedule(ranges(("00:00", 300)), POOLS, order=["nope"])
+
+
+def test_timeranges_with_every_range_off_are_refused():
+    with pytest.raises(ValueError, match="display.schedule.ranges has no range with an interval"):
+        TimeRangesSchedule(ranges(("00:00", 0), ("12:00", 0)), POOLS)

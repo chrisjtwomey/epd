@@ -86,9 +86,10 @@ def next_regen(schedule: Schedule, tz: _tzinfo, lead_seconds: int = 120,
 # pool of images read in turn; when it shows is the schedule's type.
 
 import random
+from datetime import date, time
 from typing import Mapping, Sequence
 
-SECONDS_PER_DAY = 86400
+from .timeranges import TimeRanges
 
 
 class Pools:
@@ -191,43 +192,66 @@ class TimesSchedule(WakeSchedule):
         return len(self.times)
 
 
-class IntervalSchedule(WakeSchedule):
-    """A page every ``every`` seconds, visiting the pools in ``order``."""
+class TimeRangesSchedule(WakeSchedule):
+    """A page at each slot of a day of time ranges, visiting the pools in
+    ``order``.
 
-    def __init__(self, every: int, pools: Pools, tz: _tzinfo, order: Sequence[str] | None = None):
-        if every <= 0 or SECONDS_PER_DAY % every:
-            raise ValueError(f"every must divide a day of {SECONDS_PER_DAY} seconds (got {every})")
+    Slots are numbered by the local day and their place in it, so the pools
+    are read in turn through the day and on into the next. A day the clock
+    changes has a few slots more or fewer, and the turn slips by as many.
+    """
+
+    def __init__(self, ranges: TimeRanges, pools: Pools, order: Sequence[str] | None = None):
+        per_day = ranges.slots_a_day()
+        if not per_day:
+            raise ValueError(f"{ranges.name} has no range with an interval, so the page "
+                             f"would never change")
         order = list(order) if order else list(pools.names)
         unknown = sorted(set(order) - set(pools.names))
         if unknown:
             raise ValueError(f"order names pools {unknown} that display.pools does not define")
-        self.every = every
+        self.ranges = ranges
         self.pools = pools
-        self.tz = tz
+        self.tz = ranges.tz
         self.order = order
+        self._per_day = per_day
+        self._day: tuple[date, list[int]] | None = None
+
+    def _slots_on(self, day: date) -> list[int]:
+        """The slots of a local day, in epoch seconds; the last day asked is kept."""
+        if self._day is None or self._day[0] != day:
+            start = int(datetime.combine(day, time(0), tzinfo=self.tz).timestamp())
+            end = int(datetime.combine(day + timedelta(days=1), time(0), tzinfo=self.tz).timestamp())
+            self._day = (day, [m for m in range(start, end, 60) if self.ranges.is_slot(m)])
+        return self._day[1]
 
     def page_for_slot(self, slot: int) -> str:
-        """The page for the ``slot``th interval since the epoch."""
-        name = self.order[slot % len(self.order)]
-        return self.pools.page(name, slot // len(self.order), slot * self.every)
+        """The page for the slot at epoch seconds ``slot``."""
+        day = datetime.fromtimestamp(slot, self.tz).date()
+        n = day.toordinal() * self._per_day + self._slots_on(day).index(slot)
+        name = self.order[n % len(self.order)]
+        return self.pools.page(name, n // len(self.order), slot)
 
     def _now(self, now):
         return now if now is not None else datetime.now(tz=self.tz)
 
+    def _slot_after(self, t: float) -> int:
+        slot = self.ranges.next_slot(t)
+        assert slot is not None, "a range with an interval has a slot within two days"
+        return slot
+
     def next_wake(self, now=None):
-        now = self._now(now)
-        slot = int(now.timestamp() // self.every) + 1
-        return datetime.fromtimestamp(slot * self.every, self.tz), self.page_for_slot(slot)
+        slot = self._slot_after(self._now(now).timestamp())
+        return datetime.fromtimestamp(slot, self.tz), self.page_for_slot(slot)
 
     def next_regen(self, lead_seconds=120, now=None):
-        now = self._now(now)
-        slot = int((now.timestamp() + lead_seconds) // self.every) + 1
-        wake = datetime.fromtimestamp(slot * self.every, self.tz)
+        slot = self._slot_after(self._now(now).timestamp() + lead_seconds)
+        wake = datetime.fromtimestamp(slot, self.tz)
         return wake - timedelta(seconds=lead_seconds), wake, self.page_for_slot(slot)
 
     def pages(self):
         return self.pools.pages(set(self.order))
 
     def describe(self):
-        return {"type": "interval", "every": self.every, "order": list(self.order),
+        return {"type": "timeranges", "ranges": self.ranges.describe(), "order": list(self.order),
                 "pools": self.pools.describe()}

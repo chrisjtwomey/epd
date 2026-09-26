@@ -14,7 +14,7 @@ from epd_server.config import (
     parse_server,
 )
 
-from epd_server.scheduling import IntervalSchedule, TimesSchedule  # noqa: E402
+from epd_server.scheduling import TimeRangesSchedule, TimesSchedule  # noqa: E402
 
 DISPLAY = {"pools": {"today": ["today.png"]}, "schedule": {"type": "times", "09:00:00": "today"}}
 
@@ -94,21 +94,27 @@ def test_times_needs_at_least_one_entry():
         parse_server(display({"a": ["a.png"]}, type="times"))
 
 
-# ---------- parse_display: interval ----------
+# ---------- parse_display: timeranges ----------
 
-def test_interval_schedule_visits_the_pools_in_order():
-    raw = display({"co2": ["a.png", "b.png"], "day": "day.png"}, type="interval",
-                  every=300, reshuffle_hours=2, order=["day", "co2"])
+EVERY_5_MIN = [{"from": "00:00", "every": 300}]
+
+
+def test_timeranges_visit_the_pools_in_order():
+    raw = display({"co2": ["a.png", "b.png"], "day": "day.png"}, type="timeranges",
+                  ranges=[{"from": "07:00", "every": 300}, {"from": "23:00", "every": 0}],
+                  reshuffle_hours=2, order=["day", "co2"])
     s = parse_server(raw).schedule
-    assert isinstance(s, IntervalSchedule)
-    assert s.every == 300 and s.order == ["day", "co2"] and s.pools.reshuffle_seconds == 7200
+    assert isinstance(s, TimeRangesSchedule)
+    assert s.ranges.describe() == [{"from": "07:00", "every": 300}, {"from": "23:00", "every": 0}]
+    assert s.order == ["day", "co2"] and s.pools.reshuffle_seconds == 7200
     assert s.pools.pools["day"] == ["day.png"]
     assert s.pages() == {"a.png", "b.png", "day.png"}
 
 
-def test_interval_order_defaults_to_every_pool():
-    s = parse_server(display({"x": ["x.png"], "y": ["y.png"]}, type="interval", every=60)).schedule
-    assert isinstance(s, IntervalSchedule)
+def test_timeranges_order_defaults_to_every_pool():
+    s = parse_server(display({"x": ["x.png"], "y": ["y.png"]}, type="timeranges",
+                             ranges=EVERY_5_MIN)).schedule
+    assert isinstance(s, TimeRangesSchedule)
     assert s.order == ["x", "y"]
 
 
@@ -116,11 +122,16 @@ def test_interval_order_defaults_to_every_pool():
     ({"pools": {}, "schedule": {"type": "times", "09:00:00": "a"}}, "display.pools must be"),
     ({"pools": {"a": []}, "schedule": {"type": "times", "09:00:00": "a"}}, "non-empty list"),
     ({"pools": {"a": ["a.png"]}}, "display.schedule must be"),
-    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "daily"}}, "type must be times or interval"),
-    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "interval", "every": 7}}, "divide a day"),
-    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "interval", "every": 300, "pages": ["a.png"]}}, "takes every, order"),
-    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "interval", "every": 300, "order": ["zz"]}}, "names pools \\['zz'\\]"),
-    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "interval", "every": 300, "reshuffle_hours": 0}}, "positive number"),
+    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "daily"}}, "type must be times or timeranges"),
+    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "interval", "every": 300}}, "type must be times or timeranges"),
+    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "timeranges"}}, "^display.schedule.ranges must be a list"),
+    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "timeranges", "ranges": [{"from": "07:00", "every": 7}]}},
+     "^display.schedule.ranges every must be 0"),
+    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "timeranges", "ranges": [{"from": "07:00", "every": 0}]}},
+     "^display.schedule.ranges has no range with an interval"),
+    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "timeranges", "ranges": EVERY_5_MIN, "every": 300}}, "takes ranges, order"),
+    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "timeranges", "ranges": EVERY_5_MIN, "order": ["zz"]}}, "names pools \\['zz'\\]"),
+    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "timeranges", "ranges": EVERY_5_MIN, "reshuffle_hours": 0}}, "positive number"),
     ({"pools": {"a": ["a.png"]}, "schedule": {"type": "times", "09:00:00": "a"}, "extra": 1}, "display takes pools and schedule"),
     ("nope", "display needs pools and schedule"),
 ])

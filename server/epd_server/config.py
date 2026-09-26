@@ -95,7 +95,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
 
-from .scheduling import IntervalSchedule, Pools, TimesSchedule, WakeSchedule
+from .scheduling import Pools, TimeRangesSchedule, TimesSchedule, WakeSchedule
+from .timeranges import TimeRanges
 
 
 class ConfigError(ValueError):
@@ -200,9 +201,10 @@ _SCHEDULE_COMMON = {"type", "reshuffle_hours", "seed"}
 def parse_display(config: dict, tz: _tzinfo, default_display: dict | None = None) -> WakeSchedule:
     """The ``display`` block: ``pools`` of images, and a ``schedule`` of one type.
 
-    ``times`` names a pool at each HH:MM:SS; ``interval`` visits the pools in
-    ``order`` every ``every`` seconds. Either may set ``reshuffle_hours`` and
-    ``seed`` for the pools' random starts.
+    ``times`` names a pool at each HH:MM:SS; ``timeranges`` visits the pools
+    in ``order`` at each slot of its ``ranges``, a day of time ranges each
+    with an interval. Either may set ``reshuffle_hours`` and ``seed`` for the
+    pools' random starts.
     """
     raw = get_prop_by_keys(config, "display", default=default_display, required=False)
     if raw is None:
@@ -227,7 +229,7 @@ def parse_display(config: dict, tz: _tzinfo, default_display: dict | None = None
 
     sched = raw.get("schedule")
     if not isinstance(sched, dict) or not sched:
-        raise ConfigError("display.schedule must be a mapping with a type of times or interval")
+        raise ConfigError("display.schedule must be a mapping with a type of times or timeranges")
     kind = sched.get("type")
     hours = sched.get("reshuffle_hours", 3)
     if isinstance(hours, bool) or not isinstance(hours, (int, float)) or hours <= 0:
@@ -243,22 +245,22 @@ def parse_display(config: dict, tz: _tzinfo, default_display: dict | None = None
             if not times:
                 raise ConfigError("display.schedule of type times needs at least one HH:MM:SS: pool entry")
             return TimesSchedule(times, pools, tz)
-        if kind == "interval":
-            extra = sorted(set(sched) - _SCHEDULE_COMMON - {"every", "order"})
+        if kind == "timeranges":
+            extra = sorted(set(sched) - _SCHEDULE_COMMON - {"ranges", "order"})
             if extra:
                 raise ConfigError(
-                    f"display.schedule of type interval takes every, order, reshuffle_hours and seed (got {extra})")
-            every = _positive_int("display.schedule.every", sched.get("every"))
+                    f"display.schedule of type timeranges takes ranges, order, reshuffle_hours and seed (got {extra})")
+            ranges = TimeRanges.from_config(sched.get("ranges"), tz, "display.schedule.ranges")
             order = sched.get("order")
             if order is not None and (not isinstance(order, list) or not all(isinstance(o, str) for o in order)):
                 raise ConfigError("display.schedule.order must be a list of pool names")
-            return IntervalSchedule(every, pools, tz, order=order)
+            return TimeRangesSchedule(ranges, pools, order=order)
     except ValueError as exc:
         if isinstance(exc, ConfigError):
             raise
         msg = str(exc)
         raise ConfigError(msg if msg.startswith("display.") else f"display.schedule: {msg}") from None
-    raise ConfigError(f"display.schedule.type must be times or interval (got {kind!r})")
+    raise ConfigError(f"display.schedule.type must be times or timeranges (got {kind!r})")
 
 
 def parse_server(
