@@ -436,9 +436,9 @@ def test_query_route_is_get_only_and_cannot_shadow_a_page(tmp_path):
 # ---------- time ranges ----------
 
 from epd_server.scheduling import Pools, TimeRangesSchedule  # noqa: E402
-from epd_server.timeranges import TimeRanges, parse_hhmm  # noqa: E402
+from epd_server.timeranges import TimeRanges, Week, parse_hhmm  # noqa: E402
 
-EVERY_5_MIN = TimeRanges([(parse_hhmm("00:00"), 300)], UTC)
+EVERY_5_MIN = Week.every_day(TimeRanges([(parse_hhmm("00:00"), 300)], UTC))
 
 
 def test_timeranges_drive_the_headers_and_the_index(tmp_path):

@@ -96,16 +96,25 @@ def test_times_needs_at_least_one_entry():
 
 # ---------- parse_display: timeranges ----------
 
-EVERY_5_MIN = [{"from": "00:00", "every": 300}]
+ALL_DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+
+def every_day(ranges):
+    return [{"days": ALL_DAYS, "ranges": ranges}]
+
+
+EVERY_5_MIN = every_day([{"from": "00:00", "every": 300}])
 
 
 def test_timeranges_visit_the_pools_in_order():
-    raw = display({"co2": ["a.png", "b.png"], "day": "day.png"}, type="timeranges",
-                  ranges=[{"from": "07:00", "every": 300}, {"from": "23:00", "every": 0}],
+    week = [{"days": ["mon", "tue", "wed", "thu", "fri"],
+             "ranges": [{"from": "07:00", "every": 300}, {"from": "23:00", "every": 0}]},
+            {"days": ["sat", "sun"], "ranges": [{"from": "09:00", "every": 600}]}]
+    raw = display({"co2": ["a.png", "b.png"], "day": "day.png"}, type="timeranges", week=week,
                   reshuffle_hours=2, order=["day", "co2"])
     s = parse_server(raw).schedule
     assert isinstance(s, TimeRangesSchedule)
-    assert s.ranges.describe() == [{"from": "07:00", "every": 300}, {"from": "23:00", "every": 0}]
+    assert s.week.describe() == week
     assert s.order == ["day", "co2"] and s.pools.reshuffle_seconds == 7200
     assert s.pools.pools["day"] == ["day.png"]
     assert s.pages() == {"a.png", "b.png", "day.png"}
@@ -113,7 +122,7 @@ def test_timeranges_visit_the_pools_in_order():
 
 def test_timeranges_order_defaults_to_every_pool():
     s = parse_server(display({"x": ["x.png"], "y": ["y.png"]}, type="timeranges",
-                             ranges=EVERY_5_MIN)).schedule
+                             week=EVERY_5_MIN)).schedule
     assert isinstance(s, TimeRangesSchedule)
     assert s.order == ["x", "y"]
 
@@ -124,14 +133,17 @@ def test_timeranges_order_defaults_to_every_pool():
     ({"pools": {"a": ["a.png"]}}, "display.schedule must be"),
     ({"pools": {"a": ["a.png"]}, "schedule": {"type": "daily"}}, "type must be times or timeranges"),
     ({"pools": {"a": ["a.png"]}, "schedule": {"type": "interval", "every": 300}}, "type must be times or timeranges"),
-    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "timeranges"}}, "^display.schedule.ranges must be a list"),
-    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "timeranges", "ranges": [{"from": "07:00", "every": 7}]}},
-     "^display.schedule.ranges every must be 0"),
-    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "timeranges", "ranges": [{"from": "07:00", "every": 0}]}},
-     "^display.schedule.ranges has no range with an interval"),
-    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "timeranges", "ranges": EVERY_5_MIN, "every": 300}}, "takes ranges, order"),
-    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "timeranges", "ranges": EVERY_5_MIN, "order": ["zz"]}}, "names pools \\['zz'\\]"),
-    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "timeranges", "ranges": EVERY_5_MIN, "reshuffle_hours": 0}}, "positive number"),
+    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "timeranges"}}, "^display.schedule.week must be a list"),
+    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "timeranges",
+                                              "week": every_day([{"from": "07:00", "every": 7}])}},
+     "^display.schedule.week\\[0\\].ranges every must be 0"),
+    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "timeranges",
+                                              "week": every_day([{"from": "07:00", "every": 0}])}},
+     "^display.schedule.week has no range with an interval"),
+    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "timeranges", "ranges": EVERY_5_MIN}}, "takes week, order"),
+    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "timeranges", "week": EVERY_5_MIN, "every": 300}}, "takes week, order"),
+    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "timeranges", "week": EVERY_5_MIN, "order": ["zz"]}}, "names pools \\['zz'\\]"),
+    ({"pools": {"a": ["a.png"]}, "schedule": {"type": "timeranges", "week": EVERY_5_MIN, "reshuffle_hours": 0}}, "positive number"),
     ({"pools": {"a": ["a.png"]}, "schedule": {"type": "times", "09:00:00": "a"}, "extra": 1}, "display takes pools and schedule"),
     ("nope", "display needs pools and schedule"),
 ])

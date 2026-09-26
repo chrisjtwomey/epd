@@ -89,7 +89,7 @@ import random
 from datetime import date, time
 from typing import Mapping, Sequence
 
-from .timeranges import TimeRanges
+from .timeranges import Week
 
 
 class Pools:
@@ -193,28 +193,28 @@ class TimesSchedule(WakeSchedule):
 
 
 class TimeRangesSchedule(WakeSchedule):
-    """A page at each slot of a day of time ranges, visiting the pools in
+    """A page at each slot of a week of time ranges, visiting the pools in
     ``order``.
 
-    Slots are numbered by the local day and their place in it, so the pools
-    are read in turn through the day and on into the next. A day the clock
+    Slots are numbered by the week, the slots of the days before theirs in
+    it, and their place in their day, so the pools are read in turn through
+    the day and on into the next, whatever each day holds. A day the clock
     changes has a few slots more or fewer, and the turn slips by as many.
     """
 
-    def __init__(self, ranges: TimeRanges, pools: Pools, order: Sequence[str] | None = None):
-        per_day = ranges.slots_a_day()
-        if not per_day:
-            raise ValueError(f"{ranges.name} has no range with an interval, so the page "
+    def __init__(self, week: Week, pools: Pools, order: Sequence[str] | None = None):
+        if not week.slots_a_week():
+            raise ValueError(f"{week.name} has no range with an interval, so the page "
                              f"would never change")
         order = list(order) if order else list(pools.names)
         unknown = sorted(set(order) - set(pools.names))
         if unknown:
             raise ValueError(f"order names pools {unknown} that display.pools does not define")
-        self.ranges = ranges
+        self.week = week
         self.pools = pools
-        self.tz = ranges.tz
+        self.tz = week.tz
         self.order = order
-        self._per_day = per_day
+        self._before = [sum(week.slots_on(d) for d in range(day)) for day in range(7)]
         self._day: tuple[date, list[int]] | None = None
 
     def _slots_on(self, day: date) -> list[int]:
@@ -222,13 +222,16 @@ class TimeRangesSchedule(WakeSchedule):
         if self._day is None or self._day[0] != day:
             start = int(datetime.combine(day, time(0), tzinfo=self.tz).timestamp())
             end = int(datetime.combine(day + timedelta(days=1), time(0), tzinfo=self.tz).timestamp())
-            self._day = (day, [m for m in range(start, end, 60) if self.ranges.is_slot(m)])
+            self._day = (day, [m for m in range(start, end, 60) if self.week.is_slot(m)])
         return self._day[1]
 
     def page_for_slot(self, slot: int) -> str:
         """The page for the slot at epoch seconds ``slot``."""
         day = datetime.fromtimestamp(slot, self.tz).date()
-        n = day.toordinal() * self._per_day + self._slots_on(day).index(slot)
+        # date(1, 1, 1), ordinal 1, is a Monday.
+        weeks = (day.toordinal() - 1) // 7
+        n = (weeks * self.week.slots_a_week() + self._before[day.weekday()]
+             + self._slots_on(day).index(slot))
         name = self.order[n % len(self.order)]
         return self.pools.page(name, n // len(self.order), slot)
 
@@ -236,8 +239,8 @@ class TimeRangesSchedule(WakeSchedule):
         return now if now is not None else datetime.now(tz=self.tz)
 
     def _slot_after(self, t: float) -> int:
-        slot = self.ranges.next_slot(t)
-        assert slot is not None, "a range with an interval has a slot within two days"
+        slot = self.week.next_slot(t)
+        assert slot is not None, "a week with a range with an interval has a slot within it"
         return slot
 
     def next_wake(self, now=None):
@@ -253,5 +256,5 @@ class TimeRangesSchedule(WakeSchedule):
         return self.pools.pages(set(self.order))
 
     def describe(self):
-        return {"type": "timeranges", "ranges": self.ranges.describe(), "order": list(self.order),
+        return {"type": "timeranges", "week": self.week.describe(), "order": list(self.order),
                 "pools": self.pools.describe()}

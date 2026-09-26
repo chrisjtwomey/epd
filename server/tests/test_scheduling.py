@@ -166,7 +166,7 @@ def test_validate_time_list_rejects_malformed(bad):
 # ---------- pools and schedule objects ----------
 
 from epd_server.scheduling import Pools, TimeRangesSchedule, TimesSchedule  # noqa: E402
-from epd_server.timeranges import TimeRanges, parse_hhmm  # noqa: E402
+from epd_server.timeranges import TimeRanges, Week, parse_hhmm  # noqa: E402
 
 DUB = ZoneInfo("Europe/Dublin")
 POOL_LISTS = {"co2": ["breathe.png", "co2-trace.png", "co2-delta.png"],
@@ -227,8 +227,16 @@ def test_times_schedule_rejects_unknown_pools_and_bad_times():
         TimesSchedule([], POOLS, DUB)
 
 
+def day(*pairs):
+    return TimeRanges([(parse_hhmm(t), every) for t, every in pairs], DUB, "display.schedule.week")
+
+
 def ranges(*pairs):
-    return TimeRanges([(parse_hhmm(t), every) for t, every in pairs], DUB, "display.schedule.ranges")
+    """A week whose days all have these ranges."""
+    return Week.every_day(day(*pairs))
+
+
+WEEKDAYS, WEEKEND = frozenset(range(5)), frozenset({5, 6})
 
 
 def pool_of(page):
@@ -255,7 +263,9 @@ def test_timeranges_visit_pools_in_order_each_on_its_own_count():
         start = pool.index(seen[0])
         assert seen == [pool[(start + k) % len(pool)] for k in range(len(seen))], name
     assert it.pages() == POOLS.pages()
-    assert it.describe() == {"type": "timeranges", "ranges": [{"from": "00:00", "every": 300}],
+    assert it.describe() == {"type": "timeranges",
+                             "week": [{"days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+                                       "ranges": [{"from": "00:00", "every": 300}]}],
                              "order": ["co2", "air", "day"], "pools": POOL_LISTS}
 
 
@@ -297,5 +307,24 @@ def test_timeranges_order_can_leave_a_pool_out_and_is_checked():
 
 
 def test_timeranges_with_every_range_off_are_refused():
-    with pytest.raises(ValueError, match="display.schedule.ranges has no range with an interval"):
+    with pytest.raises(ValueError, match="display.schedule.week has no range with an interval"):
         TimeRangesSchedule(ranges(("00:00", 0), ("12:00", 0)), POOLS)
+
+
+def test_the_turn_runs_on_from_a_day_into_one_with_other_ranges():
+    week = Week([(WEEKDAYS, day(("00:00", 3600))), (WEEKEND, day(("00:00", 7200)))], DUB)
+    it = TimeRangesSchedule(week, POOLS, order=["co2", "air", "day"])
+    for start in (datetime(2026, 9, 4, 21, 30, tzinfo=DUB),     # Friday into Saturday
+                  datetime(2026, 9, 6, 19, 30, tzinfo=DUB)):    # Sunday into Monday
+        t, names = start, []
+        for _ in range(6):
+            t, page = it.next_wake(t)
+            names.append(pool_of(page))
+        assert names == in_turn(it.order, names[0], 6), start
+
+
+def test_a_weekend_that_is_off_waits_for_monday():
+    week = Week([(WEEKDAYS, day(("07:00", 1800), ("23:00", 0))), (WEEKEND, day(("00:00", 0)))], DUB)
+    it = TimeRangesSchedule(week, POOLS)
+    assert it.next_wake(datetime(2026, 9, 4, 23, 30, tzinfo=DUB))[0] == \
+        datetime(2026, 9, 7, 7, 0, tzinfo=DUB)

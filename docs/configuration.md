@@ -152,21 +152,32 @@ debug: false
 
 A **pool** is a list of images shown in turn; a pool of one is just that
 image. A `times` schedule names a pool at each time of day. A `timeranges`
-schedule visits the pools in `order` at each slot of its `ranges` instead:
+schedule visits the pools in `order` at each slot of its `week` instead:
+groups of days, each with its own time ranges.
 
 ```yaml
   schedule:
     type: timeranges
-    ranges:                    # each runs until the next starts, the last past midnight
-      - {from: "07:00", every: 300}
-      - {from: "23:00", every: 0}      # 0: no page changes until 07:00
+    week:
+      - days: [mon, tue, wed, thu, fri]
+        ranges:                # each runs until the next starts, the last past midnight
+          - {from: "07:00", every: 300}
+          - {from: "23:00", every: 0}  # 0: no page changes until 07:00
+      - days: [sat, sun]
+        ranges:
+          - {from: "09:00", every: 600}
     order: [today, hourly]     # default: every pool, as listed
 ```
 
+Each day of the week is in exactly one group; one group of all seven is the
+same schedule every day. A day stands alone: before its first start, its own
+last range runs, not the day before's, so a day's ranges say all that
+happens on it.
+
 A range's slots fall on the wall clock where its interval, in whole minutes,
 divides the seconds past midnight: every 300 gives :00, :05, :10 and so on.
-One range from 00:00 is a page every so often all day. There are at most 8
-ranges, and one of them must have an interval.
+One range from 00:00 is a page every so often all day. A group has at most
+8 ranges, and one range in the week must have an interval.
 
 `client.firmware` sits under `client` because every key in it describes the
 panel rather than the server. A relative `dir` is resolved against the

@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from epd_server.timeranges import MAX_RANGES, TimeRanges, in_window, parse_hhmm
+from epd_server.timeranges import MAX_RANGES, TimeRanges, Week, in_window, parse_hhmm
 
 DUBLIN = ZoneInfo("Europe/Dublin")
 
@@ -186,3 +186,81 @@ def test_the_next_slot_is_the_first_after_a_time():
 def test_a_day_without_a_clock_change_has_its_slots_counted():
     assert clock().slots_a_day() == 12 + 18 * 12   # 01:00-06:30 half-hourly, then every 5 min
     assert clock(("00:00", 0)).slots_a_day() == 0
+
+
+# ---------- a week ----------
+
+WEEKDAYS, WEEKEND = frozenset(range(5)), frozenset({5, 6})
+
+
+def week(weekdays, weekend):
+    """Mon-Fri with ``weekdays`` and Sat-Sun with ``weekend``, each ``("HH:MM", every)`` pairs."""
+    return Week([(WEEKDAYS, clock(*weekdays)), (WEEKEND, clock(*weekend))], DUBLIN, "sync.week")
+
+
+def test_each_day_has_its_own_groups_ranges():
+    w = week([("00:00", 300)], [("00:00", 1800)])
+    assert next_slot(w, "2026-06-19T12:03:00") == "06-19 12:05:00"    # Friday
+    assert next_slot(w, "2026-06-20T12:03:00") == "06-20 12:30:00"    # Saturday
+
+
+def test_before_its_first_start_a_day_runs_its_own_last_range():
+    # Friday is off from 23:00. Saturday's last range, from 20:00, is every 10
+    # minutes, so Saturday up to its first start at 08:00 is too, not off as
+    # Friday's last range is.
+    w = week([("07:00", 300), ("23:00", 0)], [("08:00", 0), ("20:00", 600)])
+    assert next_slot(w, "2026-06-19T23:30:00") == "06-20 00:00:00"
+    assert next_slot(w, "2026-06-20T07:55:00") == "06-20 20:00:00"
+
+
+def test_a_weekend_without_slots_is_passed_over():
+    w = week([("07:00", 300), ("23:00", 0)], [("00:00", 0)])
+    assert next_slot(w, "2026-06-19T23:30:00") == "06-22 07:00:00"
+    assert w.slot_before(at("2026-06-22T06:00:00")) == at("2026-06-19T22:55:00")
+
+
+def test_a_week_with_no_slot_at_all_has_no_next_slot():
+    w = week([("00:00", 0)], [("00:00", 0)])
+    assert (w.next_slot(at("2026-06-19T12:00:00")), w.slot_before(at("2026-06-19T12:00:00"))) \
+        == (None, None)
+
+
+def test_a_week_counts_the_slots_of_each_day():
+    w = week([("00:00", 3600)], [("00:00", 7200)])
+    assert [w.slots_on(d) for d in range(7)] == [24] * 5 + [12] * 2
+    assert w.slots_a_week() == 144
+
+
+def test_every_day_is_one_group_of_all_seven():
+    w = Week.every_day(clock(("00:00", 300)))
+    assert w.describe() == [{"days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+                             "ranges": [{"from": "00:00", "every": 300}]}]
+
+
+def test_a_week_reads_its_groups_from_config_and_describes_them_the_same():
+    value = [{"days": ["sat", "sun"], "ranges": [{"from": "09:00", "every": 600}]},
+             {"days": ["mon", "tue", "wed", "thu", "fri"],
+              "ranges": [{"from": "07:00", "every": 300}, {"from": "23:00", "every": 0}]}]
+    w = Week.from_config(value, DUBLIN, "sync.week")
+    assert w.describe() == value
+    assert w.on(5).describe() == [{"from": "09:00", "every": 600}]
+
+
+@pytest.mark.parametrize("value, words", [
+    ([], "sync.week needs at least one group of days"),
+    ("mon", "sync.week must be a list of groups"),
+    ([{"days": ["mon"]}], "each group has exactly days and ranges"),
+    ([{"days": ["monday"], "ranges": [{"from": "00:00", "every": 60}]}],
+     "sync.week\\[0\\].days must be a list of mon, tue"),
+    ([{"days": ["mon", "mon"], "ranges": [{"from": "00:00", "every": 60}]}], "names a day twice"),
+    ([{"days": [], "ranges": [{"from": "00:00", "every": 60}]}], "has a group with no days"),
+    ([{"days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"], "ranges": [{"from": "00:00", "every": 60}]},
+      {"days": ["sun"], "ranges": [{"from": "00:00", "every": 60}]}], "has sun in two groups"),
+    ([{"days": ["mon", "tue", "wed", "thu", "fri"], "ranges": [{"from": "00:00", "every": 60}]}],
+     "has no group for sat, sun; each day needs one"),
+    ([{"days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"], "ranges": [{"from": "00:00", "every": 7}]}],
+     "sync.week\\[0\\].ranges every must be 0"),
+])
+def test_a_week_that_cannot_work_is_refused(value, words):
+    with pytest.raises(ValueError, match=words):
+        Week.from_config(value, DUBLIN, "sync.week")

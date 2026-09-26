@@ -96,7 +96,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import yaml
 
 from .scheduling import Pools, TimeRangesSchedule, TimesSchedule, WakeSchedule
-from .timeranges import TimeRanges
+from .timeranges import Week
 
 
 class ConfigError(ValueError):
@@ -202,8 +202,8 @@ def parse_display(config: dict, tz: _tzinfo, default_display: dict | None = None
     """The ``display`` block: ``pools`` of images, and a ``schedule`` of one type.
 
     ``times`` names a pool at each HH:MM:SS; ``timeranges`` visits the pools
-    in ``order`` at each slot of its ``ranges``, a day of time ranges each
-    with an interval. Either may set ``reshuffle_hours`` and ``seed`` for the
+    in ``order`` at each slot of its ``week``, groups of days each with a day
+    of time ranges, each range with an interval. Either may set ``reshuffle_hours`` and ``seed`` for the
     pools' random starts.
     """
     raw = get_prop_by_keys(config, "display", default=default_display, required=False)
@@ -246,15 +246,15 @@ def parse_display(config: dict, tz: _tzinfo, default_display: dict | None = None
                 raise ConfigError("display.schedule of type times needs at least one HH:MM:SS: pool entry")
             return TimesSchedule(times, pools, tz)
         if kind == "timeranges":
-            extra = sorted(set(sched) - _SCHEDULE_COMMON - {"ranges", "order"})
+            extra = sorted(set(sched) - _SCHEDULE_COMMON - {"week", "order"})
             if extra:
                 raise ConfigError(
-                    f"display.schedule of type timeranges takes ranges, order, reshuffle_hours and seed (got {extra})")
-            ranges = TimeRanges.from_config(sched.get("ranges"), tz, "display.schedule.ranges")
+                    f"display.schedule of type timeranges takes week, order, reshuffle_hours and seed (got {extra})")
+            week = Week.from_config(sched.get("week"), tz, "display.schedule.week")
             order = sched.get("order")
             if order is not None and (not isinstance(order, list) or not all(isinstance(o, str) for o in order)):
                 raise ConfigError("display.schedule.order must be a list of pool names")
-            return TimeRangesSchedule(ranges, pools, order=order)
+            return TimeRangesSchedule(week, pools, order=order)
     except ValueError as exc:
         if isinstance(exc, ConfigError):
             raise

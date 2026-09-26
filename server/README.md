@@ -40,7 +40,7 @@ wherever this is installed; add one to your Dockerfile.
 | `epd_server.render` | `Renderer` protocol; `ChromiumRenderer` (headless, via Selenium) is the default |
 | `epd_server.quantise` | `Quantiser` protocol; `GreyscaleQuantiser(levels=4)` default, `PaletteQuantiser` for colour panels, `IdentityQuantiser` for none |
 | `epd_server.scheduling` | `Pools`, `TimesSchedule`, `TimeRangesSchedule` — what shows and when; `next_wake`, `next_regen`, `seconds_until` underneath |
-| `epd_server.timeranges` | `TimeRanges` — a day of time ranges, each with an interval, and the slots in them, DST-correct |
+| `epd_server.timeranges` | `TimeRanges` — a day of time ranges, each with an interval; `Week` — groups of days, each with its day of ranges; the slots in them, DST-correct |
 | `epd_server.firmware` | `FirmwareStore` — a directory of `<version>.bin`; `ReleaseWatcher` — fill it from a repository's releases; `client_from_headers`, `parse_user_agent`, `is_clean_tag`, `update_applies` — which board an image is an update for |
 | `epd_server.mqtt` | `client_log_subscriber` — relay the client's MQTT log topic into Python logging |
 | `epd_server.source` | `DataSource` — named, lazily fetched datasets; `StaticSource` for constants; `CompositeSource` to merge; `IngestSource` — what a board posted, from a `ReadingsStore` |
@@ -155,9 +155,11 @@ display:
     "20:00:00": evening
   # schedule:
   #   type: timeranges           # or a page at each slot of ranges round the clock,
-  #   ranges:                    # each running until the next starts; every: 0 is off
-  #     - {from: "07:00", every: 300}
-  #     - {from: "23:00", every: 0}
+  #   week:                      # for each group of days, each range running until
+  #     - days: [mon, tue, wed, thu, fri, sat, sun]   # the next starts; every: 0 is off
+  #       ranges:
+  #         - {from: "07:00", every: 300}
+  #         - {from: "23:00", every: 0}
   #   order: [morning, evening]  # visited in turn; default: every pool, as listed
   #   reshuffle_hours: 3         # each pool's random start moves this often
 image:
