@@ -31,11 +31,11 @@ struct PageResponse {
 
   @param ssid the network SSID.
   @param pass the network password.
-  @param retries the number of connection attempts to make before returning an
-  error.
+  @param retries how long to wait for the connection: one second, and one
+  more for each retry.
   @returns the esp_err_t code:
   - ESP_OK if successful.
-  - ESP_ERR_TIMEOUT if number of retries is exceeded without success.
+  - ESP_ERR_TIMEOUT if the wait ends without a connection.
 */
 esp_err_t configureWiFi(const char* ssid, const char* pass, int retries);
 

@@ -30,19 +30,14 @@ esp_err_t configureWiFi(const char* ssid, const char* pass, int retries) {
     WiFi.begin(ssid, pass);
     logf(LOG_INFO, "connecting to WiFi SSID %s...", ssid);
 
-    // Retry until success or give up
-    int attempts = 0;
-    while (attempts++ <= retries && WiFi.status() != WL_CONNECTED) {
-        logf(LOG_DEBUG, "connection attempt #%d...", attempts);
-        delay(1000);
+    const uint32_t startMs = millis();
+    const uint32_t waitMs = (uint32_t)(retries + 1) * 1000;
+    while (WiFi.status() != WL_CONNECTED) {
+        if (millis() - startMs >= waitMs) return ESP_ERR_TIMEOUT;
+        delay(100);
     }
-
-    // If still not connected, error with timeout.
-    if (WiFi.status() != WL_CONNECTED) {
-        return ESP_ERR_TIMEOUT;
-    }
-    // Print the IP address
-    logf(LOG_DEBUG, "IP address: %s", WiFi.localIP().toString());
+    logf(LOG_INFO, "wifi connected in %lu ms: %s", (unsigned long)(millis() - startMs),
+         WiFi.localIP().toString().c_str());
 
     return ESP_OK;
 }
