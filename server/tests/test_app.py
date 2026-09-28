@@ -5,7 +5,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -14,6 +14,7 @@ from epd_server.app import (FIRST_RENDER_RETRY_AFTER_S, DisplayServer, ServerThr
                             align_process_timezone)
 from epd_server.config import MqttSettings
 from epd_server.logs import LogStore
+from epd_server.posix_tz import posix_tz
 from epd_server.source import StaticSource
 
 from .test_pipeline import RecordingPage
@@ -22,7 +23,7 @@ UTC = ZoneInfo("UTC")
 PNG = b"\x89PNG\r\n\x1a\n"
 
 
-def make(tmp_path, schedule=None, pages=None, **kw):
+def make(tmp_path, schedule=None, pages=None, tz=UTC, **kw):
     pages = pages or [RecordingPage("today", ("x",)), RecordingPage("hourly", ("x",))]
     for p in pages:
         p.png_dir = str(tmp_path)
@@ -31,7 +32,7 @@ def make(tmp_path, schedule=None, pages=None, **kw):
         pages=pages,
         source=StaticSource(x=1),
         schedule=schedule if schedule is not None else [("09:00:00", "today.png"), ("15:00:00", "hourly.png")],
-        tz=UTC,
+        tz=tz,
         **kw,
     )
 
@@ -302,7 +303,6 @@ def test_align_process_timezone_sets_tz_for_iana_zones(monkeypatch):
 
 
 def test_align_process_timezone_ignores_zones_without_a_key(monkeypatch):
-    from datetime import timedelta, timezone
     monkeypatch.setenv("TZ", "UTC")
     align_process_timezone(timezone(timedelta(hours=2)))
     assert os.environ["TZ"] == "UTC"
@@ -704,6 +704,7 @@ def test_a_product_prefix_renames_every_header(tmp_path):
     assert "Canary-Next-URL" in rsp.headers
     assert "Canary-Server-Version" in rsp.headers
     assert "Canary-Server-Epoch-Seconds" in rsp.headers
+    assert "Canary-Server-Timezone" in rsp.headers
     assert "EPD-Next-Display-Refresh-Seconds" not in rsp.headers
     assert "EPD-Server-Version" not in rsp.headers
 
@@ -714,6 +715,20 @@ def test_the_server_sends_its_clock_on_every_response(tmp_path):
     for path in ("/", "/today.png"):
         sent = int(client.get(path).headers["EPD-Server-Epoch-Seconds"])
         assert abs(sent - time.time()) < 5
+
+
+def test_the_server_sends_its_zone_on_every_response(tmp_path):
+    dublin = ZoneInfo("Europe/Dublin")
+    client = client_for(tmp_path, tz=dublin)
+
+    for path in ("/", "/today.png"):
+        assert client.get(path).headers["EPD-Server-Timezone"] == posix_tz(dublin)
+
+
+def test_a_zone_without_a_name_sends_no_zone(tmp_path):
+    client = client_for(tmp_path, tz=timezone(timedelta(hours=1)))
+
+    assert "EPD-Server-Timezone" not in client.get("/today.png").headers
 
 
 def test_the_sensor_poll_goes_on_every_response_when_the_project_sets_one(tmp_path):

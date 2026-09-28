@@ -20,6 +20,8 @@ builds the names from it::
       EPD-Next-URL: http://host/<the page to fetch at that wake>
       EPD-Server-Version: <version>               this server, on every response
       EPD-Server-Epoch-Seconds: <UTC seconds>     its clock, on every response
+      EPD-Server-Timezone: <POSIX TZ string>      its zone, on every response, when
+                                                  the zone has an IANA name
       EPD-Server-Firmware-Version: <version>      on any response, when an update applies
       EPD-Server-Firmware-URL: http://host/firmware.bin
       EPD-Next-Sensor-Poll-Seconds: <seconds>     when the board should post or sync
@@ -66,6 +68,7 @@ from .logs import LogStore
 from .mqtt import client_log_subscriber
 from .page import Page
 from .pipeline import regenerate as _regenerate
+from .posix_tz import posix_tz
 from .scheduling import Pools, Schedule, TimesSchedule, WakeSchedule, seconds_until
 from .source import DataSource
 
@@ -127,7 +130,8 @@ class DisplayServer:
             convenience, ``(HH:MM:SS, png_filename)`` pairs, which become a
             times schedule of one-image pools. Every filename it can name
             must belong to one of ``pages``.
-        tz: the timezone the schedule times are in.
+        tz: the timezone the schedule times are in. When it has an IANA name,
+            every response carries it as a POSIX TZ string.
         regen_lead_seconds: regenerate this long before each wake.
         host, port: where to listen.
         mqtt: if given and ``enabled``, relay every board's log topic into
@@ -192,6 +196,7 @@ class DisplayServer:
         self.pages = list(pages)
         self.source = source
         self.tz = tz
+        self.posix_tz = posix_tz(tz)
         if isinstance(schedule, WakeSchedule):
             self.schedule = schedule
         else:
@@ -476,14 +481,17 @@ class DisplayServer:
                      version or "of no stated version", request.path)
 
     def _add_server_headers(self, rsp):
-        """Stamp every response with who is serving it and when.
+        """Stamp every response with who is serving it, and when and where.
 
-        The clock goes out on every response so a board without one of its
-        own can keep time from the server it already has to reach.
+        The clock and the zone go out on every response so a board without
+        one of its own can keep local time from the server it already has to
+        reach.
         """
         now = time.time()
         rsp.headers[self.wire.server_version] = self.server_version
         rsp.headers[self.wire.server_epoch] = str(int(now))
+        if self.posix_tz:
+            rsp.headers[self.wire.server_timezone] = self.posix_tz
         if self.sensor_poll is not None:
             name = (request.headers.get(self.wire.device) or "").strip() or None
             seconds = self.sensor_poll(now, name)

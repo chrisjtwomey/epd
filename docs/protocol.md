@@ -81,16 +81,18 @@ keeps it.
 
 ## Which server answered, and when
 
-Every response carries the server's version and its clock:
+Every response carries the server's version, its clock and its time zone:
 
 ```
 EPD-Server-Version: 0.1.0
 EPD-Server-Epoch-Seconds: 1758234000
+EPD-Server-Timezone: IST-1GMT0,M10.5.0,M3.5.0/1
 ```
 
 The version is whatever the project passes as `server_version`, and defaults
-to the version of the `epd_server` package. Both headers are unconditional,
-so `curl -I` against any route tells you what a deployment is running.
+to the version of the `epd_server` package. The version and the clock are
+unconditional, so `curl -I` against any route tells you what a deployment is
+running.
 
 The clock is UTC seconds at the moment the server answered. A board without
 a clock of its own can keep time from it, which is one fewer service to
@@ -98,6 +100,15 @@ reach than NTP and, more to the point, guarantees the two agree about when a
 schedule falls due. Hold it as an offset from the board's own uptime rather
 than setting a clock from it, so a correction can never send timestamps
 backwards.
+
+The time zone is `server.timezone` as a POSIX TZ string, the form a C
+library's `TZ` takes, so a board shows local time with no lookup of its own.
+It is the footer of the zone's file in the server's zone database, sent as
+written. Two databases can write one zone two ways: Debian writes
+Europe/Dublin as above, with winter as a negative daylight shift, and macOS
+as `GMT0IST,M3.5.0/1,M10.5.0`. Both give the same local time to a reader of
+the full POSIX form. A server whose zone has no IANA name, such as a fixed
+offset, sends no time zone.
 
 ## When a board posts or syncs next
 

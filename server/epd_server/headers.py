@@ -22,6 +22,7 @@ class Wire:
         self.device_version = f"{cleaned}-Device-Version"
         self.server_version = f"{cleaned}-Server-Version"
         self.server_epoch = f"{cleaned}-Server-Epoch-Seconds"
+        self.server_timezone = f"{cleaned}-Server-Timezone"
         self.next_refresh = f"{cleaned}-Next-Display-Refresh-Seconds"
         self.next_sensor_poll = f"{cleaned}-Next-Sensor-Poll-Seconds"
         self.next_url = f"{cleaned}-Next-URL"
