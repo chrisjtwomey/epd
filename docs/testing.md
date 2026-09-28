@@ -12,7 +12,7 @@ You can run all of it on your laptop. No board, no cable, no network.
 | | |
 |---|---|
 | `include/MockBoard.h` | An `IBoard` that records what it was asked to do instead of driving a panel. Assert on the calls. |
-| `test_support/` | Stub headers for `Arduino.h`, `WiFi.h`, `SPIFFS.h`, `ezTime.h` and the ESP-IDF pieces, so your code compiles for the host. |
+| `test_support/` | Stub headers for `Arduino.h`, `WiFi.h`, `SPIFFS.h` and the ESP-IDF pieces, so your code compiles for the host. |
 
 ## Setting it up
 

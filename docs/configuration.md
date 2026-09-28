@@ -41,7 +41,6 @@ pipeline build from that.
 | `serverDefaultRefreshSeconds` | How long to sleep when the server has not said — a cold boot, or every attempt failed. |
 | `wifiSSID`, `wifiPass` | Your network. |
 | `wifiRetries` | How many attempts before giving up on WiFi for this wake. |
-| `ntpHost`, `ntpTimezone` | The clock. The timezone is an IANA name, e.g. `Europe/Dublin`. |
 | `mqttLogger*` | Optional: publish the panel's log to an MQTT broker, so you can read it without a cable. `mqttLoggerEnabled = false` switches all of it off. |
 
 `serverURL`, `wifiSSID`, `wifiPass` and the whole `mqttLogger` block are also
@@ -53,10 +52,12 @@ deciding for all of them. [Updates over the air](ota.md) explains why.
 
 ## Panel: settings on an SD card
 
-Build with `-DUSE_SDCARD` and call `applySdConfig(&cfg)` after `loadConfig()`
-in your `setup()`. The panel then reads `/config.yaml` from the root of its
-SD card, and anything the file sets overrides the compiled value. One build
-then serves several panels.
+Build with `-DUSE_SDCARD` for a panel that has a card, and call
+`applySdConfig(&cfg)` after `loadConfig()` in your `setup()`. The panel then
+reads `/config.yaml` from the root of its SD card, and anything the file sets
+overrides the compiled value. One build then serves several panels. Leave the
+flag out for a panel without a card: looking for one costs about two seconds
+at every wake.
 
 The file names its settings differently from `defaults.cpp`, in groups:
 
@@ -69,9 +70,6 @@ wifi:
   ssid: your-network
   pass: your-password
   retries: 10
-ntp:
-  host: pool.ntp.org
-  timezone: Europe/Dublin
 mqtt_logger:
   enabled: false
   broker: localhost
@@ -81,12 +79,12 @@ mqtt_logger:
   retries: 3
 ```
 
-The five values under `server.url`, `wifi` and `ntp` are all required; the
+The three values `server.url`, `wifi.ssid` and `wifi.pass` are required; the
 file is ignored with a warning if any is missing. The rest fall back to the
 compiled value one key at a time.
 
 The SD path needs two more libraries, which are not dependencies of
-EpdClient because the card is optional:
+EpdClient because only a build with the flag uses them:
 
 ```ini
 lib_deps =
@@ -97,8 +95,8 @@ lib_deps =
 ```
 
 A missing card, or a card with no `config.yaml`, is not an error: the panel
-logs it and carries on with its compiled settings. So the same build works
-with and without a card.
+logs a warning and carries on with its compiled settings, so a panel that
+loses its card still starts.
 
 ## Server: `config.yaml`
 

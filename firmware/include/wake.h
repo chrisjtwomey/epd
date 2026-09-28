@@ -20,7 +20,8 @@
 */
 
 /**
-  Bring the board up: serial, panel, rotation, and the clock from the RTC.
+  Bring the board up: serial, panel, rotation, and the clock from the RTC,
+  in the time zone the server last sent.
 
   The banner is left to the caller, which knows what to say. So is the image
   cache, which costs a filesystem and only earns it on a board that draws
@@ -35,14 +36,22 @@ void logWakeReason();
 int readBatteryPercent();
 
 /**
-  Connect to the network, set the clock from NTP, and start remote logging.
+  Connect to the network and start remote logging.
 
-  Only WiFi is worth giving up for. A clock left on the RTC, or a broker that
-  will not answer, are warnings: the panel can still be drawn.
+  Only WiFi is worth giving up for. A broker that will not answer is a
+  warning: the panel can still be drawn.
 
   @returns ESP_OK, or ESP_ERR_TIMEOUT when WiFi did not connect.
 */
 esp_err_t connectNetwork(const ClientConfig& cfg);
+
+/**
+  Set the clock, the time zone and the RTC from what the server sent.
+
+  fetchPage() does it for every page. A board that also posts calls it with
+  that response too.
+*/
+void keepServerTime(const PageResponse& rsp);
 
 /** One page, downloaded. ``data`` is the caller's to free. */
 struct PageFetch {
@@ -55,7 +64,8 @@ struct PageFetch {
   Download a page, trying again up to ``retries`` further times.
 
   @param out on entry, ``length`` is the size to expect when the server sends
-  no Content-Length; on success, the buffer and what the server said.
+  no Content-Length; on success, the buffer and what the server said, whose
+  clock and time zone are then the board's.
   @param errMsg set to what to put on the panel when this returns false.
   @returns true when a page was downloaded.
 */

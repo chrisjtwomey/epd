@@ -33,7 +33,7 @@
 #include "error_utils.h"   // esp_err_t values this library adds
 #include "file_utils.h"    // write a downloaded page to the card
 #include "log_utils.h"     // log, logf, and the MQTT relay
-#include "time_utils.h"    // the clock, from NTP or the RTC
+#include "time_utils.h"    // the clock and time zone, from the server or the RTC
 #include "user_agent.h"    // how this board introduces itself
 #include "version.h"       // CLIENT_NAME, CLIENT_VERSION
 

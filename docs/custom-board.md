@@ -62,15 +62,16 @@ These mirror the [Adafruit GFX](https://github.com/adafruit/Adafruit-GFX-Library
 ### RTC
 
 The firmware relies entirely on the hardware RTC for deep-sleep scheduling.
-No NTP math or timezone awareness is required on the client — the server
+No NTP or timezone arithmetic is required on the client — the server
 sends an `EPD-Next-Display-Refresh-Seconds` header and the client simply adds that
-offset to the current epoch when setting the alarm.
+offset to the current epoch when setting the alarm. The RTC holds UTC, set
+from the server's clock with each page.
 
 | Method | Notes |
 |---|---|
 | `rtcGetData()` | Read hardware RTC registers into memory. Called once at startup. |
 | `rtcGetEpoch()` | Return the current Unix timestamp held in the RTC. |
-| `rtcSetEpoch(epoch)` | Write `epoch` to the RTC. Called after an NTP sync so the RTC stays accurate across deep sleep. |
+| `rtcSetEpoch(epoch)` | Write `epoch` to the RTC. Called with the server's clock, from `keepServerTime()`, so the RTC stays accurate across deep sleep. |
 | `rtcClearAlarmFlag()` | Clear any pending alarm interrupt flag (called on `ESP_SLEEP_WAKEUP_EXT0`). |
 | `rtcSetAlarmEpoch(epoch)` | Program the RTC alarm to fire at `epoch`. All alarm-match mode details are encapsulated inside the implementation. |
 | `enableWakeOnRtcAlarm()` | Arm the deep-sleep wake source the RTC alarm drives. The alarm reaches the SoC on a board-specific pin, so the pin and wake mode belong here. `InkplateBoard` calls `esp_sleep_enable_ext0_wakeup(GPIO_NUM_39, 0)`. |

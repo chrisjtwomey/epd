@@ -61,7 +61,7 @@ void test_nothing_is_written_without_a_buffer(void) {
     TEST_ASSERT_EQUAL_UINT(0, formatLog(nullptr, 16, "INFO - ", "hello", args));
 }
 
-// ezTime's RFC 3339 form, the longest a stamp gets.
+// RFC 3339 local time, the longest a stamp gets.
 static const char* kStamp = "2026-09-22T09:27:36+01:00";
 
 void test_the_prefix_has_the_time_and_the_level(void) {

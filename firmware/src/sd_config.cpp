@@ -34,15 +34,12 @@ static void readCard(ClientConfig* cfg) {
 
     JsonObject serverCfg = doc["server"];
     JsonObject wifiCfg = doc["wifi"];
-    JsonObject ntpCfg = doc["ntp"];
 
     const char* cfgServerURL = serverCfg["url"];
     const char* cfgWifiSSID = wifiCfg["ssid"];
     const char* cfgWifiPass = wifiCfg["pass"];
-    const char* cfgNtpHost = ntpCfg["host"];
-    const char* cfgNtpTimezone = ntpCfg["timezone"];
 
-    if (!cfgServerURL || !cfgWifiSSID || !cfgWifiPass || !cfgNtpHost || !cfgNtpTimezone) {
+    if (!cfgServerURL || !cfgWifiSSID || !cfgWifiPass) {
         log(LOG_WARNING, "config file is missing required keys");
         return;
     }
@@ -52,8 +49,6 @@ static void readCard(ClientConfig* cfg) {
     static String sdServerURL;
     static String sdWifiSSID;
     static String sdWifiPass;
-    static String sdNtpHost;
-    static String sdNtpTimezone;
     static String sdMqttBroker;
     static String sdMqttClientID;
     static String sdMqttPrefix;
@@ -61,8 +56,6 @@ static void readCard(ClientConfig* cfg) {
     sdServerURL = cfgServerURL;
     sdWifiSSID = cfgWifiSSID;
     sdWifiPass = cfgWifiPass;
-    sdNtpHost = cfgNtpHost;
-    sdNtpTimezone = cfgNtpTimezone;
 
     cfg->serverURL = sdServerURL.c_str();
     cfg->serverRetries = serverCfg["retries"] | cfg->serverRetries;
@@ -72,9 +65,6 @@ static void readCard(ClientConfig* cfg) {
     cfg->wifiSSID = sdWifiSSID.c_str();
     cfg->wifiPass = sdWifiPass.c_str();
     cfg->wifiRetries = wifiCfg["retries"] | cfg->wifiRetries;
-
-    cfg->ntpHost = sdNtpHost.c_str();
-    cfg->ntpTimezone = sdNtpTimezone.c_str();
 
     JsonObject mqttCfg = doc["mqtt_logger"];
     cfg->mqttEnabled = mqttCfg["enabled"] | cfg->mqttEnabled;
@@ -91,7 +81,8 @@ static void readCard(ClientConfig* cfg) {
 }
 
 bool applySdConfig(ClientConfig* cfg) {
-    // A card is optional: one image serves boards with and without one.
+    // A build with USE_SDCARD expects a card. A missing one is only a warning,
+    // so a board that loses its card still starts.
     if (!epdBoard().sdCardInit()) {
         log(LOG_WARNING, "no SD card; using this board's own settings");
         return false;

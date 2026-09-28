@@ -19,6 +19,7 @@ struct PageResponse {
     char firmwareURL[256];         // EPD_H_FIRMWARE_URL
     char serverVersion[32];        // EPD_H_SERVER_VERSION
     uint32_t serverEpoch;          // EPD_H_SERVER_EPOCH: UTC seconds when it answered
+    char serverTimezone[64];       // EPD_H_SERVER_TIMEZONE: its zone, a POSIX TZ string
     uint32_t nextSensorPollSeconds;  // EPD_H_NEXT_SENSOR_POLL, from a server that sends one
 };
 /**

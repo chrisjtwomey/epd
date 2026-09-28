@@ -11,9 +11,6 @@ ClientConfig builtInSettings() {
     cfg.defaultRefreshSeconds = 3600;
     cfg.wifiRetries = 10;
 
-    cfg.ntpHost = "pool.ntp.org";
-    cfg.ntpTimezone = "Europe/Dublin";
-
     // Leave the broker as XXXX and this block comes from the panel's own
     // store instead, which is what an image built by CI relies on.
     cfg.mqttEnabled = false;

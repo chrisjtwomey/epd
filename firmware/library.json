@@ -35,11 +35,6 @@
       "version": "^7.4.0"
     },
     {
-      "owner": "ropg",
-      "name": "ezTime",
-      "version": "^0.8.3"
-    },
-    {
       "owner": "smfsw",
       "name": "Queue",
       "version": "^1.11"

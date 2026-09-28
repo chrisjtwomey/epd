@@ -97,9 +97,10 @@ running.
 The clock is UTC seconds at the moment the server answered. A board without
 a clock of its own can keep time from it, which is one fewer service to
 reach than NTP and, more to the point, guarantees the two agree about when a
-schedule falls due. Hold it as an offset from the board's own uptime rather
-than setting a clock from it, so a correction can never send timestamps
-backwards.
+schedule falls due. EpdClient sets the board's clock, time zone and RTC from
+every page it fetches (`keepServerTime()`). A board that stamps readings with
+the clock does better to hold it as an offset from its own uptime, so a
+correction can never send a stamp backwards.
 
 The time zone is `server.timezone` as a POSIX TZ string, the form a C
 library's `TZ` takes, so a board shows local time with no lookup of its own.

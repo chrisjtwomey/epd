@@ -1,7 +1,6 @@
 #include "wake.h"
 
 #include <Arduino.h>
-#include <ezTime.h>
 
 #include "epd.h"
 #include "battery.h"
@@ -9,6 +8,7 @@
 #include "log_utils.h"
 #include "mqtt_topic.h"
 #include "ota.h"
+#include "time_utils.h"
 #include "version.h"
 
 
@@ -17,7 +17,8 @@ void startBoard(uint8_t rotation) {
     epdBoard().begin();
     epdBoard().setRotation(rotation);
     epdBoard().rtcGetData();
-    setTime(epdBoard().rtcGetEpoch());
+    restoreTimezone();
+    setClock(epdBoard().rtcGetEpoch());
 }
 
 void logWakeReason() {
@@ -56,9 +57,6 @@ esp_err_t connectNetwork(const ClientConfig& cfg) {
     if (configureWiFi(cfg.wifiSSID, cfg.wifiPass, cfg.wifiRetries) == ESP_ERR_TIMEOUT)
         return ESP_ERR_TIMEOUT;
 
-    if (configureTime(cfg.ntpHost, cfg.ntpTimezone) != ESP_OK)
-        log(LOG_WARNING, "failed to synchronize RTC with network time");
-
     static char topic[128];
     if (cfg.mqttEnabled &&
         boardLogTopic(cfg.mqttPrefix, CLIENT_NAME, topic, sizeof(topic)) &&
@@ -69,12 +67,23 @@ esp_err_t connectNetwork(const ClientConfig& cfg) {
     return ESP_OK;
 }
 
+void keepServerTime(const PageResponse& rsp) {
+    setTimezone(rsp.serverTimezone);
+    if (!rsp.serverEpoch) return;
+    setClock((time_t)rsp.serverEpoch);
+    epdBoard().rtcSetEpoch((time_t)rsp.serverEpoch);
+    logf(LOG_DEBUG, "clock set to %s", nowTzFmt().c_str());
+}
+
 bool fetchPage(const char* url, const char* userAgent, int retries, PageFetch* out,
                const char** errMsg) {
     for (int attempt = 0; attempt <= retries; ++attempt) {
         logf(LOG_DEBUG, "image download attempt #%d", attempt + 1);
         out->data = downloadFile(url, userAgent, &out->length, &out->response);
-        if (out->data) return true;
+        if (out->data) {
+            keepServerTime(out->response);
+            return true;
+        }
     }
     *errMsg = "file download error";
     log(LOG_ERROR, *errMsg);

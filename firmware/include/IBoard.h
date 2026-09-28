@@ -183,7 +183,7 @@ public:
 
     /**
      * Set the RTC's current time to the given epoch.
-     * Called after an NTP sync so the RTC stays accurate across deep sleep.
+     * Called with the server's clock so the RTC stays accurate across deep sleep.
      * The RTC holds UTC; local time is a display concern.
      *
      * @param epoch  the Unix timestamp, UTC, to write to the RTC.

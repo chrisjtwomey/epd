@@ -21,9 +21,6 @@ struct ClientConfig {
     const char* wifiPass;
     int wifiRetries;
 
-    const char* ntpHost;
-    const char* ntpTimezone;
-
     bool mqttEnabled;
     const char* mqttBroker;
     int mqttPort;

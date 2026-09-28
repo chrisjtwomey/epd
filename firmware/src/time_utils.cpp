@@ -1,43 +1,36 @@
 #include "time_utils.h"
-#include <Arduino.h>
-#include <ezTime.h>
 
-#include "epd.h"
-#include "log_utils.h"
+#include <stdlib.h>
+#include <string.h>
+#include <sys/time.h>
 
-// The timezone store
-Timezone myTz;
+#include "local_time.h"
+#include "network_utils.h"
 
+// Sized as PageResponse::serverTimezone, which holds only a whole zone.
+static RTC_DATA_ATTR char savedZone[sizeof(PageResponse::serverTimezone)];
 
-String nowTzFmt() {
-    return myTz.dateTime(RFC3339);   // local time with its real offset, UTC until the zone is known
+String nowTzFmt() { return timeTzFmt(time(nullptr)); }
+
+String timeTzFmt(time_t t) {
+    char out[LOCAL_TIME_MAX];
+    formatLocalTime(t, out, sizeof(out));
+    return String(out);
 }
 
-esp_err_t configureTime(const char* ntpHost, const char* timezoneName) {
-    log(LOG_INFO, "configuring network time and RTC...");
-
-    setServer(ntpHost);
-
-    // One query, judged by its own result. waitForSync() would be satisfied
-    // by the clock the RTC seeded at boot, synced or not.
-    time_t t;
-    unsigned long measuredAt;
-    if (!queryNTP(String(ntpHost), t, measuredAt)) {
-        logf(LOG_WARNING, "NTP query to %s failed: %s", ntpHost, errorString().c_str());
-        return ESP_ERR_ENTP;
-    }
-    setTime(t);
-    updateNTP();   // refines the clock and schedules the periodic re-sync events() runs
-
-    if (!myTz.setLocation(F(timezoneName))) {
-        logf(LOG_WARNING, "timezone lookup for %s failed: %s; times are shown in UTC",
-             timezoneName, errorString().c_str());
-    }
-
-    // The RTC holds UTC. Local time is a display format, from myTz.
-    epdBoard().rtcSetEpoch(now());
-    logf(LOG_DEBUG, "RTC synced to %s", myTz.dateTime(RFC3339).c_str());
-
-    return ESP_OK;
+void setClock(time_t epoch) {
+    const timeval now = {epoch, 0};
+    settimeofday(&now, nullptr);
 }
 
+void setTimezone(const char* posixTz) {
+    if (!posixTz || !posixTz[0]) return;
+    strlcpy(savedZone, posixTz, sizeof(savedZone));
+    restoreTimezone();
+}
+
+void restoreTimezone() {
+    if (!savedZone[0]) return;
+    setenv("TZ", savedZone, 1);
+    tzset();
+}

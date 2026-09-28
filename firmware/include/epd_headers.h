@@ -23,6 +23,7 @@
 // The server answers with its own identity, on every response.
 #define EPD_H_SERVER_VERSION  EPD_HEADER("-Server-Version")
 #define EPD_H_SERVER_EPOCH    EPD_HEADER("-Server-Epoch-Seconds")
+#define EPD_H_SERVER_TIMEZONE EPD_HEADER("-Server-Timezone")
 
 // What to do next, and what firmware is on offer.
 #define EPD_H_NEXT_REFRESH    EPD_HEADER("-Next-Display-Refresh-Seconds")

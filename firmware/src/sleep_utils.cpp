@@ -2,8 +2,8 @@
 #include "epd.h"
 #include <WiFi.h>
 #include <driver/rtc_io.h>
-#include <ezTime.h>
 
+#include "local_time.h"
 #include "log_utils.h"
 
 
@@ -21,7 +21,9 @@ void sleep(time_t targetWakeTime) {
     // The alarm pin and wake source are board-specific — the board owns them.
     epdBoard().enableWakeOnRtcAlarm();
 
-    logf(LOG_DEBUG, "waking at %s", dateTime(targetWakeTime, RFC3339).c_str());
+    char at[LOCAL_TIME_MAX];
+    formatLocalTime(targetWakeTime, at, sizeof(at));
+    logf(LOG_DEBUG, "waking at %s", at);
 
     deepSleep();
 }
