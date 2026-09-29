@@ -40,7 +40,7 @@ works unchanged.
 
 |  |  |
 |---|---|
-| **A panel** | An [Inkplate](https://soldered.com/categories/inkplate/) — 10, 6, 5 Gen2 or 2 — which is an e-paper screen with an ESP32 already attached. Other ESP32 e-paper boards work too; see [Other hardware](docs/custom-board.md). |
+| **A panel** | An [Inkplate](https://soldered.com/categories/inkplate/): an e-paper screen with an ESP32 already on it. The driver knows the 10, 6, 6PLUS, 6FLICK, 5, 5 Gen2, 4 and 2, and the 10 and the 5 Gen2 are in daily use. Other ESP32 e-paper boards work too: see [Other hardware](docs/custom-board.md). |
 | **A computer that stays on** | A Raspberry Pi, a NAS, an old laptop. It runs the server. The panel needs to reach it over your home network each time it wakes. |
 | **Python 3.11+ and Chromium** | The server draws your page with a real browser, so ordinary HTML and CSS work as they do everywhere else. |
 | **[PlatformIO](https://platformio.org/install)** | To put the software on the panel. |
@@ -279,7 +279,7 @@ itself — is already written.
 | **[Configuration](docs/configuration.md)** | Every setting, the build flags, and reading settings from an SD card instead of compiling them in. |
 | **[Updates over the air](docs/ota.md)** | Publish a new version and every panel takes it at its next wake. How a bad release is caught and undone by itself. |
 | **[The HTTP contract](docs/protocol.md)** | The exact requests and headers, for debugging with `curl` or writing your own client. |
-| **[Other hardware](docs/custom-board.md)** | Any e-paper board, by writing one class. The Inkplate one is about 230 lines. |
+| **[Other hardware](docs/custom-board.md)** | Any ESP32 e-paper board, by writing one class. The Inkplate one is about 260 lines. |
 | **[Testing your own project](docs/testing.md)** | Run your panel's logic on your laptop, with no board attached. |
 | **[Server reference](server/README.md)** | Pages, data sources, scheduling, image quantising, the config file. |
 
@@ -294,8 +294,8 @@ itself — is already written.
 battery, waking seven times a day.
 
 [**canary**](https://github.com/chrisjtwomey/canary)
-— a mains-powered Inkplate 5 Gen2 showing temperature, humidity and air
-quality from its own sensors.
+— a mains-powered Inkplate 5 Gen2 that shows temperature, humidity and air
+quality from the sensors in its dock.
 
 <br clear="right">
 

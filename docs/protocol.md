@@ -229,7 +229,7 @@ See [Updates over the air](ota.md) for what the panel does with the image.
 
 ## Sending data back
 
-A panel that is awake can post to the server:
+A board can post to the server:
 
 ```
 POST /<name>
@@ -268,7 +268,7 @@ it never has to choose between a duplicate and a gap. See
 A panel can also ask the server something:
 
 ```
-GET /<name>?device=inkplate5-env-monitor&before=1757443200
+GET /<name>?device=my-sensor&before=1757443200
   200 application/json
   404 when the server has no answer
 ```

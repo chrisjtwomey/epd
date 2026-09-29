@@ -21,6 +21,7 @@ These go in `build_flags` in `platformio.ini`.
 | `-DCLIENT_VERSION='"v1.0.0"'` | The version it reports. Defaults to `dev`, which is never offered an update. Normally derived from `git describe` by a script. |
 | `-DLOG_LEVEL=4` | 5 is verbose and for development; 4 is normal. The most the build logs, and the level it starts at; `setLogLevel()` lowers it while the board runs. |
 | `-DUSE_SDCARD` | Read settings from `config.yaml` on the SD card. See below. |
+| `-DEPD_HEADER_PREFIX='"MyDisplay"'` | The prefix of every header name. Defaults to `EPD`. It must match the server's `header_prefix` ([the HTTP contract](protocol.md#the-names)). |
 
 `-DCLIENT_NAME` and `-DCLIENT_VERSION` are what the panel says about
 itself on every request, as `EPD-Device` and `EPD-Device-Version`. They also
@@ -29,21 +30,21 @@ See [the HTTP contract](protocol.md).
 
 ## Panel: `src/defaults.cpp`
 
-This file defines the values that `defaults.h` declares. It is the only file
-with your credentials in it, so keep it out of git — commit a
-`defaults.example.cpp` with placeholders instead, and let your release
-pipeline build from that.
+This file defines `builtInSettings()`, which returns a `ClientConfig`
+(`settings.h`). It is the only file with your credentials in it, so keep it
+out of git. Commit a `defaults.example.cpp` with placeholders, and let your
+release pipeline build from that.
 
 | Setting | What it is |
 |---|---|
 | `serverURL` | The first page to fetch. After that the server names the next one. |
 | `serverRetries` | How many further attempts at downloading or drawing. |
-| `serverDefaultRefreshSeconds` | How long to sleep when the server has not said — a cold boot, or every attempt failed. |
+| `defaultRefreshSeconds` | How long to sleep when the server has not said: a cold boot, or every attempt failed. |
 | `wifiSSID`, `wifiPass` | Your network. |
 | `wifiRetries` | How many attempts before giving up on WiFi for this wake. |
-| `mqttLogger*` | Optional: publish the panel's log to an MQTT broker, so you can read it without a cable. `mqttLoggerEnabled = false` switches all of it off. |
+| `mqttEnabled`, `mqttBroker`, `mqttPort`, `mqttClientID`, `mqttPrefix`, `mqttRetries` | Optional: publish the panel's log to an MQTT broker, so you can read it without a cable. `mqttEnabled = false` turns all of it off. |
 
-`serverURL`, `wifiSSID`, `wifiPass` and the whole `mqttLogger` block are also
+`serverURL`, `wifiSSID`, `wifiPass` and the whole MQTT block are also
 kept in the panel's own storage, so that an image built by CI can still
 connect and still report. A value is treated as a placeholder when it is
 empty, is `XXXX`, or contains `YOUR_`; a real compiled value always wins and

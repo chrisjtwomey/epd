@@ -1,14 +1,19 @@
 # Integrating a custom board
 
-The firmware abstracts all hardware-specific behaviour behind the `IBoard`
-interface (declared in `include/IBoard.h`).  The only file that depends on the
-Inkplate library is `InkplateBoard` — everything else works against `IBoard`.
-To support a different e-paper device you subclass `IBoard`, implement every
-pure-virtual method, and swap the instance in `src/main.cpp`.
+EpdClient reaches the hardware only through the `IBoard` interface
+(`firmware/include/IBoard.h`). The Inkplate driver is a library of its own,
+`EpdBoardInkplate` (`firmware/boards/inkplate/`), so a project on other hardware
+never pulls in the Inkplate library.
+
+To support another e-paper board:
+
+1. Subclass `IBoard`, and implement each pure-virtual method.
+2. Give your board to `epdBegin()` in your `setup()`.
+
+EpdClient runs only on the ESP32 (`platforms: espressif32` in its
+`library.json`), so your board must have one.
 
 ## 1. Understand the interface
-
-`IBoard` is divided into six sections.
 
 ### Lifecycle
 
@@ -34,7 +39,7 @@ pure-virtual method, and swap the instance in `src/main.cpp`.
 | Method | Purpose |
 |---|---|
 | `drawPngFromBuffer(buf, len, x, y, dither, invert)` | Decode a PNG from a byte buffer and render it at `(x, y)`. Returns `true` on success. |
-| `drawPngFromSd(path, x, y, dither, invert)` | Decode a PNG from an SD-card file and render it at `(x, y)`. Returns `true` on success. Only called when `USE_SDCARD` is defined. |
+| `drawPngFromSd(path, x, y, dither, invert)` | Decode a PNG from an SD-card file and render it at `(x, y)`. Returns `true` on success. You must implement it, but EpdClient calls it only when `USE_SDCARD` is defined. |
 | `drawBitmap(buf, x, y, w, h, fg, bg)` | Draw a raw 1-bit bitmap at `(x, y)`. Used for battery status icons. Returns `true` on success. |
 
 ### Text / GFX primitives
@@ -58,6 +63,12 @@ These mirror the [Adafruit GFX](https://github.com/adafruit/Adafruit-GFX-Library
 | Method | Notes |
 |---|---|
 | `readBattery()` | Return the current battery voltage in volts as a `double`. |
+
+### Panel
+
+| Method | Notes |
+|---|---|
+| `readPanelTemperature()` | The temperature at the panel's power controller, in whole °C. It reads the board, not the room: a diagnostic. |
 
 ### RTC
 
@@ -160,6 +171,9 @@ public:
     // Battery
     double readBattery() override;
 
+    // Panel
+    int    readPanelTemperature() override;
+
     // RTC
     void   rtcGetData()                    override;
     time_t rtcGetEpoch()                   override;
@@ -181,64 +195,57 @@ private:
 };
 ```
 
-Implement each method in `src/MyBoard.cpp`, wrapping your hardware driver.
-Refer to `src/InkplateBoard.cpp` as a concrete example of what each method
-should do.
+Implement each method in `src/MyBoard.cpp`, around your hardware driver.
+`firmware/boards/inkplate/src/InkplateBoard.cpp` shows what each method does
+for the Inkplate.
 
 ---
 
-## 3. Swap the instance in `src/main.cpp`
+## 3. Give your board to `epdBegin()`
 
-`main.cpp` is the only file you need to change to switch hardware:
+`src/main.cpp` is the only file that changes:
 
 ```cpp
-// Before (Inkplate10)
-#include "InkplateBoard.h"
-static InkplateBoard inkplateBoard;
-IBoard& board = inkplateBoard;
+// The Inkplate
+#include "EpdBoardInkplate.h"
+static InkplateBoard board;
 
-// After (your device)
+// Your board
 #include "MyBoard.h"
-static MyBoard myBoard;
-IBoard& board = myBoard;
+static MyBoard board;
+
+void setup() {
+    epdBegin(board);    // before any other EpdClient call
+    ...
+}
 ```
 
-All other source files (`image.cpp`, `sleep_utils.cpp`, `wake.cpp`, …)
-call `board` through the `IBoard` reference and require no changes.
+All of EpdClient reaches the board through `epdBoard()`, which returns the board
+that `epdBegin()` was given. Nothing else changes.
 
 ---
 
-## 4. Update `platformio.ini` if needed
+## 4. Update `platformio.ini`
 
-If your driver depends on a different library, add it under `lib_deps` in the
-relevant environment inside `platformio.ini`.  The `[esp32_common]` section
-is shared by the `debug`, `release`, and `release_sdcard` environments:
+Add your driver's library to `lib_deps`, beside EpdClient. Leave
+`EpdBoardInkplate` out, so that the Inkplate library is not pulled in:
 
 ```ini
-[esp32_common]
 lib_deps =
-    ; keep existing entries…
+    symlink://../epd/firmware
     your-vendor/YourLibrary@^1.0.0
 ```
-
-If your device is not an ESP32, create a new `[env:yourboard]` block instead
-of extending `[esp32_common]`, setting `platform`, `board`, and `framework`
-appropriately.
 
 ---
 
 ## 5. Testing without hardware
 
-`MockBoard` (in `include/MockBoard.h`) is a fully working `IBoard` subclass
-used by the host-side test environments (`native_mock`, `native_integration`).
-Every method is a configurable no-op with call-tracking fields.  If you add
-new methods to `IBoard` in the future, add matching no-ops to `MockBoard` too
-so the test environments continue to compile.
+`MockBoard` (`firmware/include/MockBoard.h`) is an `IBoard` that records what
+it was asked to do, and drives no panel. Each method is a no-op that you can
+set up, with fields that record the calls.
 
-To run the existing host-side tests against your own `IBoard` changes:
-
-```sh
-pio test -e native          # pure helper tests (backoff, battery, refresh_header)
-pio test -e native_mock     # sleep_utils with MockBoard
-pio test -e native_integration  # full run_app() control-flow tests
-```
+- epd's own `native_mock` tests use it. So does a project's test of its own
+  wake ([testing.md](testing.md)).
+- If you add a method to `IBoard`, add a matching no-op to `MockBoard`, or the
+  host tests do not compile.
+- To run epd's own host tests, see [CONTRIBUTING.md](../CONTRIBUTING.md#tests).

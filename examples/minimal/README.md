@@ -25,7 +25,8 @@ pio run -t upload                                # the panel
 ```
 
 The picture on the right is `clock.png` as the server renders it: 825 × 1200,
-the Inkplate 10 in portrait, in the four greys the panel can show.
+the Inkplate 10 in portrait, in four greys. Four is the kit's default; the panel
+can show eight.
 
 See the [OTA example](../ota) for how the server sends a new version of the
 panel's own software, which the panel takes at its next wake.

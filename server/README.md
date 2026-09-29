@@ -47,6 +47,10 @@ wherever this is installed; add one to your Dockerfile.
 | `epd_server.store` | `ReadingsStore` — what a board posts, in SQLite, kept by its `device` and `ts` and read back by time |
 | `epd_server.pipeline` | `regenerate(pages, source, only=, force_refresh=)` — fetch what the selected pages need, once each; render; save |
 | `epd_server.app` | `DisplayServer(pages, source, schedule, tz, …).run()` — routes, `EPD-Next-*` headers, ingest and query routes, regen loop, client log relay, signals. `align_process_timezone()` |
+| `epd_server.headers` | `Wire` — every header name, for one product's prefix |
+| `epd_server.compat` | Whether a board's version and the server's work together, by the rule in [docs/protocol.md](../docs/protocol.md) |
+| `epd_server.posix_tz` | The server's time zone as a POSIX TZ string, for `EPD-Server-Timezone` |
+| `epd_server.logs` | What each board logs over MQTT, kept on disk and read back in order |
 
 ## Tests
 
@@ -96,7 +100,7 @@ fails at startup instead of silently regenerating nothing.
 
 ## Readings from a board
 
-A board that stays awake can post what it measures. `ingest={name: handler}`
+A board can post what it measures. `ingest={name: handler}`
 gives the server a `POST /<name>` route, and `queries={name: handler}` a
 `GET /<name>` one; [docs/protocol.md](../docs/protocol.md) has both. To keep
 what arrives, hand the route to a `ReadingsStore` and serve the store to the
@@ -189,8 +193,9 @@ debug: false
 server. Put an image in `dir` named for its version, `v1.6.0.bin`, and every
 board of that product running a different version is offered it on its next
 request. The version is the filename, so nothing else has to be written.
-With `version_gate` the offer is the newest image that can work with the
-server's own version rather than the newest file, so older images stay. A
+With `DisplayServer(version_gate=True)` the offer is the newest image that
+can work with the server's own version, not the newest file, so older images
+stay. A
 relative `dir` is resolved against the directory holding `config.yaml`.
 `products` lists several products, each with its images in a subdirectory of
 its name.

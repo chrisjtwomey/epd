@@ -1,6 +1,6 @@
 # Contributing to epd
 
-Thank you for your interest in contributing! This document explains the layout, how to run the tests, and how to make and submit changes.
+This guide explains the layout, how to run the tests, and how to make and submit changes.
 
 For what the kit is and how a project uses it, start with [README.md](README.md) and [server/README.md](server/README.md).
 
@@ -29,11 +29,11 @@ InkplateLibrary. Nothing in `firmware/src` may name an Inkplate type: if a
 change needs one, it goes in `boards/inkplate/`, or behind a new method on
 `IBoard`.
 
-A PlatformIO `lib_deps` git URL can only address a repository root, and
-these two libraries sit in one tree. Until both are published to the
-registry, a consumer therefore checks this repo out beside itself and uses
-`symlink://../epd/firmware`. The README's quickstart says so; keep the two
-in step if that changes.
+A project that uses epd takes both libraries from the PlatformIO registry,
+at a release ([Publishing](#publishing)). To change epd and try the change in
+a project, check this repo out beside the project and use
+`symlink://../epd/firmware`. A `lib_deps` git URL cannot do this, because it
+can only address a repository root, and these two libraries sit in one tree.
 
 ## Tests
 
@@ -142,7 +142,7 @@ before any of this happens — see the README's quickstart.
   no old names kept beside the new ones: a board on older firmware is
   reflashed.
 - Comments describe the present, not the change. Git holds the history.
-- Please fork the repository and create a new branch for your changes.
+- Fork the repository, and make a new branch for your changes.
 - Follow the policy in the [AI-Assisted Code](#ai-assisted-code) section when AI tools are used.
 
 ## AI-Assisted Code
@@ -162,5 +162,3 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 - Ensure your changes build and pass tests, here and in the consumers.
 - Open a pull request with a clear description of your changes.
 - Reference any related issues.
-
-Thank you for helping improve this project!

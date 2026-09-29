@@ -76,13 +76,13 @@ are as answers.
 Nothing else from `defaults.cpp` is stored. The rest is code and comes from
 the image.
 
-## The first update onto a new contract
+## A change to the headers
 
-The panel's headers changed once already, and could again. A panel is always
-reachable by the server that speaks the names it was built to read, so the
-rule is: the server learns a new name **before** the panel does, and keeps
-answering the old one until no panel uses it. See [the HTTP
-contract](protocol.md) for the fallback in force today.
+Before 1.0, a change to a header's name is a minor release, and the server
+keeps no old names beside the new ones ([CONTRIBUTING](../CONTRIBUTING.md#making-changes)).
+A panel on older firmware then cannot read the server's answers, the offer of
+an update included, so it needs one more USB flash. After 1.0, only a major
+release can change a header.
 
 ## Forcing an update now
 
