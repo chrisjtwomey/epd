@@ -1,7 +1,5 @@
 # epd
 
-**Read [CONTRIBUTING.md](CONTRIBUTING.md) first.** It covers the repository layout, how to run the tests, and how to build and run things locally.
-
 ## This repo
 
 - Two PlatformIO libraries in `firmware/` (`EpdClient`, `EpdBoardInkplate`) and one pip package in `server/` (`epd_server`). They share one wire contract — the `EPD-Next-*` headers, whose prefix each product sets to its own name — and version together.
@@ -10,6 +8,25 @@
 - Tests live with the code they cover. Code that moves here brings its tests.
 - Nothing under `server/tests` may need a network or a browser. `Page.save()` is tested with a fake `Renderer`; `DisplayServer` with Flask's test client.
 - Nothing hardware-specific outside `firmware/boards/`. `EpdClient` depends on `IBoard` only; if a change needs an Inkplate type, it belongs in `EpdBoardInkplate` or behind a new `IBoard` method.
+- Set the version only with `scripts/version.py`, never by hand: it sets all four declarations.
+- To try a change in a consumer's server, install this checkout editable after the consumer's requirements. Installed before them, it loses to the pinned tag.
+
+## Docs
+
+Read a doc only when the task needs it.
+
+| When the task | Read |
+|---|---|
+| Needs the layout, or runs the tests | [CONTRIBUTING.md](CONTRIBUTING.md), "Layout" and "Tests" |
+| Builds a consumer against a change, or publishes a release | [CONTRIBUTING.md](CONTRIBUTING.md), "Consumers" and "Publishing" |
+| Changes what a product or a user sees of the kit | [README.md](README.md) |
+| Changes the server package's API | [server/README.md](server/README.md) |
+| Changes a config key, on the board or on the server | [docs/configuration.md](docs/configuration.md) |
+| Changes `IBoard`, or adds a board | [docs/custom-board.md](docs/custom-board.md) |
+| Changes the updates over the air | [docs/ota.md](docs/ota.md) |
+| Changes a header or a route between the board and the server | [docs/protocol.md](docs/protocol.md) |
+| Changes the order of a wake, or how a product tests it | [docs/testing.md](docs/testing.md) |
+| Changes an example | its `README.md` in [examples/](examples/) |
 
 ## General rules when working in this codebase
 
