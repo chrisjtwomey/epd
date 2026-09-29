@@ -153,9 +153,13 @@ An image is offered only when all of these hold:
   `client.firmware.product` or one of `products`. Offering one product's
   image to another product's panel would brick it.
 - The panel's version is a clean tag — `v1.5.1`, not `v1.5.1-3-gab12cd4`,
-  `-dirty` or `dev`. A panel on your bench built from a working tree is left
-  alone, so you are not flashed back to the last release mid-experiment. Set
-  `offer_dev_builds: true` to override that, on a bench server only.
+  `-dirty` or `dev` — or the image is newer than it. A panel on your bench
+  built past the last release is left alone, so you are not flashed back to
+  it mid-experiment. A panel built before the release moves to it: a board
+  tested on a commit takes the release tagged on that commit, with no USB
+  flash. A version the server cannot read, such as `dev`, is left alone. Set
+  `offer_dev_builds: true` to offer every developer build the image, on a
+  bench server only.
 - The version differs from the one the panel reports, higher or lower.
 
 The offer goes on any response to the panel, not only a page, so a board

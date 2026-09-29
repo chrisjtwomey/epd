@@ -94,17 +94,25 @@ def is_clean_tag(version: str) -> bool:
 def update_applies(client: ClientId | None, image: FirmwareImage | None, settings) -> bool:
     """Whether ``image`` is an update for ``client``.
 
-    ``settings`` is a :class:`~epd_server.config.FirmwareSettings`. Developer
-    builds are left alone unless ``offer_dev_builds`` says otherwise, so a
-    board on the bench is not flashed back to the last release.
+    ``settings`` is a :class:`~epd_server.config.FirmwareSettings`. A
+    developer build takes only a release newer than it, unless
+    ``offer_dev_builds`` says otherwise: a board on the bench is not flashed
+    back to the last release, and a board tested on a commit moves to the
+    release tagged on it.
     """
     if settings is None or not settings.enabled or image is None or client is None:
         return False
     if client.name not in settings.names():
         return False
     if not settings.offer_dev_builds and not is_clean_tag(client.version):
-        return False
+        return _newer(image.version, client.version)
     return client.version != image.version
+
+
+def _newer(version: str, than: str) -> bool:
+    """False when either version cannot be read."""
+    a, b = version_order(version), version_order(than)
+    return a is not None and b is not None and a > b
 
 
 class FirmwareStore:

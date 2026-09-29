@@ -76,17 +76,26 @@ def test_a_newer_image_applies_to_a_release_board(tmp_path):
     (ClientId("my-display", "v1.5.1"), "v1.6.0", {"enabled": False}),      # switched off
     (ClientId("other-display", "v1.5.1"), "v1.6.0", {}),                      # another product
     (ClientId("my-display", "v1.6.0"), "v1.6.0", {}),                      # already on it
-    (ClientId("my-display", "dev"), "v1.6.0", {}),                         # a developer build
-    (ClientId("my-display", "v1.5.1-3-gab12cd4"), "v1.6.0", {}),           # past the tag
+    (ClientId("my-display", "dev"), "v1.6.0", {}),                         # a version it cannot read
+    (ClientId("my-display", "v1.6.0-3-gab12cd4"), "v1.6.0", {}),           # past the release
+    (ClientId("my-display", "v1.6.0-3-gab12cd4"), "v1.5.1", {}),           # past a newer release
+    (ClientId("my-display", "v1.6.0-dirty"), "v1.6.0", {}),                # the release, edited
 ])
 def test_no_update_applies(tmp_path, client, image_version, kw):
     image = FirmwareStore(str(tmp_path)).put(image_version, IMAGE)
     assert update_applies(client, image, settings(**kw)) is False
 
 
-def test_a_developer_build_is_offered_only_when_asked_for(tmp_path):
+@pytest.mark.parametrize("version", ["v1.5.1-3-gab12cd4", "v1.5.1-3-gab12cd4-dirty", "v1.5.1-dirty"])
+def test_a_developer_build_takes_a_release_newer_than_it(tmp_path, version):
+    """A board tested on main moves to the release tagged on that commit."""
     image = FirmwareStore(str(tmp_path)).put("v1.6.0", IMAGE)
-    client = ClientId("my-display", "v1.5.1-3-gab12cd4-dirty")
+    assert update_applies(ClientId("my-display", version), image, settings()) is True
+
+
+def test_a_developer_build_past_the_release_is_offered_only_when_asked_for(tmp_path):
+    image = FirmwareStore(str(tmp_path)).put("v1.6.0", IMAGE)
+    client = ClientId("my-display", "v1.6.0-3-gab12cd4-dirty")
     assert update_applies(client, image, settings(offer_dev_builds=True)) is True
 
 

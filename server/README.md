@@ -179,7 +179,7 @@ client:                          # what the boards this server serves run
     dir: firmware                # a directory of <version>.bin; nothing is removed from it
     product: my-display          # the client name a board reports
     # products: [my-display, my-sensor]   # several, each in dir/<product>/
-    offer_dev_builds: false      # true also offers to boards not built from a tag
+    offer_dev_builds: false      # true offers every developer build the image, not only an older one
 mqtt:                            # relay every board's log topic, <prefix>/<board>
   enabled: false
   host: localhost
@@ -200,9 +200,12 @@ relative `dir` is resolved against the directory holding `config.yaml`.
 `products` lists several products, each with its images in a subdirectory of
 its name.
 
-A board built from a tag takes the update; one built from a working tree
-(`v1.5.1-3-gab12cd4`, `-dirty`, `dev`) is left alone unless
-`offer_dev_builds` says otherwise. A project passes its own client name as
+A board built from a tag takes the update. One built from a working tree
+(`v1.5.1-3-gab12cd4`, `-dirty`) takes it only when the image is newer than
+its version, so a board tested on a commit moves to the release tagged on it,
+and a bench build past the release is not flashed back. A version the server
+cannot read (`dev`) is left alone. `offer_dev_builds` offers every developer
+build the image. A project passes its own client name as
 `default_firmware_product=` to `load_core_config`, so the config file only
 needs `enabled: true`.
 
