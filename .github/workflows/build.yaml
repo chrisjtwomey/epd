@@ -60,9 +60,11 @@ jobs:
         run: pip install --upgrade platformio
 
       # The only builds here that see the ESP32 framework. The host tests
-      # cannot catch what breaks only there.
+      # cannot catch what breaks only there. The dev environment builds
+      # against this checkout; the default one takes the last release from
+      # the registry.
       - name: Build the example
-        run: pio run
+        run: pio run -e dev
 
   server-tests:
     name: Server tests

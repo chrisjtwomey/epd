@@ -5,7 +5,8 @@ Five declarations carry it and nothing but this script and its test keeps
 them in step. Two of them are load-bearing beyond tidiness: the server
 reports its own to every client in the X-Server-Version header, and
 EpdBoardInkplate's dependency on EpdClient decides which pair of published
-libraries a project can resolve.
+libraries a project can resolve. The docs and the examples pin the published
+packages at the same version, for a reader who copies them.
 
     python3 scripts/version.py            # print the version, or the disagreement
     python3 scripts/version.py 0.3.1      # set every declaration
@@ -46,6 +47,22 @@ DECLARATIONS = {
     ),
 }
 
+# The files that show a reader how to pin the published packages, and what a
+# pin looks like in them. Every pin in every one of these is a declaration.
+PINNED_IN = [
+    "README.md",
+    "docs/configuration.md",
+    "docs/custom-board.md",
+    "server/README.md",
+    "examples/minimal/platformio.ini",
+    "examples/minimal/README.md",
+    "examples/ota/platformio.ini",
+    "examples/live-data/README.md",
+    "examples/live-data/server.py",
+]
+PIN = re.compile(r"(chrisjtwomey/EpdClient @ \^|chrisjtwomey/EpdBoardInkplate @ \^"
+                 r"|epd-server~=|epd-server==)(\d+\.\d+\.\d+)")
+
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 
 
@@ -58,6 +75,12 @@ def declared() -> dict[str, str]:
         if match is None:
             raise SystemExit(f"{name}: no version declaration found in {path}")
         found[name] = match.group(2)
+    for path in PINNED_IN:
+        pins = PIN.findall((ROOT / path).read_text())
+        if not pins:
+            raise SystemExit(f"{path}: no pin of a published package found")
+        for n, (package, version) in enumerate(pins, 1):
+            found[f"{path}: {package} (pin {n})"] = version
     return found
 
 
@@ -73,6 +96,13 @@ def write(version: str) -> None:
             raise SystemExit(f"{name}: no version declaration found in {path}")
         file.write_text(replaced)
         print(f"{name} -> {version}")
+    for path in PINNED_IN:
+        file = ROOT / path
+        replaced, count = PIN.subn(rf"\g<1>{version}", file.read_text())
+        if not count:
+            raise SystemExit(f"{path}: no pin of a published package found")
+        file.write_text(replaced)
+        print(f"{path}: {count} pin{'s' if count != 1 else ''} -> {version}")
 
 
 def main(argv: list[str]) -> int:

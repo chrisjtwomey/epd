@@ -10,24 +10,27 @@ everything that does not depend on what is being displayed.
 
 ## Install
 
-Local checkout, editable:
+From PyPI:
+
+```sh
+pip install "epd-server~=0.9.0"
+```
+
+In a project's `requirements.txt`, pin the release that the project's
+firmware is built with, because the two share the header contract:
+
+```
+epd-server==0.9.0
+```
+
+To work on the package, install a checkout editable:
 
 ```sh
 pip install -e ../epd/server
 ```
 
-Install it after the project's requirements. pip treats a `requirements.txt`
-pin like the one below as a direct reference, so any later `pip install -r`
-replaces the editable checkout with the tagged release, whatever the versions.
-
-From GitHub, in a `requirements.txt`, pinned to a release tag:
-
-```
-epd-server @ git+https://github.com/chrisjtwomey/epd.git@v<version>#subdirectory=server
-```
-
-pip honours `#subdirectory=` only for VCS URLs, so a git binary is needed
-wherever this is installed; add one to your Dockerfile.
+Install it after the project's requirements. A later `pip install -r` puts
+the pinned release back whenever the checkout declares another version.
 
 ## Modules
 

@@ -1,8 +1,9 @@
 """The examples build and run, and the quickstart is one of them.
 
 examples/minimal is the README's quickstart file for file: a reader may copy
-either, so nothing may differ between them but the path to this repository,
-and nothing else keeps them in step. The others must at least construct, and
+either, so nothing may differ between them, and nothing else keeps them in
+step. The example's platformio.ini alone holds more: a dev environment that
+builds against this checkout. The others must at least construct, and
 examples/live-data's data source is exercised against a recorded response, so
 none of this needs a network.
 """
@@ -27,9 +28,25 @@ FILES = ["server.py", "platformio.ini", "src/defaults.cpp", "src/main.cpp"]
 @pytest.mark.parametrize("name", FILES)
 def test_the_readme_shows_the_minimal_example_file(name):
     text = (EXAMPLES / "minimal" / name).read_text()
-    # The example is inside this repository; the quickstart's project is beside it.
-    text = text.replace("symlink://../../firmware", "symlink://../epd/firmware")
+    if name == "platformio.ini":
+        text = release_environment(text)
     assert text.strip() in README, f"{name} differs from the README's quickstart"
+
+
+def release_environment(ini: str) -> str:
+    """The ``[env:release]`` section of an example's platformio.ini: what a
+    project of its own needs."""
+    section = ini[ini.index("[env:release]"):]
+    return section[:section.index("\n\n")]
+
+
+@pytest.mark.parametrize("example", ["minimal", "ota"])
+def test_an_example_builds_from_the_registry_unless_asked_for_the_checkout(example):
+    ini = (EXAMPLES / example / "platformio.ini").read_text()
+
+    assert "default_envs = release" in ini
+    assert "symlink://" not in release_environment(ini)
+    assert "symlink://../../firmware" in ini[ini.index("[env:dev]"):]
 
 
 def run_example_server(example, monkeypatch, tmp_path) -> DisplayServer:

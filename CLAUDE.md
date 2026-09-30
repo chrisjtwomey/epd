@@ -3,13 +3,13 @@
 ## This repo
 
 - Two PlatformIO libraries in `firmware/` (`EpdClient`, `EpdBoardInkplate`) and one pip package in `server/` (`epd_server`). They share one wire contract — the `EPD-Next-*` headers, whose prefix each product sets to its own name — and version together.
-- Consumers (`inkplate10-weather-cal`, `canary`) check this repo out beside themselves. Their `lib_deps` use `symlink://../epd/firmware`; their `requirements.txt` pins `epd-server` to a release tag on GitHub. A change here can break them: run their builds too. If weather-cal breaks, say so in one line. Do not edit weather-cal to keep up.
+- Consumers (`inkplate10-weather-cal`, `canary`) sit beside this repo. canary takes the libraries from the PlatformIO registry and `epd-server` from PyPI, at one pinned release; its `-dev` environments use `symlink://../epd/firmware`. weather-cal still builds only through the symlink, and pins `epd-server` to a release tag on GitHub. A change here can break them: run their builds against this checkout too. If weather-cal breaks, say so in one line. Do not edit weather-cal to keep up.
 - Before 1.0, a breaking change also gets no transition release and no data migration ([CONTRIBUTING.md](CONTRIBUTING.md#making-changes)). State its consequence in one line, for example that a board needs a USB flash. Then make the change.
 - Tests live with the code they cover. Code that moves here brings its tests.
 - Nothing under `server/tests` may need a network or a browser. `Page.save()` is tested with a fake `Renderer`; `DisplayServer` with Flask's test client.
 - Nothing hardware-specific outside `firmware/boards/`. `EpdClient` depends on `IBoard` only; if a change needs an Inkplate type, it belongs in `EpdBoardInkplate` or behind a new `IBoard` method.
-- Set the version only with `scripts/version.py`, never by hand: it sets all four declarations.
-- To try a change in a consumer's server, install this checkout editable after the consumer's requirements. Installed before them, it loses to the pinned tag.
+- Set the version only with `scripts/version.py`, never by hand: it sets every declaration, and the pins in the README, the docs and the examples.
+- To try a change in a consumer's server, install this checkout editable after the consumer's requirements. Installed before them, it can lose to the pinned release.
 
 ## Docs
 

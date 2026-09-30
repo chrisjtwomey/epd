@@ -15,13 +15,13 @@ src/defaults.cpp     your server address, network and password
 src/main.cpp         one wake, from beginning to end
 ```
 
-The two `lib_deps` point at `../../firmware`, this repository. Copy the
-directory out and they become `../epd/firmware`, with epd checked out
-beside it, as the quickstart describes.
+The two `lib_deps` take epd from the PlatformIO registry, so the directory
+builds wherever you copy it. For work on epd itself, `pio run -e dev` builds
+it against this checkout.
 
 ```sh
-pip install ../../server && python3 server.py    # the page, at :8080/clock.png
-pio run -t upload                                # the panel
+pip install "epd-server~=0.9.0" && python3 server.py    # the page, at :8080/clock.png
+pio run -t upload                                       # the panel
 ```
 
 The picture on the right is `clock.png` as the server renders it: 825 × 1200,

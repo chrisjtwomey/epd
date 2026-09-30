@@ -44,6 +44,10 @@ build_src_filter =
 List whichever epd sources your `app.cpp` actually calls; anything you leave
 out fails to link and tells you so.
 
+These paths point into an epd checkout beside your project. The host test is
+the one part of a project that needs the checkout, because it compiles epd's
+sources and stub headers by path.
+
 Then run it:
 
 ```sh

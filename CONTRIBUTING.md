@@ -29,11 +29,13 @@ InkplateLibrary. Nothing in `firmware/src` may name an Inkplate type: if a
 change needs one, it goes in `boards/inkplate/`, or behind a new method on
 `IBoard`.
 
-A project that uses epd takes both libraries from the PlatformIO registry,
-at a release ([Publishing](#publishing)). To change epd and try the change in
-a project, check this repo out beside the project and use
-`symlink://../epd/firmware`. A `lib_deps` git URL cannot do this, because it
-can only address a repository root, and these two libraries sit in one tree.
+A project that uses epd takes both libraries from the PlatformIO registry
+and `epd-server` from PyPI, at a release ([Publishing](#publishing)). To
+change epd and try the change in a project, check this repo out beside the
+project and build the project's `dev` environment, which uses
+`symlink://../epd/firmware` ([Consumers](#consumers)). A `lib_deps` git URL
+cannot do this, because it can only address a repository root, and these two
+libraries sit in one tree.
 
 ## Tests
 
@@ -47,7 +49,7 @@ pio test -e native              # pure helpers: back-off, battery, refresh heade
 pio test -e native_mock         # display + sleep against MockBoard
 pio test -e native_settings     # loadConfig against a Preferences stub
 cd ../examples/minimal
-pio run                         # an ESP32 build; the host tests never see the framework
+pio run -e dev                  # an ESP32 build of this checkout; the host tests never see the framework
 ```
 
 `examples/minimal` is the README's quickstart, file for file, and
@@ -78,22 +80,42 @@ network belongs in a consumer, not here.
 A project builds against this repo two ways, and a change here can break
 either:
 
-- Firmware: `lib_deps = symlink://../epd/firmware` and
-  `symlink://../epd/firmware/boards/inkplate`, so the project needs this repo
-  checked out beside it, in CI as well as locally.
-- Server: `epd-server @ git+https://github.com/chrisjtwomey/epd.git@v<version>#subdirectory=server`
-  in `requirements.txt`, pinned to a release tag. pip honours `#subdirectory=`
-  for VCS URLs only, so a git binary is needed where that is installed.
+- Firmware: the project's default environment takes `chrisjtwomey/EpdClient`
+  and `chrisjtwomey/EpdBoardInkplate` from the PlatformIO registry, pinned to
+  a release. A second environment extends it and swaps only `lib_deps`, so
+  nobody edits the tracked file to work on epd:
 
-Before opening a pull request, build a consumer against your branch: `pio
-run` in its root, and `pytest` in its `server/` with this checkout installed
-editable after the consumer's requirements. Installed before them, it loses:
-pip treats the pin as a direct reference and puts the tagged release back.
+  ```ini
+  [env:release]
+  lib_deps =
+  	chrisjtwomey/EpdClient @ ^x.y.z
+  	chrisjtwomey/EpdBoardInkplate @ ^x.y.z
+
+  [env:dev]
+  extends = env:release
+  lib_deps =
+  	symlink://../epd/firmware
+  	symlink://../epd/firmware/boards/inkplate
+  ```
+
+  `pio run -e dev` needs this repo checked out beside the project.
+  `PLATFORMIO_DEFAULT_ENVS=dev` makes a plain `pio run` build it. PlatformIO
+  still downloads the registry's EpdClient there, because EpdBoardInkplate
+  depends on it, but the build compiles the checkout's. A project that has
+  not moved to the registry yet builds only through the symlink.
+- Server: `epd-server==x.y.z` from PyPI in `requirements.txt`.
+
+Before opening a pull request, build a consumer against your branch: its
+`dev` environments in its root, and `pytest` in its `server/` with this
+checkout installed editable after the consumer's requirements. Installed
+before them, it loses: `pip install -r` puts the pinned release back whenever
+the checkout declares another version.
 
 ### Publishing
 
 One version covers all three, declared in both `library.json` files,
-`server/pyproject.toml` and `server/epd_server/_version.py`. Set all four at
+`server/pyproject.toml` and `server/epd_server/_version.py`. The README, the
+docs and the examples pin the published packages at it. Set all of them at
 once, and never by hand:
 
 ```sh
@@ -125,12 +147,25 @@ pio pkg publish firmware/boards/inkplate/
 ```
 
 Both are public: the repository already is, so a private package would hide
-nothing while costing a subscription and a CI token.
+nothing while costing a subscription and a CI token. The registry lists a
+version some minutes after it accepts it, and a machine that asked before
+keeps the old list for a while.
 
-Consumers then pin `chrisjtwomey/EpdClient@^x.y` in place of the symlink, and
-the new tag in `requirements.txt`. A consumer keeps a second
-environment on the symlink, so epd can be changed and tried in a consumer
-before any of this happens — see the README's quickstart.
+Build the server package from the tag, not from the working tree, try the
+wheel in a clean venv, and upload it to PyPI:
+
+```sh
+git archive v<version> server | tar -x -C /tmp/epd-release
+cd /tmp/epd-release/server && python3 -m build
+twine check dist/* && twine upload dist/*
+```
+
+`twine` takes a PyPI API token as the password of the user `__token__`. A
+version on PyPI cannot be uploaded a second time.
+
+Consumers then move their pins: `chrisjtwomey/EpdClient` and
+`chrisjtwomey/EpdBoardInkplate` in `platformio.ini`, and `epd-server` in
+`requirements.txt`.
 
 ## Making Changes
 

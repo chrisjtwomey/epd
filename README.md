@@ -50,16 +50,15 @@ Expect about 30 minutes to the first picture on the screen.
 
 ## Quickstart
 
-You never run anything inside epd. Check it out beside your own project and
-build against it — both halves of your display live in your project.
+You never run anything inside epd, or check it out. Both halves of your
+display live in your own project, which takes epd from PyPI and the
+PlatformIO registry.
 
 ```sh
-git clone https://github.com/chrisjtwomey/epd.git
 mkdir -p my-display/src && cd my-display
 ```
 
-You now have `epd/` and `my-display/` side by side. Everything below happens
-in `my-display`.
+Everything below happens in `my-display`.
 
 The four files below are also in [`examples/minimal`](examples/minimal),
 ready to copy.
@@ -68,7 +67,7 @@ ready to copy.
 
 ```sh
 python3 -m venv .venv && source .venv/bin/activate
-pip install ../epd/server
+pip install "epd-server~=0.9.0"
 ```
 
 Save this as `server.py`. It is a whole server: one page showing the time,
@@ -154,8 +153,8 @@ framework = arduino
 board = esp32dev
 monitor_speed = 115200
 lib_deps =
-	symlink://../epd/firmware
-	symlink://../epd/firmware/boards/inkplate
+	chrisjtwomey/EpdClient @ ^0.9.0
+	chrisjtwomey/EpdBoardInkplate @ ^0.9.0
 build_unflags = -DARDUINO_ESP32 -DARDUINO_ESP32_DEV
 build_flags =
 	-DARDUINO_INKPLATE10           ; or ARDUINO_INKPLATE6, ARDUINO_INKPLATE5V2…

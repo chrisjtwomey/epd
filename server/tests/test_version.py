@@ -31,6 +31,16 @@ def test_the_package_reports_what_the_files_declare():
     assert set(_module.declared().values()) == {epd_server.__version__}
 
 
+def test_the_docs_and_the_examples_pin_the_declared_version():
+    """A reader who copies the quickstart gets the published pair that works
+    together."""
+    pins = {name: version for name, version in _module.declared().items() if "(pin " in name}
+
+    assert set(pins.values()) == {epd_server.__version__}
+    assert any(name.startswith("README.md") for name in pins)
+    assert any(name.startswith("examples/minimal/platformio.ini") for name in pins)
+
+
 def test_the_version_is_a_release_number():
     assert _module.SEMVER.match(epd_server.__version__)
 

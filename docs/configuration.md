@@ -89,8 +89,8 @@ EpdClient because only a build with the flag uses them:
 
 ```ini
 lib_deps =
-	symlink://../epd/firmware
-	symlink://../epd/firmware/boards/inkplate
+	chrisjtwomey/EpdClient @ ^0.9.0
+	chrisjtwomey/EpdBoardInkplate @ ^0.9.0
 	tobozo/YAMLDuino
 	bblanchon/ArduinoStreamUtils
 ```
