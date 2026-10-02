@@ -19,8 +19,10 @@
 // log message entry history size
 #define LOG_QUEUE_MAX_ENTRIES 10
 // Bytes per queued entry. The queue copies exactly this many, so a line is
-// staged through a buffer of this size and truncated to fit.
-#define LOG_QUEUE_ITEM_MAX 100
+// staged through a buffer of this size and truncated to fit. 200 holds the
+// prefix and a line of about 150 characters, such as the Wi-Fi reconnect line
+// with its reason, which is always logged before MQTT is back.
+#define LOG_QUEUE_ITEM_MAX 200
 
 /**
   Connect to a MQTT broker for remote logging.
