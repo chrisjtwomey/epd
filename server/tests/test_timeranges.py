@@ -76,6 +76,19 @@ def test_a_range_can_run_past_midnight():
     assert next_slot(s, "2026-06-15T06:00:00") == "06-15 06:05:00"
 
 
+def test_a_ranges_slots_count_from_its_start():
+    s = clock(("01:00", 0), ("08:30", 1200))
+    assert next_slot(s, "2026-06-15T08:20:00") == "06-15 08:30:00"
+    assert next_slot(s, "2026-06-15T08:30:00") == "06-15 08:50:00"
+    assert next_slot(s, "2026-06-15T08:50:00") == "06-15 09:10:00"
+
+
+def test_before_its_first_start_a_day_counts_its_last_range_from_that_ranges_start():
+    s = clock(("08:00", 300), ("22:30", 1200))
+    assert next_slot(s, "2026-06-15T23:55:00") == "06-16 00:10:00"
+    assert next_slot(s, "2026-06-16T07:55:00") == "06-16 08:00:00"
+
+
 def test_one_range_is_the_whole_day():
     s = clock(("09:00", 600))
     assert next_slot(s, "2026-06-15T02:13:00") == "06-15 02:20:00"
@@ -211,6 +224,12 @@ def test_before_its_first_start_a_day_runs_its_own_last_range():
     w = week([("07:00", 300), ("23:00", 0)], [("08:00", 0), ("20:00", 600)])
     assert next_slot(w, "2026-06-19T23:30:00") == "06-20 00:00:00"
     assert next_slot(w, "2026-06-20T07:55:00") == "06-20 20:00:00"
+
+
+def test_a_weekend_range_from_half_past_starts_at_half_past():
+    w = week([("00:00", 0), ("08:30", 900)], [("01:00", 0), ("08:30", 1200)])
+    assert next_slot(w, "2026-06-20T01:00:00") == "06-20 08:30:00"    # Saturday
+    assert next_slot(w, "2026-06-20T08:30:00") == "06-20 08:50:00"
 
 
 def test_a_weekend_without_slots_is_passed_over():

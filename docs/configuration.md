@@ -173,9 +173,11 @@ same schedule every day. A day stands alone: before its first start, its own
 last range runs, not the day before's, so a day's ranges say all that
 happens on it.
 
-A range's slots fall on the wall clock where its interval, in whole minutes,
-divides the seconds past midnight: every 300 gives :00, :05, :10 and so on.
-One range from 00:00 is a page every so often all day. A group has at most
+A range's slots fall a whole number of its intervals after its start, so a
+range has a slot at its start: from 08:30 every 1200 gives 08:30, 08:50,
+09:10 and so on, and from 07:00 every 300 gives :00, :05, :10. A range starts
+when it says, whatever its interval. One range from 00:00 is a page every so
+often all day. A group has at most
 8 ranges, and one range in the week must have an interval.
 
 `client.firmware` sits under `client` because every key in it describes the

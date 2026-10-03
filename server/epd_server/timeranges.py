@@ -5,9 +5,11 @@ days.
 A day of time ranges covers the whole day. Each range runs from its start to
 the next range's, and the last runs past midnight to the first, so there is
 no gap and no overlap; one range is the whole day. An interval of 0 turns its
-range off. A slot is a local time in a range that is on, whose seconds past
-midnight are a multiple of that range's interval: :00, :05, :10 ... for five
-minutes, the hour and the half hour for thirty.
+range off. A slot is a local time in a range that is on, a whole number of
+that range's intervals from its start: from 07:00 every five minutes gives
+07:00, 07:05, 07:10 ..., and from 08:30 every twenty gives 08:30, 08:50,
+09:10. A range that starts on the hour, with an interval that divides the
+hour, has its slots on :00, :05, :10 ... of the wall clock.
 
 In a week each day stands alone: before a day's first start its own last
 range runs, not the last range of the day before, so a day's ranges say all
@@ -155,19 +157,24 @@ class TimeRanges(Slots):
             ranges.append((start, r["every"]))
         return cls(ranges, tz, name)
 
+    def range_at(self, t: clock_time) -> tuple[clock_time, int]:
+        """The start and interval of the range a time of day is in."""
+        current = self.ranges[-1]   # before the first start, the last range runs on
+        for r in self.ranges:
+            if r[0] > t:
+                break
+            current = r
+        return current
+
     def every_at(self, t: clock_time) -> int:
         """The interval of the range a time of day is in; 0 when it is off."""
-        current = self.ranges[-1][1]   # before the first start, the last range runs on
-        for start, every in self.ranges:
-            if start > t:
-                break
-            current = every
-        return current
+        return self.range_at(t)[1]
 
     def is_slot_at(self, t: clock_time) -> bool:
         """Whether a time of day, in whole minutes, is a slot."""
-        step = self.every_at(t)
-        return step > 0 and (t.hour * 3600 + t.minute * 60) % step == 0
+        start, step = self.range_at(t)
+        since_start = (t.hour - start.hour) * 3600 + (t.minute - start.minute) * 60
+        return step > 0 and since_start % step == 0
 
     def is_slot(self, minute: int) -> bool:
         """Whether the whole minute at epoch seconds ``minute`` is a slot."""
