@@ -232,7 +232,7 @@ Add your driver's library to `lib_deps`, beside EpdClient. Leave
 
 ```ini
 lib_deps =
-    chrisjtwomey/EpdClient @ ^0.9.0
+    chrisjtwomey/EpdClient @ ^0.9.1
     your-vendor/YourLibrary@^1.0.0
 ```
 

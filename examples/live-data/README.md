@@ -27,7 +27,7 @@ pages.py      the two pages, and what each needs
 ```
 
 ```sh
-pip install "epd-server~=0.9.0" && python3 server.py
+pip install "epd-server~=0.9.1" && python3 server.py
 ```
 
 Then open <http://localhost:8080/now.png> and

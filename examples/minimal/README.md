@@ -20,7 +20,7 @@ builds wherever you copy it. For work on epd itself, `pio run -e dev` builds
 it against this checkout.
 
 ```sh
-pip install "epd-server~=0.9.0" && python3 server.py    # the page, at :8080/clock.png
+pip install "epd-server~=0.9.1" && python3 server.py    # the page, at :8080/clock.png
 pio run -t upload                                       # the panel
 ```
 
