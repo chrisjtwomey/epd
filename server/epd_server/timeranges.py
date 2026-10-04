@@ -173,7 +173,7 @@ class TimeRanges(Slots):
     def is_slot_at(self, t: clock_time) -> bool:
         """Whether a time of day, in whole minutes, is a slot."""
         start, step = self.range_at(t)
-        since_start = (t.hour - start.hour) * 3600 + (t.minute - start.minute) * 60
+        since_start = ((t.hour - start.hour) * 3600 + (t.minute - start.minute) * 60) % DAY
         return step > 0 and since_start % step == 0
 
     def is_slot(self, minute: int) -> bool:

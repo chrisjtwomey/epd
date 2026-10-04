@@ -89,6 +89,12 @@ def test_before_its_first_start_a_day_counts_its_last_range_from_that_ranges_sta
     assert next_slot(s, "2026-06-16T07:55:00") == "06-16 08:00:00"
 
 
+def test_a_range_past_midnight_keeps_its_interval_when_that_does_not_divide_the_day():
+    s = clock(("08:00", 300), ("22:00", 1500))
+    assert next_slot(s, "2026-06-15T23:40:00") == "06-16 00:05:00"
+    assert next_slot(s, "2026-06-16T00:05:00") == "06-16 00:30:00"
+
+
 def test_one_range_is_the_whole_day():
     s = clock(("09:00", 600))
     assert next_slot(s, "2026-06-15T02:13:00") == "06-15 02:20:00"
