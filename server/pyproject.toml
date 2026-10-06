@@ -19,6 +19,7 @@ dependencies = [
     "Flask>=3.0",
     "Werkzeug>=3.0",
     "esp-idf-nvs-partition-gen>=0.3,<0.4",
+    "cryptography>=42",
 ]
 
 [project.optional-dependencies]

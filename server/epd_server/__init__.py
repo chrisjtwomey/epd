@@ -11,6 +11,7 @@ The pieces a project composes:
 - :mod:`epd_server.scheduling` DST-correct next-wake / next-regen maths
 - :mod:`epd_server.firmware`   which client an image is an update for; the image store
 - :mod:`epd_server.mqtt`       subscribe to every board's remote log topic
+- :mod:`epd_server.certificate` the self-signed certificate for the HTTPS port
 - :mod:`epd_server.network`    the network settings a USB flash writes to a board
 - :mod:`epd_server.logs`       LogStore: the boards' log lines, in SQLite, read back in order
 - :mod:`epd_server.source`     DataSource protocol; Static / Composite / Ingest helpers

@@ -172,6 +172,24 @@ def test_port_must_be_a_valid_tcp_port(bad):
         parse_server({"display": DISPLAY, "server": {"port": bad}})
 
 
+def test_https_port_defaults_on_and_0_turns_it_off():
+    assert load_core_config({}, default_display=DISPLAY).server.https_port == 8443
+    assert parse_server({"server": {"https_port": 0}}, default_display=DISPLAY).https_port == 0
+    assert load_core_config({}, default_display=DISPLAY,
+                            default_https_port=9443).server.https_port == 9443
+
+
+@pytest.mark.parametrize("bad", [-1, 65536, "8443", True])
+def test_https_port_must_be_a_port_or_0(bad):
+    with pytest.raises(ConfigError, match="server.https_port must be a port, or 0 for none"):
+        parse_server({"server": {"https_port": bad}}, default_display=DISPLAY)
+
+
+def test_https_port_must_differ_from_the_port():
+    with pytest.raises(ConfigError, match=r"server.https_port must differ from server.port \(8080\)"):
+        parse_server({"server": {"port": 8080, "https_port": 8080}}, default_display=DISPLAY)
+
+
 def test_env_overrides_server_port(monkeypatch):
     monkeypatch.setenv("SERVER_PORT", "9090")
     assert parse_server({"display": DISPLAY}).port == 9090

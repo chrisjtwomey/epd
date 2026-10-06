@@ -46,6 +46,7 @@ the pinned release back whenever the checkout declares another version.
 | `epd_server.timeranges` | `TimeRanges` — a day of time ranges, each with an interval; `Week` — groups of days, each with its day of ranges; the slots in them, DST-correct |
 | `epd_server.firmware` | `FirmwareStore` — a directory of `<version>.bin`, each with a `<version>.merged.bin` for a USB flash when one is copied in; `ReleaseWatcher` — fill it from a repository's releases; `client_from_headers`, `parse_user_agent`, `is_clean_tag`, `update_applies` — which board an image is an update for |
 | `epd_server.mqtt` | `client_log_subscriber` — relay the client's MQTT log topic into Python logging |
+| `epd_server.certificate` | `ensure_certificate`, `certificate_names` — the self-signed certificate for the HTTPS port, kept for ten years and made anew when its names change |
 | `epd_server.network` | `network_settings_file` — the network settings a USB flash writes to a board, as its settings store, made with Espressif's `esp-idf-nvs-partition-gen` |
 | `epd_server.source` | `DataSource` — named, lazily fetched datasets; `StaticSource` for constants; `CompositeSource` to merge; `IngestSource` — what a board posted, from a `ReadingsStore` |
 | `epd_server.store` | `ReadingsStore` — what a board posts, in SQLite, kept by its `device` and `ts` and read back by time |
@@ -86,12 +87,19 @@ DisplayServer(
     tz=core.server.timezone,
     regen_lead_seconds=core.server.regen_lead_seconds,
     port=core.server.port,
+    https_port=core.server.https_port,
+    certificate_dir="data/certificate",
     mqtt=core.mqtt,
 ).run(once="--once" in sys.argv)
 ```
 
-`run()` starts the HTTP server on a thread, relays the client's MQTT log
-topic if enabled, and renders every page on a thread of its own, so the
+`run()` starts the HTTP server on a thread, and with `https_port` an HTTPS
+server for the same routes on another, with a self-signed certificate kept
+in `certificate_dir`: made at the first start, and made again when its
+names change or fewer than 30 days of it are left. Its names are the host
+of `client.server_url`, `localhost` and `127.0.0.1`. When the certificate
+cannot be made or the port is taken, the server logs it and runs on HTTP
+alone. `run()` relays the client's MQTT log topic if enabled, and renders every page on a thread of its own, so the
 server answers while it renders. A page asked for before its first render
 gets `503` with `Retry-After`. `run()` then sleeps until `regen_lead_seconds`
 before each scheduled wake, regenerating that wake's page with a fresh
@@ -152,6 +160,7 @@ core.network.missing(core.mqtt)   # -> the keys a USB flash needs that are not s
 ```yaml
 server:
   port: 8080
+  https_port: 8443               # the same routes over HTTPS; 0 for none
   timezone: Europe/Dublin        # IANA; default is the host's zone
   regen_lead_seconds: 120        # regenerate this long before each wake
 display:

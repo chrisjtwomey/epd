@@ -225,6 +225,60 @@ def test_run_answers_before_the_first_render_is_done(tmp_path, monkeypatch):
     assert not srv.first_render_pending.is_set()
 
 
+def free_port() -> int:
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+def test_run_serves_the_same_routes_over_https(tmp_path, monkeypatch):
+    import ssl
+    from epd_server.config import NetworkSettings
+    (tmp_path / "today.png").write_bytes(PNG)
+    srv = make(tmp_path, port=0, https_port=free_port(),
+               certificate_dir=str(tmp_path / "certificate"),
+               network=NetworkSettings(server_url="http://epd.local:8080"))
+    monkeypatch.setattr(srv, "regenerate", lambda only=None, force_refresh=False: [])
+    runner = threading.Thread(target=srv.run, kwargs={"install_signal_handlers": False},
+                              daemon=True)
+    runner.start()
+    try:
+        deadline = time.monotonic() + 5
+        while srv.https is None and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert srv.https is not None
+        unverified = ssl.create_default_context()
+        unverified.check_hostname = False
+        unverified.verify_mode = ssl.CERT_NONE
+        with urllib.request.urlopen(f"https://127.0.0.1:{srv.https_port}/today.png",
+                                    context=unverified, timeout=5) as rsp:
+            assert rsp.status == 200 and rsp.read() == PNG
+    finally:
+        srv.stop()
+        runner.join(5)
+    assert srv.https is None
+    assert (tmp_path / "certificate" / "key.pem").exists()
+
+
+def test_a_certificate_that_cannot_be_made_leaves_plain_http(tmp_path, caplog):
+    (tmp_path / "today.png").write_bytes(PNG)
+    (tmp_path / "not-a-directory").write_text("")
+    srv = make(tmp_path, port=0, https_port=free_port(),
+               certificate_dir=str(tmp_path / "not-a-directory"))
+    srv.shutdown_event = OneTickEvent()
+
+    with caplog.at_level("ERROR"):
+        srv.run(install_signal_handlers=False)
+
+    assert f"No HTTPS on port {srv.https_port}" in caplog.text
+    assert srv.https is None
+
+
+def test_an_https_port_needs_a_place_for_its_certificate(tmp_path):
+    with pytest.raises(ValueError, match="needs a certificate_dir for its https_port"):
+        make(tmp_path, https_port=8443)
+
+
 @pytest.fixture
 def live(server):
     """The server's app on a free port, with a short connection timeout."""

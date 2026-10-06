@@ -2,7 +2,8 @@
 
 Everything between a panel and its server is plain HTTP. Two headers on a
 page response carry the whole schedule; two more offer a firmware update.
-There is no state on either side beyond that.
+There is no state on either side beyond that. A server may serve the same
+routes over HTTPS on a second port, for a browser; the panels never use it.
 
 Read this if you are debugging with `curl`, writing a client for hardware
 epd does not cover, or serving epd panels from something other than

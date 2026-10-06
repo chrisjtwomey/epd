@@ -109,6 +109,7 @@ validates its own keys — an API key, a location — separately.
 ```yaml
 server:
   port: 8080
+  https_port: 8443             # the same routes over HTTPS; 0 for none
   timezone: Europe/Dublin      # IANA name; times below are read in this zone
   regen_lead_seconds: 120      # redraw this long before each wake
 
@@ -186,6 +187,15 @@ range has a slot at its start: from 08:30 every 1200 gives 08:30, 08:50,
 when it says, whatever its interval. One range from 00:00 is a page every so
 often all day. A group has at most
 8 ranges, and one range in the week must have an interval.
+
+`server.https_port`, 8443 unless set, serves every route over HTTPS as
+well, with a self-signed certificate that the server makes and keeps: a
+browser lets a page use a serial port only over HTTPS, or on localhost. The
+browser warns about the certificate, since nobody vouches for it. The port
+must differ from `server.port`. Set it to 0 behind a reverse proxy that has
+a certificate of its own. A project passes it to `DisplayServer` with a
+directory for the certificate. When the certificate cannot be made or the
+port is taken, the server logs it and runs on HTTP alone.
 
 `client.firmware` sits under `client` because every key in it describes the
 panel rather than the server. A relative `dir` is resolved against the

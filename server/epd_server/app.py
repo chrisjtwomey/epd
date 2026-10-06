@@ -3,9 +3,9 @@ before its client wake time.
 
 A project builds its pages and a :class:`~epd_server.source.DataSource`,
 hands them to :class:`DisplayServer` with the validated settings, and calls
-:meth:`DisplayServer.run`. Everything else — HTTP routes, the schedule and
-identity headers, the regeneration loop, the client log relay, signal
-handling — lives here.
+:meth:`DisplayServer.run`. Everything else — HTTP routes, an optional HTTPS
+port for a browser, the schedule and identity headers, the regeneration
+loop, the client log relay, signal handling — lives here.
 
 The wire contract with the client is small. Every name below is written with
 the default prefix; a project sets its own, and :mod:`epd_server.headers`
@@ -69,6 +69,7 @@ from urllib.parse import urlencode
 from flask import Flask, abort, jsonify, make_response, request, send_file
 from werkzeug.serving import WSGIRequestHandler, make_server
 
+from .certificate import certificate_names, ensure_certificate
 from .compat import compatible, version_order
 from .config import FirmwareSettings, MqttSettings, NetworkSettings
 from ._version import __version__
@@ -133,22 +134,26 @@ def _text(status: int, message: str):
 
 
 class ServerThread(threading.Thread):
-    """Werkzeug's threaded dev server on a daemon thread, with a clean shutdown."""
+    """Werkzeug's threaded dev server on a daemon thread, with a clean shutdown.
+    With ``ssl_context``, a certificate and key path, it serves HTTPS."""
 
     def __init__(self, app: Flask, host: str, port: int,
-                 timeout_s: float = CONNECTION_TIMEOUT_S):
-        super().__init__(daemon=True, name="epd-http")
+                 timeout_s: float = CONNECTION_TIMEOUT_S,
+                 ssl_context: tuple[str, str] | None = None):
+        self.scheme = "https" if ssl_context else "http"
+        super().__init__(daemon=True, name=f"epd-{self.scheme}")
         handler = type("TimedRequestHandler", (WSGIRequestHandler,), {"timeout": timeout_s})
-        self.server = make_server(host, port, app, threaded=True, request_handler=handler)
+        self.server = make_server(host, port, app, threaded=True, request_handler=handler,
+                                  ssl_context=ssl_context)
         self.ctx = app.app_context()
         self.ctx.push()
 
     def run(self):
-        log.info("Starting http server on %s:%d", *self.server.server_address[:2])
+        log.info("Starting %s server on %s:%d", self.scheme, *self.server.server_address[:2])
         self.server.serve_forever()
 
     def shutdown(self):
-        log.info("Stopping http server")
+        log.info("Stopping %s server", self.scheme)
         self.server.shutdown()
 
 
@@ -168,6 +173,9 @@ class DisplayServer:
             every response carries it as a POSIX TZ string.
         regen_lead_seconds: regenerate this long before each wake.
         host, port: where to listen.
+        https_port: where to serve the same routes over HTTPS as well, with a
+            self-signed certificate kept in ``certificate_dir``; 0 for none.
+            The flash page needs HTTPS, unless a reverse proxy gives it.
         mqtt: if given and ``enabled``, relay every board's log topic into
             the ``client`` logger while running.
         client_logs: where the relayed lines are kept, if anywhere.
@@ -218,6 +226,8 @@ class DisplayServer:
         regen_lead_seconds: int = 120,
         host: str = "0.0.0.0",
         port: int = 8080,
+        https_port: int = 0,
+        certificate_dir: str | None = None,
         mqtt: MqttSettings | None = None,
         mqtt_client_id: str = "epd-server",
         client_logs: LogStore | None = None,
@@ -245,6 +255,8 @@ class DisplayServer:
         self.regen_lead_seconds = regen_lead_seconds
         self.host = host
         self.port = port
+        self.https_port = https_port
+        self.certificate_dir = certificate_dir
         self.mqtt = mqtt
         self.mqtt_client_id = mqtt_client_id
         self.client_logs = client_logs
@@ -265,6 +277,8 @@ class DisplayServer:
 
         if not self.pages:
             raise ValueError("DisplayServer needs at least one page")
+        if https_port and not certificate_dir:
+            raise ValueError("DisplayServer needs a certificate_dir for its https_port")
         served = {p.png_filename for p in self.pages}
         unknown = sorted(self.schedule.pages() - served)
         if unknown:
@@ -287,6 +301,7 @@ class DisplayServer:
         self.first_render_pending = threading.Event()
         self.shutdown_event = threading.Event()
         self.http: ServerThread | None = None
+        self.https: ServerThread | None = None
         self.mqtt_client = None
 
         self.app = self._build_app()
@@ -607,6 +622,8 @@ class DisplayServer:
 
         self.http = ServerThread(self.app, self.host, self.port)
         self.http.start()
+        if self.https_port:
+            self._start_https()
         threading.Thread(target=self._first_render, name="epd-first-render", daemon=True).start()
 
         if install_signal_handlers:
@@ -620,6 +637,19 @@ class DisplayServer:
             self._loop()
         finally:
             self._shutdown()
+
+    def _start_https(self) -> None:
+        """Serve HTTPS too. A failure leaves the server on plain HTTP alone,
+        since the boards need only that."""
+        assert self.certificate_dir is not None   # checked in __init__
+        names = certificate_names(self.network.server_url if self.network else "")
+        try:
+            paths = ensure_certificate(self.certificate_dir, names)
+            self.https = ServerThread(self.app, self.host, self.https_port, ssl_context=paths)
+        except (OSError, ValueError) as exc:
+            log.error("No HTTPS on port %d: %s", self.https_port, exc)
+            return
+        self.https.start()
 
     def _first_render(self) -> None:
         """Render every page, once, while the server already answers. A
@@ -661,6 +691,9 @@ class DisplayServer:
         if self.http is not None:
             self.http.shutdown()
             self.http = None
+        if self.https is not None:
+            self.https.shutdown()
+            self.https = None
         if self.mqtt_client is not None:
             self.mqtt_client.loop_stop()
             self.mqtt_client.disconnect()

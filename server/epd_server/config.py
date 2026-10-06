@@ -118,6 +118,7 @@ def load_yaml(path) -> dict:
 @dataclass(frozen=True)
 class ServerSettings:
     port: int
+    https_port: int                 # 0 when off, as behind a reverse proxy
     timezone: _tzinfo
     schedule: WakeSchedule          # from the display block: pools, and when they show
     regen_lead_seconds: int         # regenerate this long before each wake
@@ -294,11 +295,17 @@ def parse_server(
     *,
     default_display: dict | None = None,
     default_port: int = 8080,
+    default_https_port: int = 8443,
     default_regen_lead_seconds: int = 120,
 ) -> ServerSettings:
     port = _positive_int("server.port", get_prop_by_keys(config, "server", "port", default=default_port))
     if port > 65535:
         raise ConfigError(f"server.port must be 65535 or less. It is {port}.")
+    https_port = get_prop_by_keys(config, "server", "https_port", default=default_https_port)
+    if isinstance(https_port, bool) or not isinstance(https_port, int) or not 0 <= https_port <= 65535:
+        raise ConfigError(f"server.https_port must be a port, or 0 for none (got {https_port!r})")
+    if https_port == port:
+        raise ConfigError(f"server.https_port must differ from server.port ({port})")
 
     regen_lead = get_prop_by_keys(config, "server", "regen_lead_seconds",
                                   default=default_regen_lead_seconds)
@@ -320,6 +327,7 @@ def parse_server(
 
     return ServerSettings(
         port=port,
+        https_port=https_port,
         timezone=tz,
         schedule=schedule,
         regen_lead_seconds=regen_lead,
@@ -484,6 +492,7 @@ def load_core_config(
     default_firmware_product: str | None = None,
     base_dir: str | None = None,
     default_port: int = 8080,
+    default_https_port: int = 8443,
     default_regen_lead_seconds: int = 120,
     default_width: int = 825,
     default_height: int = 1200,
@@ -497,6 +506,7 @@ def load_core_config(
     """
     return CoreConfig(
         server=parse_server(config, default_display=default_display, default_port=default_port,
+                            default_https_port=default_https_port,
                             default_regen_lead_seconds=default_regen_lead_seconds),
         image=parse_image(config, default_width=default_width, default_height=default_height),
         mqtt=parse_mqtt(config, default_prefix=default_mqtt_prefix),
