@@ -21,6 +21,10 @@ the filename, so an image built by hand works the moment it is copied in::
 A server that holds several products keeps each in a subdirectory of its
 name (``server/firmware/canary-dock/v1.6.0.bin``). Every image stays: a board
 is offered the one its server calls for, which may be older than its own.
+
+Beside an image may sit its merged image, ``v1.6.0.merged.bin``: the
+bootloader, the partition table and the app in one file, written from
+address 0 by a USB flash. It is never offered as an update.
 """
 from __future__ import annotations
 
@@ -51,6 +55,8 @@ _VERSION_CHARS = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]*$")
 
 # A product name, as a board states it.
 _NAME_CHARS = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+MERGED = ".merged"
 
 
 @dataclass(frozen=True)
@@ -147,25 +153,32 @@ class FirmwareStore:
 
     def image(self, version: str) -> FirmwareImage | None:
         """The image of one version, or None."""
-        if not _VERSION_CHARS.match(version or ""):
+        if not _is_version(version):
             return None
         path = os.path.join(self.dir, version + ".bin")
         return self._image(path) if os.path.isfile(path) else None
 
-    def _image(self, path: str) -> FirmwareImage:
+    def merged(self, version: str) -> FirmwareImage | None:
+        """The merged image of one version, or None."""
+        if not _is_version(version):
+            return None
+        path = os.path.join(self.dir, version + MERGED + ".bin")
+        return self._image(path, version) if os.path.isfile(path) else None
+
+    def _image(self, path: str, version: str | None = None) -> FirmwareImage:
         stat = os.stat(path)
         key = (stat.st_mtime_ns, stat.st_size)
         held = self._cache.get(path)
         if held and held[0] == key:
             return held[1]
-        image = FirmwareImage(version=_version_of(path), path=path, size=stat.st_size,
-                              md5=_md5_of(path))
+        image = FirmwareImage(version=version or _version_of(path), path=path,
+                              size=stat.st_size, md5=_md5_of(path))
         self._cache[path] = (key, image)
         return image
 
     def put(self, version: str, data: bytes) -> FirmwareImage:
         """Store ``data`` as ``<version>.bin``, beside the images already held."""
-        if not _VERSION_CHARS.match(version or ""):
+        if not _is_version(version):
             raise ValueError(f"version {version!r} cannot be a filename")
         if not data.startswith(b"\xe9"):
             raise ValueError("not an ESP32 image: the first byte is not the 0xE9 magic")
@@ -183,7 +196,8 @@ class FirmwareStore:
             names = os.listdir(self.dir)
         except OSError:
             return []
-        return [os.path.join(self.dir, n) for n in names if n.endswith(".bin")]
+        return [os.path.join(self.dir, n) for n in names
+                if n.endswith(".bin") and not n.endswith(MERGED + ".bin")]
 
     def _usable(self) -> list[str]:
         usable = []
@@ -199,6 +213,11 @@ class FirmwareStore:
         if not usable:
             return None
         return max(usable, key=lambda p: os.stat(p).st_mtime_ns)
+
+
+def _is_version(version: str | None) -> bool:
+    """Whether ``version`` can name an update image."""
+    return bool(version and _VERSION_CHARS.match(version) and not version.endswith(MERGED))
 
 
 def _version_of(path: str) -> str:

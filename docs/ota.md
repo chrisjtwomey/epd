@@ -66,6 +66,24 @@ So the build you flash over USB, with your real `src/defaults.cpp`,
 provisions the panel. Every later image comes from CI with placeholders,
 finds the stored values, and connects. One USB flash, and only one.
 
+A server can provision a panel without a build of your own. With
+`client.server_url`, `client.wifi` and, for MQTT, `client.mqtt_host` set
+([Configuration](configuration.md#server-configyaml)), `GET /network.bin`
+is the panel's whole settings store holding those values. Write the merged
+image at 0x0, then this file at 0x9000: the merged image fills the store's
+place with blank bytes. esptool refuses two files that overlap in one
+command, so it takes two:
+
+```sh
+esptool write-flash 0x0 my-display-v1.6.0.merged.bin
+esptool write-flash 0x9000 my-display-network.bin
+```
+
+The file replaces everything the store held, the settings a firmware keeps
+there of its own included. It is made from the config at each download, and
+a panel reads it only when it is written: a Wi-Fi password changed in the
+config reaches a panel through another USB flash.
+
 The MQTT block is resolved as a unit, and the broker host decides. A real
 broker means this image carries real settings, which are stored for the
 images that follow; a placeholder means the whole block comes from the store.
@@ -123,6 +141,17 @@ client:
 
 ```sh
 cp firmware.bin server/firmware/my-sensor/v1.6.0.bin
+```
+
+Beside an image may sit its merged image, which a USB flash writes from
+address 0: the bootloader, the partition table and the app in one file, as
+PlatformIO's `firmware.factory.bin`. The server serves it at
+`/firmware.merged.bin` for the version it offers over the air, so a panel
+flashed with it is not updated straight after. It is never offered as an
+update, and a `source` block does not fetch one: copy it in beside its image.
+
+```sh
+cp .pio/build/my-env/firmware.factory.bin server/firmware/v1.6.0.merged.bin
 ```
 
 To have the server fetch releases itself, give it a `source` block:

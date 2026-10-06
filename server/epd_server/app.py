@@ -33,6 +33,17 @@ builds the names from it::
       304 when the request's x-ESP32-version is the version held
       404 when the server holds no such image
 
+    GET /firmware.merged.bin[?product=<name>]
+      200 application/octet-stream, Content-Length, x-MD5: the merged image
+          of the version offered over the air, for a USB flash from address 0
+      404 when the server holds no such image
+
+    GET /network.bin[?product=<name>]
+      200 application/octet-stream: the board's settings store with the
+          network settings, for a USB flash at 0x9000
+      404 when the server has no such product
+      409 when a key it needs is not set; the body names them
+
     POST /<name>        a project's ingest route: a JSON object, or an array
                         of them, in; 204 out, or 200 with the handler's JSON;
                         409 when version_gate is on and the board's version
@@ -59,13 +70,14 @@ from flask import Flask, abort, jsonify, make_response, request, send_file
 from werkzeug.serving import WSGIRequestHandler, make_server
 
 from .compat import compatible, version_order
-from .config import FirmwareSettings, MqttSettings
+from .config import FirmwareSettings, MqttSettings, NetworkSettings
 from ._version import __version__
 from .headers import Wire
 from .firmware import (FirmwareImage, FirmwareStore, ReleaseWatcher, client_from_headers,
                        update_applies)
 from .logs import LogStore
 from .mqtt import client_log_subscriber
+from .network import network_settings_file
 from .page import Page
 from .pipeline import regenerate as _regenerate
 from .posix_tz import posix_tz
@@ -96,6 +108,28 @@ FIRST_RENDER_RETRY_AFTER_S = 30
 
 
 CONNECTION_TIMEOUT_S = 30
+
+
+def _image_response(image: FirmwareImage, download_name: str):
+    """A firmware image as a download, with the md5 an ESP32 checks it by."""
+    with open(image.path, "rb") as f:
+        data = f.read()
+    rsp = make_response(send_file(
+        io.BytesIO(data),
+        mimetype="application/octet-stream",
+        as_attachment=True,
+        download_name=download_name,
+    ))
+    rsp.headers["Content-Length"] = str(image.size)
+    rsp.headers["x-MD5"] = image.md5
+    return rsp
+
+
+def _text(status: int, message: str):
+    """A plain-text answer, for a person reading it in a terminal or a page."""
+    rsp = make_response(message + "\n", status)
+    rsp.mimetype = "text/plain"
+    return rsp
 
 
 class ServerThread(threading.Thread):
@@ -149,9 +183,12 @@ class DisplayServer:
             ``ValueError`` a 400. A name may have both kinds of route.
         firmware: if given and ``enabled``, offer an image from its directory
             to the boards it is for, on any response to one, and serve it at
-            ``/firmware.bin``. With ``version_gate`` the offer is the newest
-            image that can work with ``server_version``, older than the
-            board's own or newer; without it, the newest file.
+            ``/firmware.bin`` and its merged image at ``/firmware.merged.bin``.
+            With ``version_gate`` the offer is the newest image that can work
+            with ``server_version``, older than the board's own or newer;
+            without it, the newest file.
+        network: if given with ``firmware``, serve each product's network
+            settings at ``/network.bin``, for a USB flash.
         header_prefix: the product's name, which every header on the wire
             starts with. See :mod:`epd_server.headers`.
         server_version: what to report as this server's version. Defaults to
@@ -187,6 +224,7 @@ class DisplayServer:
         ingest: Mapping[str, Callable[[list[dict]], dict | None]] | None = None,
         queries: Mapping[str, Callable[[dict], object]] | None = None,
         firmware: FirmwareSettings | None = None,
+        network: NetworkSettings | None = None,
         header_prefix: str = "EPD",
         server_version: str | None = None,
         version_gate: bool = False,
@@ -213,6 +251,7 @@ class DisplayServer:
         self.ingest = dict(ingest or {})
         self.queries = dict(queries or {})
         self.firmware = firmware
+        self.network = network
         self.wire = Wire(header_prefix)
         self.server_version = server_version or __version__
         self.version_gate = version_gate
@@ -298,6 +337,11 @@ class DisplayServer:
         if self.firmware_store is not None:
             app.add_url_rule("/firmware.bin", endpoint="firmware",
                              view_func=self._serve_firmware)
+            app.add_url_rule("/firmware.merged.bin", endpoint="firmware_merged",
+                             view_func=self._serve_merged)
+        if self.network is not None and self.firmware is not None:
+            app.add_url_rule("/network.bin", endpoint="network",
+                             view_func=self._serve_network)
 
         for page in self.pages:
             app.add_url_rule(
@@ -402,18 +446,49 @@ class DisplayServer:
         if request.headers.get("x-ESP32-version") == image.version:
             log.info("%s already runs firmware %s", request.user_agent.string, image.version)
             return "", 304
-        with open(image.path, "rb") as f:
-            data = f.read()
         log.info("Serving firmware %s (%d bytes) to %s",
                  image.version, image.size, request.user_agent.string)
+        return _image_response(image, image.version + ".bin")
+
+    def _serve_merged(self):
+        """The merged image of the version a product is offered over the air,
+        so a board flashed with it is not updated straight after."""
+        assert self.firmware is not None   # the route exists only when it does
+        product = request.args.get("product") or self.firmware.product
+        store = self.firmware_stores.get(product)
+        image = self._offer_image(product) if store is not None else None
+        merged = store.merged(image.version) if store is not None and image is not None else None
+        if merged is None:
+            if image is not None:
+                log.warning("No merged image of %s %s", product, image.version)
+            return _text(404, f"No firmware to flash for {product} yet.")
+        log.info("Serving the merged image of %s %s (%d bytes) to %s",
+                 product, merged.version, merged.size, request.user_agent.string)
+        return _image_response(merged, f"{product}-{merged.version}.merged.bin")
+
+    def _serve_network(self):
+        """A product's network settings, as the board's settings store."""
+        assert self.firmware is not None and self.network is not None
+        product = request.args.get("product") or self.firmware.product
+        if product not in self.firmware.names():
+            return _text(404, f"No product named {product}.")
+        missing = self.network.missing(self.mqtt)
+        if missing:
+            log.warning("Network settings for %s asked for, but %s not set",
+                        product, ", ".join(missing))
+            return _text(409, f"Network settings not set: {', '.join(missing)}.")
+        data = network_settings_file(self.network, self.mqtt, product=product,
+                                     first_page=self.pages[0].png_filename)
+        log.info("Serving the network settings of %s to %s", product,
+                 request.user_agent.string)
         rsp = make_response(send_file(
             io.BytesIO(data),
             mimetype="application/octet-stream",
             as_attachment=True,
-            download_name=image.version + ".bin",
+            download_name=f"{product}-network.bin",
         ))
-        rsp.headers["Content-Length"] = str(image.size)
-        rsp.headers["x-MD5"] = image.md5
+        rsp.headers["Content-Length"] = str(len(data))
+        rsp.headers["Cache-Control"] = "no-store"
         return rsp
 
     def _firmware_headers(self, rsp) -> None:

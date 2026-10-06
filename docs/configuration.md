@@ -1,11 +1,13 @@
 # Configuration
 
-The panel and the server are configured separately, and they overlap in only
-one place: the address the panel fetches from.
+The panel and the server are configured separately, and they overlap in
+one place: the panel's network settings, the address it fetches from among
+them.
 
 - The **panel** gets its settings from `src/defaults.cpp`, compiled in, with
   some of them overridable from the panel's own storage and all of them
-  overridable from an SD card.
+  overridable from an SD card. The server can write the ones kept in storage
+  over USB ([Updates over the air](ota.md#credentials-and-the-one-usb-flash)).
 - The **server** gets its settings from `config.yaml`, with every key
   overridable by an environment variable.
 
@@ -128,6 +130,11 @@ image:
   innerAlignY: center          # top | center | bottom
 
 client:                        # what the panels run, not what this server does
+  server_url: http://epd.local:8080   # this server, as the panels reach it
+  wifi:
+    ssid: Home
+    password: "8 to 63 characters"
+  mqtt_host: epd.local         # the broker, as the panels reach it
   firmware:
     enabled: false
     dir: firmware              # a directory of <version>.bin; see Updates over the air
@@ -184,6 +191,27 @@ often all day. A group has at most
 panel rather than the server. A relative `dir` is resolved against the
 directory holding `config.yaml`.
 
+`server_url`, `wifi` and `mqtt_host` are what a USB flash writes to a panel,
+as its [network settings](ota.md#credentials-and-the-one-usb-flash). They
+describe the network as the panel sees it, which in Docker is not what the
+server sees: `mqtt.host` stays the server's own way to its broker.
+`mqtt.enabled`, `mqtt.port` and `mqtt.prefix` serve both. The server checks
+each key that is set:
+
+- `server_url` is `http://host` or `http://host:port`, with nothing after
+  it. The server adds the first of its pages, for a panel's first fetch; a
+  board that only posts keeps the host and the port.
+- `wifi.ssid` is 32 bytes or fewer.
+- `wifi.password` is 8 to 63 characters. A panel cannot join an open
+  network from its stored settings.
+- `mqtt_host` is a host name or an address alone.
+- An SSID or a password is text: quote one that YAML would read as a number
+  or as true or false.
+
+A key that is not set does not stop the server; it only stops the network
+settings from being served. `mqtt_host` is needed only while `mqtt.enabled`
+is true.
+
 ### Environment overrides
 
 Every key can be set by an environment variable named after its path, upper
@@ -197,6 +225,7 @@ IMAGE_INNERWIDTH=800
 MQTT_ENABLED=true
 CLIENT_FIRMWARE_ENABLED=true
 CLIENT_FIRMWARE_SOURCE_TOKEN=ghp_…
+CLIENT_WIFI_PASSWORD=…
 DEBUG=true
 ```
 

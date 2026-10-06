@@ -227,6 +227,42 @@ have ended anyway, and the next one tries again.
 
 See [Updates over the air](ota.md) for what the panel does with the image.
 
+## A USB flash
+
+Two more routes serve what a first flash over USB writes. Nothing on the
+panel asks for them; a person, a script or a flash page does.
+
+```
+GET /firmware.merged.bin[?product=<name>]
+  200 application/octet-stream, with Content-Length and x-MD5
+  404 text/plain when the server has no such product, or no merged image of
+      the version it offers
+```
+
+The merged image is the bootloader, the partition table and the app in one
+file, written from address 0. It is of the version the server offers that
+product over the air, so a panel flashed with it is not updated straight
+after.
+
+```
+GET /network.bin[?product=<name>]
+  200 application/octet-stream, with Cache-Control: no-store
+  404 text/plain when the server has no such product
+  409 text/plain when a key it needs is not set; the body names them
+```
+
+The network settings are the panel's whole settings store, written at
+0x9000 after the merged image. They hold the server URL, the Wi-Fi network
+and its password, and the MQTT block when MQTT is on, with the product's
+name as the client ID. The server makes the file from its config at each
+download, and anyone who can reach the server can download it, password
+included.
+
+Both routes take the default product without the query, as `/firmware.bin`
+does. `/network.bin` exists when a project passes the server its network
+settings and its firmware settings, which name the products; see
+[Configuration](configuration.md#server-configyaml).
+
 ## Sending data back
 
 A board can post to the server:

@@ -655,6 +655,84 @@ def test_the_index_reports_the_image_it_holds(tmp_path):
                                 "md5": hashlib.md5(BIN).hexdigest(), "product": "my-display"}
 
 
+# ---------- a USB flash: the merged image and the network settings ----------
+
+from epd_server.config import NetworkSettings  # noqa: E402
+from epd_server.network import network_settings_file  # noqa: E402
+
+NETWORK = NetworkSettings("http://epd.local:8080", "Home", "correct horse", "epd.local")
+MQTT = MqttSettings(True, "mosquitto", 1883, "mqtt/epd")
+
+
+def test_the_merged_image_is_of_the_version_offered_over_the_air(tmp_path):
+    import hashlib
+    client = two_products(tmp_path, {"my-sensor": ["v0.3.0", "v0.3.2", "v0.4.0"]})
+    for version in ("v0.3.0", "v0.3.2", "v0.4.0"):
+        (tmp_path / "fw" / "my-sensor" / f"{version}.merged.bin").write_bytes(BIN + b"m" + version.encode())
+
+    rsp = client.get("/firmware.merged.bin?product=my-sensor")
+
+    assert rsp.status_code == 200
+    assert rsp.data == BIN + b"mv0.3.2"
+    assert rsp.headers["Content-Length"] == str(len(rsp.data))
+    assert rsp.headers["x-MD5"] == hashlib.md5(rsp.data).hexdigest()
+    assert rsp.headers["Content-Disposition"] == "attachment; filename=my-sensor-v0.3.2.merged.bin"
+
+
+def test_no_merged_image_is_a_404_with_nothing_to_flash(tmp_path, caplog):
+    client = two_products(tmp_path, {"my-display": ["v0.3.0"]})
+
+    with caplog.at_level("WARNING"):
+        rsp = client.get("/firmware.merged.bin")
+    assert rsp.status_code == 404 and rsp.mimetype == "text/plain"
+    assert rsp.text == "No firmware to flash for my-display yet.\n"
+    assert "No merged image of my-display v0.3.0" in caplog.text
+
+    rsp = client.get("/firmware.merged.bin?product=my-sensor")
+    assert rsp.status_code == 404 and rsp.text == "No firmware to flash for my-sensor yet.\n"
+    assert client.get("/firmware.merged.bin?product=nobody").status_code == 404
+
+
+def test_the_network_settings_are_each_products_own(tmp_path):
+    client = two_products(tmp_path, {}, network=NETWORK, mqtt=MQTT)
+
+    rsp = client.get("/network.bin?product=my-sensor")
+
+    assert rsp.status_code == 200
+    assert rsp.data == network_settings_file(NETWORK, MQTT, product="my-sensor",
+                                             first_page="today.png")
+    assert rsp.headers["Cache-Control"] == "no-store"
+    assert rsp.headers["Content-Disposition"] == "attachment; filename=my-sensor-network.bin"
+    assert client.get("/network.bin").data == network_settings_file(
+        NETWORK, MQTT, product="my-display", first_page="today.png")
+
+
+def test_network_settings_not_set_are_a_409_that_names_them(tmp_path, caplog):
+    client = two_products(tmp_path, {}, network=NetworkSettings(wifi_ssid="Home"), mqtt=MQTT)
+
+    with caplog.at_level("WARNING"):
+        rsp = client.get("/network.bin?product=my-sensor")
+
+    assert rsp.status_code == 409 and rsp.mimetype == "text/plain"
+    assert rsp.text == ("Network settings not set: client.server_url, client.wifi.password, "
+                        "client.mqtt_host.\n")
+    assert "Network settings for my-sensor asked for, but client.server_url" in caplog.text
+
+
+def test_network_settings_for_no_such_product_are_a_404(tmp_path):
+    client = two_products(tmp_path, {}, network=NETWORK)
+
+    rsp = client.get("/network.bin?product=nobody")
+
+    assert rsp.status_code == 404 and rsp.text == "No product named nobody.\n"
+
+
+def test_no_usb_flash_routes_without_their_settings(tmp_path, client):
+    assert client.get("/firmware.merged.bin").status_code == 404
+    assert client.get("/network.bin").status_code == 404
+    assert two_products(tmp_path, {}).get("/network.bin").status_code == 404
+
+
 def test_the_release_watcher_runs_only_with_a_source(tmp_path, monkeypatch):
     from epd_server.config import FirmwareSource
 

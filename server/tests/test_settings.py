@@ -26,7 +26,8 @@ def display(pools: dict, **schedule) -> dict:
 @pytest.fixture(autouse=True)
 def isolate_env(monkeypatch):
     for key in list(__import__("os").environ):
-        if key.startswith(("SERVER_", "IMAGE_", "MQTT_", "DISPLAY_", "FIRMWARE_")) or key == "DEBUG":
+        if key.startswith(("SERVER_", "IMAGE_", "MQTT_", "DISPLAY_", "FIRMWARE_", "CLIENT_")) \
+                or key == "DEBUG":
             monkeypatch.delenv(key, raising=False)
 
 
@@ -340,3 +341,94 @@ def test_a_relative_firmware_dir_resolves_against_the_config_file(tmp_path):
     assert fw.dir == str(tmp_path / "firmware")
     absolute = parse_firmware(firmware_cfg(dir="/srv/images"), base_dir=str(tmp_path))
     assert absolute.dir == "/srv/images"
+
+
+# ---------- network ----------
+
+from epd_server.config import MqttSettings, NetworkSettings, parse_network  # noqa: E402
+
+MQTT_ON = MqttSettings(True, "mosquitto", 1883, "mqtt/epd")
+MQTT_OFF = MqttSettings(False, "localhost", 1883, "mqtt/epd")
+
+
+def network_cfg(wifi=None, **client):
+    return {"client": {**client, **({"wifi": wifi} if wifi is not None else {})}}
+
+
+def test_no_network_keys_is_a_server_that_still_runs():
+    network = load_core_config({}, default_display=DISPLAY).network
+    assert network == NetworkSettings()
+    assert network.missing(MQTT_OFF) == ["client.server_url", "client.wifi.ssid",
+                                         "client.wifi.password"]
+    assert network.missing(MQTT_ON)[-1] == "client.mqtt_host"
+
+
+def test_the_network_keys_are_read():
+    network = parse_network(network_cfg(
+        server_url="http://epd.local:8080/", mqtt_host="epd.local",
+        wifi={"ssid": "Home", "password": "correct horse"}))
+    assert network == NetworkSettings("http://epd.local:8080", "Home", "correct horse", "epd.local")
+    assert network.missing(MQTT_ON) == []
+
+
+def test_an_ssid_and_a_password_keep_their_spaces():
+    network = parse_network(network_cfg(wifi={"ssid": " Home ", "password": " 8 chars "}))
+    assert (network.wifi_ssid, network.wifi_password) == (" Home ", " 8 chars ")
+
+
+def test_an_empty_password_is_not_set():
+    assert parse_network(network_cfg(wifi={"password": ""})).missing(MQTT_OFF)[-1] == \
+        "client.wifi.password"
+
+
+def test_the_network_keys_come_from_the_environment_too(monkeypatch):
+    monkeypatch.setenv("CLIENT_WIFI_PASSWORD", "from the env")
+    monkeypatch.setenv("CLIENT_SERVER_URL", "http://10.0.0.2:8080")
+    network = parse_network(network_cfg(wifi={"password": "from the file"}))
+    assert (network.wifi_password, network.server_url) == ("from the env", "http://10.0.0.2:8080")
+
+
+@pytest.mark.parametrize("url", [
+    "https://epd.local",            # the boards speak plain HTTP
+    "epd.local:8080",               # no scheme
+    "http://",                      # no host
+    "http://epd.local/epd",         # a path, which the dock would drop
+    "http://epd.local/?page=1",     # a query
+    "http://epd.local:99999",       # a port out of range
+    "http://epd.local:0",
+    "http://epd.local:port",
+    "http://me@epd.local",          # a user
+])
+def test_a_server_url_must_be_an_http_host_and_port(url):
+    with pytest.raises(ConfigError, match="client.server_url must be http://host"):
+        parse_network(network_cfg(server_url=url))
+
+
+def test_an_ssid_is_at_most_32_bytes():
+    assert parse_network(network_cfg(wifi={"ssid": "x" * 32})).wifi_ssid == "x" * 32
+    with pytest.raises(ConfigError, match=r"client.wifi.ssid must be 32 bytes or fewer \(got 34\)"):
+        parse_network(network_cfg(wifi={"ssid": "é" * 17}))
+
+
+@pytest.mark.parametrize("length", [7, 64])
+def test_a_password_is_8_to_63_characters(length):
+    with pytest.raises(ConfigError, match=f"client.wifi.password must be 8 to 63 characters \\(got {length}\\)"):
+        parse_network(network_cfg(wifi={"password": "x" * length}))
+    for good in (8, 63):
+        assert parse_network(network_cfg(wifi={"password": "x" * good})).wifi_password == "x" * good
+
+
+@pytest.mark.parametrize("key, value", [
+    ("password", 12345678),         # YAML reads unquoted digits as a number
+    ("password", True),             # and yes as true
+    ("ssid", 2024),
+])
+def test_a_wifi_value_that_yaml_did_not_read_as_text_is_refused(key, value):
+    with pytest.raises(ConfigError, match=f"client.wifi.{key} must be text: put it in quotes"):
+        parse_network(network_cfg(wifi={key: value}))
+
+
+@pytest.mark.parametrize("host", ["epd.local:1883", "mqtt://epd.local", "epd local"])
+def test_an_mqtt_host_is_a_host_alone(host):
+    with pytest.raises(ConfigError, match="client.mqtt_host must be a host name or address alone"):
+        parse_network(network_cfg(mqtt_host=host))

@@ -44,8 +44,9 @@ the pinned release back whenever the checkout declares another version.
 | `epd_server.quantise` | `Quantiser` protocol; `GreyscaleQuantiser(levels=4)` default, `PaletteQuantiser` for colour panels, `IdentityQuantiser` for none |
 | `epd_server.scheduling` | `Pools`, `TimesSchedule`, `TimeRangesSchedule` — what shows and when; `next_wake`, `next_regen`, `seconds_until` underneath |
 | `epd_server.timeranges` | `TimeRanges` — a day of time ranges, each with an interval; `Week` — groups of days, each with its day of ranges; the slots in them, DST-correct |
-| `epd_server.firmware` | `FirmwareStore` — a directory of `<version>.bin`; `ReleaseWatcher` — fill it from a repository's releases; `client_from_headers`, `parse_user_agent`, `is_clean_tag`, `update_applies` — which board an image is an update for |
+| `epd_server.firmware` | `FirmwareStore` — a directory of `<version>.bin`, each with a `<version>.merged.bin` for a USB flash when one is copied in; `ReleaseWatcher` — fill it from a repository's releases; `client_from_headers`, `parse_user_agent`, `is_clean_tag`, `update_applies` — which board an image is an update for |
 | `epd_server.mqtt` | `client_log_subscriber` — relay the client's MQTT log topic into Python logging |
+| `epd_server.network` | `network_settings_file` — the network settings a USB flash writes to a board, as its settings store, made with Espressif's `esp-idf-nvs-partition-gen` |
 | `epd_server.source` | `DataSource` — named, lazily fetched datasets; `StaticSource` for constants; `CompositeSource` to merge; `IngestSource` — what a board posted, from a `ReadingsStore` |
 | `epd_server.store` | `ReadingsStore` — what a board posts, in SQLite, kept by its `device` and `ts` and read back by time |
 | `epd_server.pipeline` | `regenerate(pages, source, only=, force_refresh=)` — fetch what the selected pages need, once each; render; save |
@@ -145,6 +146,7 @@ except (ConfigError, KeyError) as exc:
 core.server.port, core.server.timezone, core.server.schedule
 core.image.page_kwargs()          # -> kwargs for Page(...)
 core.mqtt.enabled, core.mqtt.host, core.mqtt.port, core.mqtt.prefix
+core.network.missing(core.mqtt)   # -> the keys a USB flash needs that are not set
 ```
 
 ```yaml
@@ -177,6 +179,11 @@ image:
   innerAlignX: center            # left | center | right
   innerAlignY: center            # top | center | bottom
 client:                          # what the boards this server serves run
+  server_url: http://epd.local:8080   # this server, as the boards reach it
+  wifi:
+    ssid: Home
+    password: "8 to 63 characters"
+  mqtt_host: epd.local           # the broker, as the boards reach it
   firmware:                      # server-driven client updates
     enabled: false
     dir: firmware                # a directory of <version>.bin; nothing is removed from it
@@ -211,6 +218,14 @@ cannot read (`dev`) is left alone. `offer_dev_builds` offers every developer
 build the image. A project passes its own client name as
 `default_firmware_product=` to `load_core_config`, so the config file only
 needs `enabled: true`.
+
+`server_url`, `wifi` and `mqtt_host` are the board's network settings, which
+a USB flash writes. Pass `network=core.network` to `DisplayServer`, beside
+`firmware`, which names the products, and it serves them at `/network.bin`.
+An enabled firmware block serves each image's `<version>.merged.bin` at
+`/firmware.merged.bin` too; see
+[docs/protocol.md](../docs/protocol.md#a-usb-flash). A key that is set is
+checked at start; one that is not only stops `/network.bin`, which names it.
 
 Add a `source` block and the server fills `dir` itself, from a
 repository's releases:

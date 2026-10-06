@@ -11,6 +11,7 @@ The pieces a project composes:
 - :mod:`epd_server.scheduling` DST-correct next-wake / next-regen maths
 - :mod:`epd_server.firmware`   which client an image is an update for; the image store
 - :mod:`epd_server.mqtt`       subscribe to every board's remote log topic
+- :mod:`epd_server.network`    the network settings a USB flash writes to a board
 - :mod:`epd_server.logs`       LogStore: the boards' log lines, in SQLite, read back in order
 - :mod:`epd_server.source`     DataSource protocol; Static / Composite / Ingest helpers
 - :mod:`epd_server.store`      ReadingsStore: what a board posts, in SQLite, read back by time
@@ -29,6 +30,7 @@ from .config import (  # noqa: E402
     FirmwareSource,
     ImageSettings,
     MqttSettings,
+    NetworkSettings,
     ServerSettings,
     load_core_config,
     load_yaml,
@@ -41,6 +43,7 @@ from .firmware import (  # noqa: E402
     is_clean_tag,
     update_applies,
 )
+from .network import network_settings_file  # noqa: E402
 from .page import Page, SkipPage  # noqa: E402
 from .pipeline import regenerate, select_pages  # noqa: E402
 from .source import CompositeSource, DataSource, IngestSource, StaticSource  # noqa: E402
@@ -58,9 +61,10 @@ from .render import ChromiumRenderer, Renderer  # noqa: E402
 __all__ = [
     "DisplayServer", "align_process_timezone",
     "ConfigError", "CoreConfig", "ServerSettings", "ImageSettings", "MqttSettings",
-    "FirmwareSettings", "FirmwareSource", "load_core_config", "load_yaml",
+    "FirmwareSettings", "FirmwareSource", "NetworkSettings", "load_core_config", "load_yaml",
     "ClientId", "FirmwareImage", "FirmwareStore", "ReleaseWatcher",
     "is_clean_tag", "update_applies",
+    "network_settings_file",
     "Page", "SkipPage",
     "DataSource", "StaticSource", "CompositeSource", "IngestSource", "ReadingsStore",
     "LogStore",

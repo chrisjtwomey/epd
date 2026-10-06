@@ -91,6 +91,7 @@ def get_prop(config, prop, default=None, required=True) -> Any:
 from dataclasses import dataclass
 from datetime import datetime as _datetime
 from datetime import tzinfo as _tzinfo
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
@@ -182,11 +183,36 @@ class FirmwareSettings:
 
 
 @dataclass(frozen=True)
+class NetworkSettings:
+    """What a USB flash writes to a board: how it joins Wi-Fi and reaches
+    this server and the broker. An empty value is one not set."""
+
+    server_url: str = ""            # http://host[:port], as the boards reach this server
+    wifi_ssid: str = ""
+    wifi_password: str = ""
+    mqtt_host: str = ""             # the broker, as the boards reach it
+
+    def missing(self, mqtt: MqttSettings | None) -> list[str]:
+        """The keys a USB flash needs that are not set."""
+        missing = []
+        if not self.server_url:
+            missing.append("client.server_url")
+        if not self.wifi_ssid:
+            missing.append("client.wifi.ssid")
+        if not self.wifi_password:
+            missing.append("client.wifi.password")
+        if mqtt is not None and mqtt.enabled and not self.mqtt_host:
+            missing.append("client.mqtt_host")
+        return missing
+
+
+@dataclass(frozen=True)
 class CoreConfig:
     server: ServerSettings
     image: ImageSettings
     mqtt: MqttSettings
     firmware: FirmwareSettings     # from the client block: client.firmware
+    network: NetworkSettings = NetworkSettings()   # from the client block too
 
 
 def _positive_int(key: str, value) -> int:
@@ -397,6 +423,60 @@ def parse_firmware(config: dict, *, default_product: str | None = None,
                             offer_dev_builds=offer_dev, source=source, products=products)
 
 
+def _text(config: dict, *keys) -> str | None:
+    """A key that must be text when set, or None when it is not. YAML reads
+    ``yes`` as true and ``0123`` as a number, and a Wi-Fi password may be either."""
+    value = get_prop_by_keys(config, *keys, default=None, required=False)
+    if value is None or isinstance(value, str):
+        return value
+    raise ConfigError(f"{'.'.join(keys)} must be text: put it in quotes")
+
+
+def _server_url(config: dict) -> str:
+    """``client.server_url`` without a trailing slash, or "" when it is not set.
+    It must be ``http://host[:port]`` alone, because the dock keeps only that
+    much of it."""
+    url = (_text(config, "client", "server_url") or "").strip().rstrip("/")
+    if not url:
+        return ""
+    try:
+        parts = urlsplit(url)
+        is_origin = (parts.scheme == "http" and bool(parts.hostname) and parts.port != 0
+                     and not (parts.path or parts.query or parts.fragment)
+                     and parts.username is None)
+    except ValueError:
+        is_origin = False
+    if not is_origin:
+        raise ConfigError(f"client.server_url must be http://host or http://host:port, "
+                          f"as the boards reach this server (got {url!r})")
+    return url
+
+
+def parse_network(config: dict) -> NetworkSettings:
+    """The keys under ``client`` that a USB flash writes to a board.
+
+    A key that is set is checked here; one that is not is left to
+    :meth:`NetworkSettings.missing`, so a server without them still runs.
+    """
+    url = _server_url(config)
+
+    ssid = _text(config, "client", "wifi", "ssid") or ""
+    if len(ssid.encode()) > 32:
+        raise ConfigError(f"client.wifi.ssid must be 32 bytes or fewer (got {len(ssid.encode())})")
+
+    password = _text(config, "client", "wifi", "password") or ""
+    if password and not 8 <= len(password) <= 63:
+        raise ConfigError(f"client.wifi.password must be 8 to 63 characters (got {len(password)})")
+
+    mqtt_host = (_text(config, "client", "mqtt_host") or "").strip()
+    if any(c in mqtt_host for c in ":/ "):
+        raise ConfigError(f"client.mqtt_host must be a host name or address alone; "
+                          f"the port is mqtt.port (got {mqtt_host!r})")
+
+    return NetworkSettings(server_url=url, wifi_ssid=ssid, wifi_password=password,
+                           mqtt_host=mqtt_host)
+
+
 def load_core_config(
     config: dict,
     *,
@@ -422,4 +502,5 @@ def load_core_config(
         mqtt=parse_mqtt(config, default_prefix=default_mqtt_prefix),
         firmware=parse_firmware(config, default_product=default_firmware_product,
                                 base_dir=base_dir),
+        network=parse_network(config),
     )

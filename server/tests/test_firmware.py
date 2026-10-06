@@ -223,6 +223,31 @@ def test_the_md5_is_recomputed_when_the_file_changes(tmp_path):
     assert current(store).md5 == hashlib.md5(replaced).hexdigest()
 
 
+def test_a_merged_image_is_found_by_its_version_and_never_offered(tmp_path):
+    import hashlib
+    merged = IMAGE + b"merged"
+    store = FirmwareStore(str(tmp_path))
+    store.put("v1.6.0", IMAGE)
+    (tmp_path / "v1.6.0.merged.bin").write_bytes(merged)
+    (tmp_path / "v1.7.0.merged.bin").write_bytes(merged)
+    os.utime(tmp_path / "v1.7.0.merged.bin", ns=(4_000_000_000_000_000_000, 4_000_000_000_000_000_000))
+
+    image = store.merged("v1.6.0")
+    assert image is not None
+    assert (image.version, image.size, image.md5) == ("v1.6.0", len(merged),
+                                                      hashlib.md5(merged).hexdigest())
+    assert store.merged("v1.5.0") is None
+    assert current(store).version == "v1.6.0"
+    offered = store.newest_compatible("v1.0.0")
+    assert offered is not None and offered.version == "v1.6.0"
+    assert store.image("v1.7.0.merged") is None
+
+
+def test_put_refuses_a_version_that_names_a_merged_image(tmp_path):
+    with pytest.raises(ValueError, match="cannot be a filename"):
+        FirmwareStore(str(tmp_path)).put("v1.6.0.merged", IMAGE)
+
+
 # ---------- ReleaseWatcher ----------
 
 import json  # noqa: E402
