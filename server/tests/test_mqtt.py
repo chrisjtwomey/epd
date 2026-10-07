@@ -18,16 +18,29 @@ class FakeMessage:
     topic: str = "mqtt/epd/my-display"
 
 
+@dataclass
+class FakeReasonCode:
+    is_failure: bool = False
+
+
 class FakeClient:
     def __init__(self, *_args, **_kwargs):
         self.on_connect = self.on_disconnect = self.on_message = None
-        self.subscribed = None
+        self.subscribed = []
 
-    def connect(self, *_args, **_kwargs):
+    def connect_async(self, *_args, **_kwargs):
         pass
 
     def subscribe(self, topic):
-        self.subscribed = topic
+        self.subscribed.append(topic)
+
+    def connected(self, failure=False):
+        """What paho does once the broker has answered a connection."""
+        self.on_connect(self, None, None, FakeReasonCode(failure), None)
+
+    def unreachable(self):
+        """What paho does when a connection attempt cannot reach the broker."""
+        self.on_connect_fail(self, None)
 
     def loop_start(self):
         pass
@@ -40,14 +53,44 @@ def kept():
 
 
 @pytest.fixture
-def on_message(monkeypatch, kept):
-    """The subscriber's message callback, wired to a fake broker."""
+def client(monkeypatch, kept):
+    """The subscriber, wired to a fake broker it has not heard from yet."""
     monkeypatch.setattr(relay.mqtt, "Client", FakeClient)
     client = relay.client_log_subscriber("localhost", 1883, "mqtt/epd",
                                          on_line=lambda board, text: kept.append((board, text)))
     assert isinstance(client, FakeClient)   # it connected, and it is our fake
-    assert client.subscribed == "mqtt/epd/+", "every board's topic, with one subscription"
+    return client
+
+
+@pytest.fixture
+def on_message(client):
+    """The subscriber's message callback, once connected."""
+    client.connected()
+    assert client.subscribed == ["mqtt/epd/+"], "every board's topic, with one subscription"
     return client.on_message
+
+
+def test_it_subscribes_again_on_every_reconnect(client):
+    assert client.subscribed == []
+    client.connected()
+    client.connected()
+    assert client.subscribed == ["mqtt/epd/+", "mqtt/epd/+"]
+
+
+def test_a_broker_that_comes_up_late_is_tried_until_it_answers(client, caplog):
+    with caplog.at_level(logging.WARNING):
+        client.unreachable()
+        client.unreachable()
+    client.connected()
+    assert caplog.text.count("Client logging broker at localhost:1883 not reachable; "
+                             "trying again") == 2
+    assert client.subscribed == ["mqtt/epd/+"]
+
+
+def test_a_refused_connection_subscribes_to_nothing(client, caplog):
+    client.connected(failure=True)
+    assert client.subscribed == []
+    assert "Connection to client logging broker failed" in caplog.text
 
 
 def deliver(on_message, payload, retain=False, topic="mqtt/epd/my-display"):
