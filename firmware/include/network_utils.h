@@ -29,10 +29,15 @@ struct PageResponse {
   with. Both must outlive the connection, so pass static storage, never a
   local buffer.
 
+  Each call starts a fresh join, ending any the framework still runs from the
+  last one. A wait that ends without a connection logs the reason the join
+  last failed.
+
   @param ssid the network SSID.
   @param pass the network password.
   @param retries how long to wait for the connection: one second, and one
   more for each retry.
+
   @returns the esp_err_t code:
   - ESP_OK if successful.
   - ESP_ERR_TIMEOUT if the wait ends without a connection.

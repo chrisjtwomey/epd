@@ -43,7 +43,7 @@ release pipeline build from that.
 | `serverRetries` | How many further attempts at downloading or drawing. |
 | `defaultRefreshSeconds` | How long to sleep when the server has not said: a cold boot, or every attempt failed. |
 | `wifiSSID`, `wifiPass` | Your network. |
-| `wifiRetries` | How many attempts before giving up on WiFi for this wake. |
+| `wifiRetries` | How long to wait for WiFi on this wake, in seconds: this value plus one. A wait that ends logs why the join failed. |
 | `mqttEnabled`, `mqttBroker`, `mqttPort`, `mqttClientID`, `mqttPrefix`, `mqttRetries` | Optional: publish the panel's log to an MQTT broker, so you can read it without a cable. `mqttEnabled = false` turns all of it off. |
 
 `serverURL`, `wifiSSID`, `wifiPass` and the whole MQTT block are also
