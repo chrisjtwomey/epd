@@ -47,6 +47,7 @@ the pinned release back whenever the checkout declares another version.
 | `epd_server.firmware` | `FirmwareStore` — a directory of `<version>.bin`, each with a `<version>.merged.bin` for a USB flash when one is copied in; `ReleaseWatcher` — fill it from a repository's releases; `client_from_headers`, `parse_user_agent`, `is_clean_tag`, `update_applies` — which board an image is an update for |
 | `epd_server.mqtt` | `client_log_subscriber` — relay the client's MQTT log topic into Python logging |
 | `epd_server.certificate` | `ensure_certificate`, `certificate_names` — the self-signed certificate for the HTTPS port, kept for ten years and made anew when its names change |
+| `epd_server.install` | `InstallBoard` — a board the install page at `/install` offers; the page writes its firmware and network settings over USB from the browser |
 | `epd_server.network` | `network_settings_file` — the network settings a USB flash writes to a board, as its settings store, made with Espressif's `esp-idf-nvs-partition-gen` |
 | `epd_server.source` | `DataSource` — named, lazily fetched datasets; `StaticSource` for constants; `CompositeSource` to merge; `IngestSource` — what a board posted, from a `ReadingsStore` |
 | `epd_server.store` | `ReadingsStore` — what a board posts, in SQLite, kept by its `device` and `ts` and read back by time |
@@ -258,6 +259,54 @@ belongs in `CLIENT_FIRMWARE_SOURCE_TOKEN` rather than the file. With
 
 Every key can be overridden by an env var named from its path:
 `SERVER_PORT`, `IMAGE_INNERWIDTH`, `MQTT_ENABLED`, `DEBUG`.
+
+## The install page
+
+`/install` puts the firmware and the network settings on a board over USB,
+from Chrome, Edge, Opera or Firefox, with nothing to install on the
+computer. Name the boards it offers, and where a person changes a setting:
+
+```python
+from epd_server import InstallBoard
+
+DisplayServer(
+    ...,
+    firmware=core.firmware,
+    network=core.network,
+    https_port=core.server.https_port,
+    certificate_dir="data/certificate",
+    install_boards=[InstallBoard("my-display", "Display", chip="ESP32",
+                                 usb_vendor_ids=(0x1A86,))],
+    settings_url="settings",     # relative to the server's root
+)
+```
+
+A browser lets a page use a serial port only over HTTPS, so the page needs
+the HTTPS port or a reverse proxy in front of the server. Opened over plain
+HTTP, it links to `https_port` by its own number, so map that port to the
+same number on the host, as `8443:8443` in Docker. The browser lists only
+ports whose USB vendor is in `usb_vendor_ids`: the chip's own USB, or the
+board's USB-to-serial chip. The page checks the chip esptool finds against
+`chip` before it writes, then writes the merged image at 0x0 and the network
+settings after it, and restarts the board.
+
+A project with a layout of its own draws the page in it instead, at a path
+of its choice, and the server's `/install` stays for anyone who opens it:
+
+```python
+from epd_server.install import config_json
+
+config = server.install_config(root="../")    # the page sits one level down, at /web/install
+# in the project's page:
+#   <div id="install"></div>
+#   <script type="application/json" id="install-config">{config_json(config)}</script>
+#   <script type="module" src="../install/install.js"></script>
+```
+
+Every address in the page is relative, so it works behind a reverse proxy at
+any path. It writes with [esptool-js](https://github.com/espressif/esptool-js)
+0.7.0, kept in `epd_server/static/install` with its licence (Apache-2.0) and
+that of pako (MIT and Zlib), which it contains.
 
 ## Wiring a project
 

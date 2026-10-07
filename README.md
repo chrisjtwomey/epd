@@ -302,4 +302,5 @@ Using epd for something? Open a pull request and add it.
 
 ## License
 
-MIT
+MIT. The install page ships esptool-js (Apache-2.0), which contains pako
+(MIT and Zlib); their licences are in `server/epd_server/static/install/`.

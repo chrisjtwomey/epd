@@ -13,6 +13,7 @@ The pieces a project composes:
 - :mod:`epd_server.mqtt`       subscribe to every board's remote log topic
 - :mod:`epd_server.certificate` the self-signed certificate for the HTTPS port
 - :mod:`epd_server.network`    the network settings a USB flash writes to a board
+- :mod:`epd_server.install`    the install page: firmware onto a board over USB, from the browser
 - :mod:`epd_server.logs`       LogStore: the boards' log lines, in SQLite, read back in order
 - :mod:`epd_server.source`     DataSource protocol; Static / Composite / Ingest helpers
 - :mod:`epd_server.store`      ReadingsStore: what a board posts, in SQLite, read back by time
@@ -44,6 +45,7 @@ from .firmware import (  # noqa: E402
     is_clean_tag,
     update_applies,
 )
+from .install import InstallBoard  # noqa: E402
 from .network import network_settings_file  # noqa: E402
 from .page import Page, SkipPage  # noqa: E402
 from .pipeline import regenerate, select_pages  # noqa: E402
@@ -65,7 +67,7 @@ __all__ = [
     "FirmwareSettings", "FirmwareSource", "NetworkSettings", "load_core_config", "load_yaml",
     "ClientId", "FirmwareImage", "FirmwareStore", "ReleaseWatcher",
     "is_clean_tag", "update_applies",
-    "network_settings_file",
+    "network_settings_file", "InstallBoard",
     "Page", "SkipPage",
     "DataSource", "StaticSource", "CompositeSource", "IngestSource", "ReadingsStore",
     "LogStore",

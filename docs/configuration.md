@@ -190,7 +190,10 @@ often all day. A group has at most
 
 `server.https_port`, 8443 unless set, serves every route over HTTPS as
 well, with a self-signed certificate that the server makes and keeps: a
-browser lets a page use a serial port only over HTTPS, or on localhost. The
+browser lets a page use a serial port only over HTTPS, or on localhost, and
+the install page at `/install` uses one. In Docker, map it to the same
+number on the host: the page opened over plain HTTP links to it by that
+number. The
 browser warns about the certificate, since nobody vouches for it. The port
 must differ from `server.port`. Set it to 0 behind a reverse proxy that has
 a certificate of its own. A project passes it to `DisplayServer` with a

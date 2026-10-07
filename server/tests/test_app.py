@@ -733,17 +733,17 @@ def test_the_merged_image_is_of_the_version_offered_over_the_air(tmp_path):
     assert rsp.headers["Content-Disposition"] == "attachment; filename=my-sensor-v0.3.2.merged.bin"
 
 
-def test_no_merged_image_is_a_404_with_nothing_to_flash(tmp_path, caplog):
+def test_no_merged_image_is_a_404_with_nothing_to_install(tmp_path, caplog):
     client = two_products(tmp_path, {"my-display": ["v0.3.0"]})
 
     with caplog.at_level("WARNING"):
         rsp = client.get("/firmware.merged.bin")
     assert rsp.status_code == 404 and rsp.mimetype == "text/plain"
-    assert rsp.text == "No firmware to flash for my-display yet.\n"
+    assert rsp.text == "No firmware to install for my-display yet.\n"
     assert "No merged image of my-display v0.3.0" in caplog.text
 
     rsp = client.get("/firmware.merged.bin?product=my-sensor")
-    assert rsp.status_code == 404 and rsp.text == "No firmware to flash for my-sensor yet.\n"
+    assert rsp.status_code == 404 and rsp.text == "No firmware to install for my-sensor yet.\n"
     assert client.get("/firmware.merged.bin?product=nobody").status_code == 404
 
 
@@ -779,6 +779,130 @@ def test_network_settings_for_no_such_product_are_a_404(tmp_path):
     rsp = client.get("/network.bin?product=nobody")
 
     assert rsp.status_code == 404 and rsp.text == "No product named nobody.\n"
+
+
+# ---------- the install page ----------
+
+import json  # noqa: E402
+import re  # noqa: E402
+
+from epd_server.install import SCRIPTS, STATIC_DIR, InstallBoard  # noqa: E402
+
+DISPLAY_BOARD = InstallBoard("my-display", "Display", "ESP32", (0x1A86,))
+SENSOR_BOARD = InstallBoard("my-sensor", "Sensor", "ESP32-S3", (0x303A,))
+
+
+def install_client(tmp_path, network=NETWORK, boards=(DISPLAY_BOARD, SENSOR_BOARD), **kw):
+    client = two_products(tmp_path, {"my-display": ["v0.3.0"], "my-sensor": ["v0.3.0"]},
+                          network=network, mqtt=MQTT, install_boards=boards, **kw)
+    (tmp_path / "fw" / "my-sensor" / "v0.3.0.merged.bin").write_bytes(BIN)
+    return client
+
+
+def page_config(rsp) -> dict:
+    found = re.search(r'<script type="application/json" id="install-config">(.*?)</script>',
+                      rsp.text, re.S)
+    assert found, "the page carries no config"
+    return json.loads(found[1])
+
+
+def test_the_install_page_carries_what_its_script_needs(tmp_path):
+    client = install_client(tmp_path, https_port=8443, certificate_dir=str(tmp_path / "c"),
+                            settings_url="web/config")
+
+    rsp = client.get("/install")
+
+    assert rsp.status_code == 200 and rsp.mimetype == "text/html"
+    assert rsp.headers["Cache-Control"] == "no-store"
+    assert "<title>Install firmware</title>" in rsp.text
+    assert page_config(rsp) == {
+        "root": "",
+        "boards": [
+            {"product": "my-display", "name": "Display", "chip": "ESP32",
+             "usbVendorIds": [0x1A86], "version": None},
+            {"product": "my-sensor", "name": "Sensor", "chip": "ESP32-S3",
+             "usbVendorIds": [0x303A], "version": "v0.3.0"},
+        ],
+        "missing": [],
+        "httpsPort": 8443,
+        "serverName": "epd.local",
+        "settingsUrl": "web/config",
+        "storeOffset": 0x9000,
+    }
+
+
+def test_the_install_page_names_the_settings_not_set(tmp_path):
+    rsp = install_client(tmp_path, network=NetworkSettings(server_url="http://10.0.0.2:8080")) \
+        .get("/install")
+
+    config = page_config(rsp)
+    assert config["missing"] == ["client.wifi.ssid", "client.wifi.password", "client.mqtt_host"]
+    assert config["serverName"] is None and config["httpsPort"] == 0
+
+
+def test_no_value_can_close_the_pages_script_element(tmp_path):
+    board = InstallBoard("my-display", "</script><script>alert(1)</script>", "ESP32", (1,))
+
+    rsp = install_client(tmp_path, boards=(board,)).get("/install")
+
+    assert "<script>alert(1)" not in rsp.text
+    assert page_config(rsp)["boards"][0]["name"] == "</script><script>alert(1)</script>"
+
+
+def test_the_install_scripts_are_served_and_nothing_else(tmp_path):
+    client = install_client(tmp_path)
+
+    for name in SCRIPTS:
+        rsp = client.get(f"/install/{name}")
+        assert rsp.status_code == 200 and rsp.mimetype == "text/javascript"
+        rsp.close()
+    for name in ("install.html", "LICENSE.pako", "..%2Finstall.py", "nope.js"):
+        assert client.get(f"/install/{name}").status_code == 404
+
+
+def test_the_install_page_uses_only_relative_addresses():
+    with open(os.path.join(STATIC_DIR, "install.html")) as f:
+        html = f.read()
+    with open(os.path.join(STATIC_DIR, "install.js")) as f:
+        script = f.read()
+
+    assert re.findall(r'src="([^"]*)"', html) == ["install/install.js"]
+    assert re.findall(r'^import .* from "([^"]*)";', script, re.M) == ["./esptool-js-0.7.0.js"]
+    assert re.findall(r"download\(`([^`]*)`\)", script) == [
+        "${config.root}firmware.merged.bin?product=${product}",
+        "${config.root}network.bin?product=${product}"]
+    assert "http://" not in html + script
+    assert script.count("https://") == 1, "only the link to this server's own HTTPS port"
+
+
+def test_a_project_draws_the_page_in_its_own_layout_from_its_config(tmp_path):
+    server = make(tmp_path, firmware=FirmwareSettings(True, str(tmp_path), "my-display", False),
+                  network=NETWORK, install_boards=[DISPLAY_BOARD], settings_url="web/config")
+
+    config = server.install_config(root="../")
+
+    assert config["root"] == "../" and config["settingsUrl"] == "../web/config"
+    assert server.install_config()["settingsUrl"] == "web/config"
+
+
+def test_every_file_the_page_needs_is_in_the_package():
+    names = set(os.listdir(STATIC_DIR))
+    assert {*SCRIPTS, "install.html", "LICENSE.esptool-js", "LICENSE.pako"} <= names
+
+
+def test_no_install_page_without_boards(tmp_path):
+    assert two_products(tmp_path, {}, network=NETWORK).get("/install").status_code == 404
+
+
+def test_the_install_page_is_checked_at_construction(tmp_path):
+    firmware = FirmwareSettings(enabled=True, dir=str(tmp_path), product="my-display",
+                                offer_dev_builds=False)
+    with pytest.raises(ValueError, match="needs firmware and network settings"):
+        make(tmp_path, install_boards=[DISPLAY_BOARD], firmware=firmware)
+    with pytest.raises(ValueError, match=r"install boards \['my-sensor'\] are not in client.firmware"):
+        make(tmp_path, install_boards=[SENSOR_BOARD], firmware=firmware, network=NETWORK)
+    with pytest.raises(ValueError, match=r"routes \['install'\] collide with the install page"):
+        make(tmp_path, queries={"install": lambda args: None})
 
 
 def test_no_usb_flash_routes_without_their_settings(tmp_path, client):

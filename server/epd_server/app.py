@@ -44,6 +44,9 @@ builds the names from it::
       404 when the server has no such product
       409 when a key it needs is not set; the body names them
 
+    GET /install        the install page, for a person with a board on USB
+    GET /install/<name> its two scripts
+
     POST /<name>        a project's ingest route: a JSON object, or an array
                         of them, in; 204 out, or 200 with the handler's JSON;
                         409 when version_gate is on and the board's version
@@ -66,7 +69,7 @@ from datetime import datetime
 from typing import Callable, Iterable, Mapping
 from urllib.parse import urlencode
 
-from flask import Flask, abort, jsonify, make_response, request, send_file
+from flask import Flask, abort, jsonify, make_response, request, send_file, send_from_directory
 from werkzeug.serving import WSGIRequestHandler, make_server
 
 from .certificate import certificate_names, ensure_certificate
@@ -74,11 +77,12 @@ from .compat import compatible, version_order
 from .config import FirmwareSettings, MqttSettings, NetworkSettings
 from ._version import __version__
 from .headers import Wire
+from .install import SCRIPTS, STATIC_DIR, InstallBoard, install_page, server_name
 from .firmware import (FirmwareImage, FirmwareStore, ReleaseWatcher, client_from_headers,
                        update_applies)
 from .logs import LogStore
 from .mqtt import client_log_subscriber
-from .network import network_settings_file
+from .network import STORE_OFFSET, network_settings_file
 from .page import Page
 from .pipeline import regenerate as _regenerate
 from .posix_tz import posix_tz
@@ -175,7 +179,7 @@ class DisplayServer:
         host, port: where to listen.
         https_port: where to serve the same routes over HTTPS as well, with a
             self-signed certificate kept in ``certificate_dir``; 0 for none.
-            The flash page needs HTTPS, unless a reverse proxy gives it.
+            The install page needs HTTPS, unless a reverse proxy gives it.
         mqtt: if given and ``enabled``, relay every board's log topic into
             the ``client`` logger while running.
         client_logs: where the relayed lines are kept, if anywhere.
@@ -197,6 +201,10 @@ class DisplayServer:
             without it, the newest file.
         network: if given with ``firmware``, serve each product's network
             settings at ``/network.bin``, for a USB flash.
+        install_boards: the boards the install page at ``/install`` offers.
+            It needs ``firmware`` and ``network``.
+        settings_url: where the install page sends a person to change a
+            setting, relative to this server's root.
         header_prefix: the product's name, which every header on the wire
             starts with. See :mod:`epd_server.headers`.
         server_version: what to report as this server's version. Defaults to
@@ -235,6 +243,8 @@ class DisplayServer:
         queries: Mapping[str, Callable[[dict], object]] | None = None,
         firmware: FirmwareSettings | None = None,
         network: NetworkSettings | None = None,
+        install_boards: Iterable[InstallBoard] = (),
+        settings_url: str | None = None,
         header_prefix: str = "EPD",
         server_version: str | None = None,
         version_gate: bool = False,
@@ -264,6 +274,8 @@ class DisplayServer:
         self.queries = dict(queries or {})
         self.firmware = firmware
         self.network = network
+        self.install_boards = list(install_boards)
+        self.settings_url = settings_url
         self.wire = Wire(header_prefix)
         self.server_version = server_version or __version__
         self.version_gate = version_gate
@@ -292,6 +304,15 @@ class DisplayServer:
         clash = sorted(set(self.queries) & served)
         if clash:
             raise ValueError(f"query routes {clash} collide with page filenames")
+        clash = sorted((set(self.ingest) | set(self.queries)) & {"install"})
+        if clash:
+            raise ValueError(f"routes {clash} collide with the install page")
+        if self.install_boards:
+            if firmware is None or network is None:
+                raise ValueError("the install page needs firmware and network settings")
+            unknown = sorted({b.product for b in self.install_boards} - set(firmware.names()))
+            if unknown:
+                raise ValueError(f"install boards {unknown} are not in client.firmware")
 
         # Serialises regenerations; a page's PNG is replaced atomically, so
         # readers never wait on it.
@@ -357,6 +378,10 @@ class DisplayServer:
         if self.network is not None and self.firmware is not None:
             app.add_url_rule("/network.bin", endpoint="network",
                              view_func=self._serve_network)
+        if self.install_boards:
+            app.add_url_rule("/install", endpoint="install", view_func=self._serve_install)
+            app.add_url_rule("/install/<name>", endpoint="install_script",
+                             view_func=self._serve_install_script)
 
         for page in self.pages:
             app.add_url_rule(
@@ -379,6 +404,50 @@ class DisplayServer:
                 methods=["GET"],
             )
         return app
+
+    def install_config(self, root: str = "") -> dict:
+        """What the install page's script needs to know, for a page that is
+        ``root`` away from this server's root: "" for ``/install``, "../" for a
+        page one directory down, as a project draws it in its own layout."""
+        assert self.network is not None   # checked in __init__
+        return {
+            "root": root,
+            "boards": [{
+                "product": b.product,
+                "name": b.name,
+                "chip": b.chip,
+                "usbVendorIds": list(b.usb_vendor_ids),
+                "version": self._installable_version(b.product),
+            } for b in self.install_boards],
+            "missing": self.network.missing(self.mqtt),
+            "httpsPort": self.https_port,
+            "serverName": server_name(self.network.server_url),
+            "settingsUrl": root + self.settings_url if self.settings_url else None,
+            "storeOffset": STORE_OFFSET,
+        }
+
+    def _serve_install(self):
+        rsp = make_response(install_page(self.install_config()))
+        rsp.headers["Cache-Control"] = "no-store"
+        return rsp
+
+    def _serve_install_script(self, name: str):
+        if name not in SCRIPTS:
+            abort(404)
+        return send_from_directory(STATIC_DIR, name, mimetype="text/javascript")
+
+    def _installable_version(self, product: str) -> str | None:
+        """The version ``/firmware.merged.bin`` would serve ``product``, if any."""
+        _, merged = self._merged_offer(product)
+        return merged.version if merged is not None else None
+
+    def _merged_offer(self, product: str) -> tuple[FirmwareImage | None, FirmwareImage | None]:
+        """The image a product is offered over the air, and its merged image."""
+        store = self.firmware_stores.get(product)
+        image = self._offer_image(product) if store is not None else None
+        if store is None or image is None:
+            return image, None
+        return image, store.merged(image.version)
 
     def _make_query(self, name: str, handler: Callable[[dict], object]):
         def answer():
@@ -470,13 +539,11 @@ class DisplayServer:
         so a board flashed with it is not updated straight after."""
         assert self.firmware is not None   # the route exists only when it does
         product = request.args.get("product") or self.firmware.product
-        store = self.firmware_stores.get(product)
-        image = self._offer_image(product) if store is not None else None
-        merged = store.merged(image.version) if store is not None and image is not None else None
+        image, merged = self._merged_offer(product)
         if merged is None:
             if image is not None:
                 log.warning("No merged image of %s %s", product, image.version)
-            return _text(404, f"No firmware to flash for {product} yet.")
+            return _text(404, f"No firmware to install for {product} yet.")
         log.info("Serving the merged image of %s %s (%d bytes) to %s",
                  product, merged.version, merged.size, request.user_agent.string)
         return _image_response(merged, f"{product}-{merged.version}.merged.bin")

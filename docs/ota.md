@@ -69,10 +69,12 @@ finds the stored values, and connects. One USB flash, and only one.
 A server can provision a panel without a build of your own. With
 `client.server_url`, `client.wifi` and, for MQTT, `client.mqtt_host` set
 ([Configuration](configuration.md#server-configyaml)), `GET /network.bin`
-is the panel's whole settings store holding those values. Write the merged
-image at 0x0, then this file at 0x9000: the merged image fills the store's
-place with blank bytes. esptool refuses two files that overlap in one
-command, so it takes two:
+is the panel's whole settings store holding those values. The install page
+at `/install` writes both over USB from the browser, with no tools on the
+computer (see [the server reference](../server/README.md#the-install-page)).
+By hand, write the merged image at 0x0, then this file at 0x9000: the merged
+image fills the store's place with blank bytes. esptool refuses two files
+that overlap in one command, so it takes two:
 
 ```sh
 esptool write-flash 0x0 my-display-v1.6.0.merged.bin

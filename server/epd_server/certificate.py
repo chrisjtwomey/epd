@@ -1,7 +1,7 @@
 """A self-signed certificate for the server's HTTPS port.
 
 A browser lets a page use a serial port only over HTTPS or on localhost, so
-the flash page needs one. The certificate is valid for ten years and kept
+the install page needs one. The certificate is valid for ten years and kept
 between starts. A start makes a new one only when the names it must hold
 have changed, or when fewer than 30 days of it are left. A browser warns
 about it, since nobody vouches for it; a server behind a reverse proxy with

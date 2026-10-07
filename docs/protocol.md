@@ -231,7 +231,7 @@ See [Updates over the air](ota.md) for what the panel does with the image.
 ## A USB flash
 
 Two more routes serve what a first flash over USB writes. Nothing on the
-panel asks for them; a person, a script or a flash page does.
+panel asks for them; a person, a script or the install page does.
 
 ```
 GET /firmware.merged.bin[?product=<name>]
