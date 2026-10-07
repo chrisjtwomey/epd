@@ -46,6 +46,9 @@ builds the names from it::
 
     GET /install        the install page, for a person with a board on USB
     GET /install/<name> its two scripts
+    GET /install-firmware.sh  the same install from a terminal, with this
+                        server's address filled in; text/plain, no-store
+    (the three /install routes exist only with install_boards)
 
     POST /<name>        a project's ingest route: a JSON object, or an array
                         of them, in; 204 out, or 200 with the handler's JSON;
@@ -77,7 +80,8 @@ from .compat import compatible, version_order
 from .config import FirmwareSettings, MqttSettings, NetworkSettings
 from ._version import __version__
 from .headers import Wire
-from .install import SCRIPTS, STATIC_DIR, InstallBoard, install_page, server_name
+from .install import (INSTALLER, SCRIPTS, STATIC_DIR, InstallBoard, install_page,
+                      installer_script, server_name)
 from .firmware import (FirmwareImage, FirmwareStore, ReleaseWatcher, client_from_headers,
                        update_applies)
 from .logs import LogStore
@@ -304,7 +308,7 @@ class DisplayServer:
         clash = sorted(set(self.queries) & served)
         if clash:
             raise ValueError(f"query routes {clash} collide with page filenames")
-        clash = sorted((set(self.ingest) | set(self.queries)) & {"install"})
+        clash = sorted((set(self.ingest) | set(self.queries)) & {"install", INSTALLER})
         if clash:
             raise ValueError(f"routes {clash} collide with the install page")
         if self.install_boards:
@@ -382,6 +386,8 @@ class DisplayServer:
             app.add_url_rule("/install", endpoint="install", view_func=self._serve_install)
             app.add_url_rule("/install/<name>", endpoint="install_script",
                              view_func=self._serve_install_script)
+            app.add_url_rule("/" + INSTALLER, endpoint="installer",
+                             view_func=self._serve_installer)
 
         for page in self.pages:
             app.add_url_rule(
@@ -431,6 +437,23 @@ class DisplayServer:
 
     def _serve_install(self):
         rsp = make_response(install_page(self.install_config()))
+        rsp.headers["Cache-Control"] = "no-store"
+        return rsp
+
+    def _serve_installer(self):
+        """install-firmware.sh, which downloads from this server as the person
+        reached it."""
+        assert self.network is not None   # checked in __init__
+        script = installer_script(
+            server=request.host_url.rstrip("/"),
+            settings_path=self.settings_url or "",
+            wifi_ssid=self.network.wifi_ssid,
+            board_server_url=self.network.server_url,
+            mqtt_host=self.network.mqtt_host if self.mqtt and self.mqtt.enabled else "",
+            boards=self.install_boards,
+        )
+        rsp = make_response(script)
+        rsp.mimetype = "text/plain"
         rsp.headers["Cache-Control"] = "no-store"
         return rsp
 

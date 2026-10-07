@@ -13,7 +13,7 @@ The pieces a project composes:
 - :mod:`epd_server.mqtt`       subscribe to every board's remote log topic
 - :mod:`epd_server.certificate` the self-signed certificate for the HTTPS port
 - :mod:`epd_server.network`    the network settings a USB flash writes to a board
-- :mod:`epd_server.install`    the install page: firmware onto a board over USB, from the browser
+- :mod:`epd_server.install`    the install page, and install-firmware.sh: firmware onto a board over USB
 - :mod:`epd_server.logs`       LogStore: the boards' log lines, in SQLite, read back in order
 - :mod:`epd_server.source`     DataSource protocol; Static / Composite / Ingest helpers
 - :mod:`epd_server.store`      ReadingsStore: what a board posts, in SQLite, read back by time

@@ -47,7 +47,7 @@ the pinned release back whenever the checkout declares another version.
 | `epd_server.firmware` | `FirmwareStore` — a directory of `<version>.bin`, each with a `<version>.merged.bin` for a USB flash when one is copied in; `ReleaseWatcher` — fill it from a repository's releases; `client_from_headers`, `parse_user_agent`, `is_clean_tag`, `update_applies` — which board an image is an update for |
 | `epd_server.mqtt` | `client_log_subscriber` — relay the client's MQTT log topic into Python logging |
 | `epd_server.certificate` | `ensure_certificate`, `certificate_names` — the self-signed certificate for the HTTPS port, kept for ten years and made anew when its names change |
-| `epd_server.install` | `InstallBoard` — a board the install page at `/install` offers; the page writes its firmware and network settings over USB from the browser |
+| `epd_server.install` | `InstallBoard` — a board the install page at `/install` offers; the page writes its firmware and network settings over USB from the browser; `install-firmware.sh` does the same from a terminal |
 | `epd_server.network` | `network_settings_file` — the network settings a USB flash writes to a board, as its settings store, made with Espressif's `esp-idf-nvs-partition-gen` |
 | `epd_server.source` | `DataSource` — named, lazily fetched datasets; `StaticSource` for constants; `CompositeSource` to merge; `IngestSource` — what a board posted, from a `ReadingsStore` |
 | `epd_server.store` | `ReadingsStore` — what a board posts, in SQLite, kept by its `device` and `ts` and read back by time |
@@ -319,6 +319,30 @@ Every address in the page is relative, so it works behind a reverse proxy at
 any path. It writes with [esptool-js](https://github.com/espressif/esptool-js)
 0.7.0, kept in `epd_server/static/install` with its licence (Apache-2.0) and
 that of pako (MIT and Zlib), which it contains.
+
+### From a terminal
+
+Where the page cannot be used, `install-firmware.sh` does the same install
+from a terminal on macOS or Linux (on Windows, Git Bash, untested):
+
+```sh
+curl -O http://epd.local:8080/install-firmware.sh
+sh install-firmware.sh dock            # firmware and network settings
+sh install-firmware.sh dock-network    # network settings only
+```
+
+The server serves the script with its own values filled in: its address as
+the person reached it, and the boards, the Wi-Fi name and the addresses the
+page shows. A board's word is its name in lower case. The script downloads
+Espressif's standalone esptool 5.4.0 once, checks it against the checksum
+published for it, and keeps it in `$XDG_CACHE_HOME/epd`, or `~/.cache/epd`
+when that is not set. It finds the board by the
+same USB vendor IDs as the page, writes the merged image and then the
+network settings in two esptool commands, since esptool refuses files that
+overlap, and follows the board's log for the same three lines. `SERVER`,
+`PORT` and `ESPTOOL` override the server's address, the board's port and the
+esptool to run. esptool's own output goes to `install-firmware.log` in the
+same folder.
 
 ## Wiring a project
 

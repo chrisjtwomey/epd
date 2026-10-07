@@ -304,3 +304,5 @@ Using epd for something? Open a pull request and add it.
 
 MIT. The install page ships esptool-js (Apache-2.0), which contains pako
 (MIT and Zlib); their licences are in `server/epd_server/static/install/`.
+`install-firmware.sh` downloads Espressif's esptool (GPL-2.0) when it runs;
+it is not shipped.

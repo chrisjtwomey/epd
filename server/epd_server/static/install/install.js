@@ -251,7 +251,7 @@ async function check(board, status) {
   }
 
   if (times.heard === null) {
-    status.fail("Installed, but the board sent nothing after it restarted. " +
+    status.fail("Installed, but received no data from the board. " +
                 "Reconnect it, then select Install again.");
   } else if (!passed.has("wifi")) {
     status.fail(`Cannot join Wi-Fi "${config.ssid}". Check the Wi-Fi name and password ` +
@@ -260,8 +260,7 @@ async function check(board, status) {
     status.fail(`Cannot reach the server at ${config.serverUrl}. Check the server address ` +
                 "in Settings, then select Install again.");
   } else if (steps.length > passed.size) {
-    status.fail(`Cannot connect to MQTT at ${config.mqttHost}, so the board sends no logs. ` +
-                "Check the MQTT broker in Settings.");
+    status.fail(`Cannot connect to MQTT at ${config.mqttHost}. Check the MQTT broker in Settings.`);
   } else {
     status.say("Installed. You can unplug the board.");
   }

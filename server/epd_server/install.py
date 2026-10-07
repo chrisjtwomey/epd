@@ -1,5 +1,6 @@
 """The install page: a board's firmware and network settings, written over
-USB from the browser.
+USB from the browser. It also fills in install-firmware.sh, the same install
+from a terminal.
 
 The page is one HTML file and two scripts: ours, and esptool-js, kept here
 at a fixed version with its licences. What the page needs from the server
@@ -17,11 +18,13 @@ from __future__ import annotations
 import ipaddress
 import json
 import os
+import re
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static", "install")
 SCRIPTS = ("install.js", "esptool-js-0.7.0.js")
+INSTALLER = "install-firmware.sh"
 
 
 @dataclass(frozen=True)
@@ -44,6 +47,43 @@ def server_name(server_url: str) -> str | None:
     except ValueError:
         return host
     return None
+
+
+def board_word(board: InstallBoard) -> str:
+    """What a person types for ``board`` in install-firmware.sh: its name,
+    lower case, such as ``dock``."""
+    return re.sub(r"[^a-z0-9]+", "-", board.name.lower()).strip("-")
+
+
+def shell_quoted(value: str) -> str:
+    """``value`` as one word for a POSIX shell, whatever it holds."""
+    return "'" + value.replace("'", "'\\''") + "'"
+
+
+def installer_script(*, server: str, settings_path: str, wifi_ssid: str,
+                     board_server_url: str, mqtt_host: str,
+                     boards: list[InstallBoard]) -> str:
+    """install-firmware.sh with this server's values filled in: ``server`` as
+    the person reached it, and the rest as the install page has them."""
+    lines = [
+        "|".join((board_word(b), b.product, b.chip.lower().replace("-", ""), b.name,
+                  ",".join(f"0x{v:04x}" for v in b.usb_vendor_ids)))
+        for b in boards
+    ]
+    values = {
+        "SERVER_HERE": server,
+        "SETTINGS_PATH": settings_path,
+        "WIFI_SSID": wifi_ssid,
+        "BOARD_SERVER_URL": board_server_url,
+        "MQTT_HOST": mqtt_host,
+        "BOARDS": "\n".join(lines),
+    }
+    with open(os.path.join(STATIC_DIR, INSTALLER)) as f:
+        script = f.read()
+    for name, value in values.items():
+        placeholder = f"{name}=__{name.removesuffix('_HERE')}__"
+        script = script.replace(placeholder, f"{name}={shell_quoted(value)}", 1)
+    return script
 
 
 def config_json(config: dict) -> str:
