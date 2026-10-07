@@ -36,8 +36,8 @@
   .note { color: var(--muted); font-size: 0.9rem; }
   .fault { color: var(--fault); }
   .boards { list-style: none; padding: 0; margin: 1.5rem 0; }
-  .boards li { padding: 1rem 0; border-top: 1px solid var(--line); }
-  .boards li:last-child { border-bottom: 1px solid var(--line); }
+  .boards > li { padding: 1rem 0; border-top: 1px solid var(--line); }
+  .boards > li:last-child { border-bottom: 1px solid var(--line); }
   .board { display: flex; align-items: baseline; gap: 0.75rem; }
   .version { color: var(--muted); }
   button {
@@ -52,6 +52,10 @@
   }
   button:disabled { opacity: 0.5; cursor: default; }
   .status p { margin: 0.5rem 0 0; }
+  .steps { list-style: none; padding: 0; margin: 0.5rem 0 0; }
+  .steps li { color: var(--muted); }
+  .steps li.passed { color: var(--text); }
+  .steps li.passed::before { content: "\2713\00a0"; }
   progress { width: 100%; }
 </style>
 </head>

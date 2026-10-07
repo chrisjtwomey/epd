@@ -824,6 +824,9 @@ def test_the_install_page_carries_what_its_script_needs(tmp_path):
              "usbVendorIds": [0x303A], "version": "v0.3.0"},
         ],
         "missing": [],
+        "ssid": "Home",
+        "serverUrl": "http://epd.local:8080",
+        "mqttHost": "epd.local",
         "httpsPort": 8443,
         "serverName": "epd.local",
         "settingsUrl": "web/config",
@@ -883,6 +886,19 @@ def test_a_project_draws_the_page_in_its_own_layout_from_its_config(tmp_path):
 
     assert config["root"] == "../" and config["settingsUrl"] == "../web/config"
     assert server.install_config()["settingsUrl"] == "web/config"
+
+
+def test_the_page_waits_for_lines_the_firmware_logs():
+    with open(os.path.join(STATIC_DIR, "install.js")) as f:
+        lines = re.search(r"const LINES = \{(.*?)\};", f.read(), re.S)
+    assert lines, "install.js has no LINES"
+    waited_for = re.findall(r'"([^"]+)"', lines[1])
+    firmware = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "src")
+    logged = "".join(open(os.path.join(firmware, name)).read() for name in os.listdir(firmware))
+
+    assert len(waited_for) == 3
+    for line in waited_for:
+        assert f'"{line}' in logged, line
 
 
 def test_every_file_the_page_needs_is_in_the_package():

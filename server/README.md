@@ -290,6 +290,18 @@ board's USB-to-serial chip. The page checks the chip esptool finds against
 `chip` before it writes, then writes the merged image at 0x0 and the network
 settings after it, and restarts the board.
 
+After the restart the page reads the board's log over the same port and
+waits for three lines that EpdClient logs: `wifi connected in` when it joins
+Wi-Fi, `reached the server at` at the first answer from an epd server since
+boot, and, with MQTT on, `connected to MQTT broker`. It ticks each one off as
+it arrives. A line that does not come in time fails the check and names the
+setting to look at, or, when the board sent nothing at all, says to
+reconnect it: 10 s for any output after the restart, 60 s for Wi-Fi, then
+60 s for the server and 30 s for MQTT. The lines are at INFO, so a build
+with `LOG_LEVEL` below 4 fails the check on a working board. A board that
+joins Wi-Fi with code of its own passes only if it logs these lines; a test
+ties the page's lines to the firmware's source.
+
 A project with a layout of its own draws the page in it instead, at a path
 of its choice, and the server's `/install` stays for anyone who opens it:
 

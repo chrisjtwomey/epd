@@ -17,8 +17,21 @@ const FIELDS = {
   "client.mqtt_host": "MQTT broker",
 };
 
+// What a board logs once it is up, in epd's own words (firmware/src).
+const LINES = {
+  wifi: "wifi connected in",
+  server: "reached the server at",
+  mqtt: "connected to MQTT broker",
+};
+
 const BAUD_RATE = 460800;
+const LOG_BAUD_RATE = 115200;
 const RESET_HOLD_MS = 200;
+// A board logs at once when it starts. Joining Wi-Fi may take a retry 30 s
+// after a first try; the server and the broker answer soon after that.
+const QUIET_LIMIT_MS = 10000;
+const WIFI_LIMIT_MS = 60000;
+const AFTER_WIFI_LIMIT_MS = { server: 60000, mqtt: 30000 };
 
 const firefox = navigator.userAgent.includes("Firefox/");
 
@@ -109,6 +122,12 @@ class Status {
     this.node.replaceChildren(el("p", { class: "fault" }, text));
   }
 
+  checklist(steps, passed) {
+    this.node.replaceChildren(el("ul", { class: "steps" },
+      ...steps.map((step) => el("li", passed.has(step.key) ? { class: "passed" } : {},
+                                passed.has(step.key) ? step.passed : step.waiting))));
+  }
+
   progress(fraction) {
     const percent = Math.floor(fraction * 100);
     this.node.replaceChildren(message(`Installing… ${percent}%`),
@@ -191,7 +210,105 @@ async function installOn(board, status) {
 
   status.say("Restarting the board…");
   await restart(transport);
-  status.say("Installed. You can unplug the board.");
+  await check(board, status);
+}
+
+// Follows the board's log after its restart, and says how its start went.
+async function check(board, status) {
+  const steps = [
+    { key: "wifi", waiting: "Joining Wi-Fi…", passed: "Joined Wi-Fi" },
+    { key: "server", waiting: "Reaching the server…", passed: "Reached the server" },
+  ];
+  if (config.mqttHost) {
+    steps.push({ key: "mqtt", waiting: "Connecting to MQTT…", passed: "Connected to MQTT" });
+  }
+  const passed = new Set();
+  const times = { start: Date.now(), heard: null, wifi: null };
+  const deadline = () => {
+    if (times.heard === null) return times.start + QUIET_LIMIT_MS;
+    if (times.wifi === null) return times.heard + WIFI_LIMIT_MS;
+    return Math.max(...steps.filter((step) => !passed.has(step.key))
+                            .map((step) => times.wifi + AFTER_WIFI_LIMIT_MS[step.key]));
+  };
+  const onLine = (line) => {
+    for (const step of steps) {
+      if (!passed.has(step.key) && line.includes(LINES[step.key])) {
+        passed.add(step.key);
+        if (step.key === "wifi") times.wifi = Date.now();
+      }
+    }
+    status.checklist(steps, passed);
+  };
+
+  status.checklist(steps, passed);
+  while (passed.size < steps.length && Date.now() < deadline()) {
+    const port = await reopen(board, deadline);
+    if (!port) break;
+    await readLines(port, deadline, () => passed.size === steps.length, (line) => {
+      times.heard ??= Date.now();
+      onLine(line);
+    });
+  }
+
+  if (times.heard === null) {
+    status.fail("Installed, but the board sent nothing after it restarted. " +
+                "Reconnect it, then select Install again.");
+  } else if (!passed.has("wifi")) {
+    status.fail(`Cannot join Wi-Fi "${config.ssid}". Check the Wi-Fi name and password ` +
+                "in Settings, then select Install again.");
+  } else if (!passed.has("server")) {
+    status.fail(`Cannot reach the server at ${config.serverUrl}. Check the server address ` +
+                "in Settings, then select Install again.");
+  } else if (steps.length > passed.size) {
+    status.fail(`Cannot connect to MQTT at ${config.mqttHost}, so the board sends no logs. ` +
+                "Check the MQTT broker in Settings.");
+  } else {
+    status.say("Installed. You can unplug the board.");
+  }
+}
+
+// The board's port, open again after its restart. A board on the chip's own
+// USB drops its port while it restarts, and comes back as a new one.
+async function reopen(board, deadline) {
+  while (Date.now() < deadline()) {
+    for (const port of await navigator.serial.getPorts()) {
+      if (!board.usbVendorIds.includes(port.getInfo().usbVendorId)) continue;
+      try {
+        await port.open({ baudRate: LOG_BAUD_RATE });
+        return port;
+      } catch {
+        // Still restarting, or open already.
+      }
+    }
+    await sleep(250);
+  }
+  return null;
+}
+
+// Hands each line the port sends to onLine, until done() or the deadline,
+// or until the port is lost.
+async function readLines(port, deadline, done, onLine) {
+  const reader = port.readable.getReader();
+  const decoder = new TextDecoder();
+  let pending = "";
+  try {
+    while (!done()) {
+      const left = deadline() - Date.now();
+      if (left <= 0) break;
+      const chunk = await Promise.race([reader.read(), sleep(left).then(() => null)]);
+      if (chunk === null || chunk.done) break;
+      pending += decoder.decode(chunk.value, { stream: true });
+      const lines = pending.split("\n");
+      pending = lines.pop();
+      lines.forEach(onLine);
+    }
+  } catch {
+    // The port was lost: the board restarted again, or was unplugged.
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
+    await port.close().catch(() => {});
+  }
 }
 
 // A file from this server. A board's network settings that are no longer

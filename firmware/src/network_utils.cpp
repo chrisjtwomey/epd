@@ -22,6 +22,15 @@ static void noteWifiLost(WiFiEvent_t, WiFiEventInfo_t info) {
     if (!wifiRetry.down()) wifiLostReason = info.wifi_sta_disconnected.reason;
 }
 
+// Logs the first answer from an epd server since boot, the line the install
+// page waits for. Any web server answers HTTP; only ours sends its version.
+static void noteServerReached(HTTPClient& http, const char* url) {
+    static bool reached = false;
+    if (reached || http.header(EPD_H_SERVER_VERSION).isEmpty()) return;
+    reached = true;
+    logf(LOG_INFO, "reached the server at %s", url);
+}
+
 esp_err_t configureWiFi(const char* ssid, const char* pass, int retries) {
     if (!wifiSSID) WiFi.onEvent(noteWifiLost, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
     wifiSSID = ssid;
@@ -138,6 +147,7 @@ uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* defaultLe
     addDeviceHeaders(http);
 
     int httpCode = http.GET();
+    noteServerReached(http, url);
     if (httpCode != HTTP_CODE_OK) {
         if (httpCode < 0)
             logf(LOG_ERROR, "GET %s failed: %s", url, HTTPClient::errorToString(httpCode).c_str());
@@ -215,6 +225,7 @@ int postJson(const char* url, const char* userAgent, const char* body, PageRespo
     http.addHeader("Content-Type", "application/json");
     addDeviceHeaders(http);
     int code = http.POST((uint8_t*)body, strlen(body));
+    noteServerReached(http, url);
     readServerHeaders(http, rsp);
     http.end();
     if (code < 0)
