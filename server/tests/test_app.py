@@ -903,6 +903,16 @@ def test_a_project_page_that_holds_the_network_settings_says_so(tmp_path):
     assert plain["settingsUrl"] == "web/config"
 
 
+def test_the_page_draws_the_boards_while_a_setting_is_missing_and_renews_on_request():
+    with open(os.path.join(STATIC_DIR, "install.js")) as f:
+        script = f.read()
+    start = script[script.index("function start()"):script.index("function showState()")]
+
+    assert "config.missing" not in start, "start() draws the rows whatever is missing"
+    assert 'main.addEventListener("install:refresh"' in script
+    assert "button.disabled = config.missing.length > 0" in script
+
+
 def test_the_page_names_the_place_of_the_network_settings_in_every_fault():
     with open(os.path.join(STATIC_DIR, "install.js")) as f:
         script = f.read()

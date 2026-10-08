@@ -324,10 +324,13 @@ but an install uses them. Pass `install_url="web/install"` to
 says "Add them above" for a missing setting, and "Check the Wi-Fi name and
 password above" after a failed check; `/install` and the script send a
 person to the install page instead of Settings, and `settings_url` is left
-for the HTTPS port. The page reads the config element again at each install,
-so a project's page can write fresh values into it after a save without a
-reload. While an install runs, the page turns off only the buttons in its
-own element.
+for the HTTPS port. The page draws the boards from the start; while a
+setting is missing, the line above them names it and their Install buttons
+are off. It reads the config element again at each install, and on an
+`install:refresh` event sent to its element, so a project's page can write
+fresh values into it after a save and send that event, without a reload.
+While an install runs, the page turns off only the buttons in its own
+element.
 
 Every address in the page is relative, so it works behind a reverse proxy at
 any path. It writes with [esptool-js](https://github.com/espressif/esptool-js)

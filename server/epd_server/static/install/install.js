@@ -91,20 +91,36 @@ function start() {
       : message("Your browser cannot install from an IP address. Try another browser."));
     return;
   }
-  if (config.missing.length) {
-    const names = config.missing.map((key) => FIELDS[key] ?? key).join(", ");
-    main.append(message(`Missing: ${names}. Add them `, ...networkLink(), "."));
-    return;
-  }
 
-  main.append(message("Connect a board with a USB cable, then select Install."));
+  main.append(state);
   if (firefox) {
     main.append(note("Your browser first asks to install an add-on for this site. " +
                      "Select Continue to Installation, then Add."));
   }
   main.append(el("ul", { class: "boards" }, ...config.boards.map(boardRow)),
               note("Board not in the list? Use another USB cable: some carry only power."));
+  showState();
 }
+
+// The line above the boards, and whether their Install buttons work: both
+// follow what is missing, so the rows show from the start and wait for it.
+// A project's page that renews the config element sends "install:refresh".
+const state = message();
+
+function showState() {
+  const names = config.missing.map((key) => FIELDS[key] ?? key).join(", ");
+  state.replaceChildren(...(config.missing.length
+    ? [`Missing: ${names}. Add them `, ...networkLink(), "."]
+    : ["Connect a board with a USB cable, then select Install."]));
+  for (const button of main.querySelectorAll(".boards button")) {
+    button.disabled = config.missing.length > 0;
+  }
+}
+
+main.addEventListener("install:refresh", () => {
+  config = readConfig();
+  showState();
+});
 
 function boardRow(board) {
   const status = new Status();
@@ -155,6 +171,7 @@ async function install(board, status) {
     await installOn(board, status);
   } finally {
     for (const button of buttons) button.disabled = false;
+    showState();
   }
 }
 
