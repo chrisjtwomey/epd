@@ -45,11 +45,12 @@ def serve(tmp_path):
     (tmp_path / "hourly.png").write_bytes(PNG)
     threads = []
 
-    def start(network=NETWORK):
+    def start(network=NETWORK, install_url=None):
         firmware = FirmwareSettings(enabled=True, dir=str(fw), product="my-dock",
                                     offer_dev_builds=False, products=("my-dock", "my-display"))
         server = make(tmp_path, firmware=firmware, network=network, mqtt=MQTT,
-                      install_boards=[DOCK, DISPLAY], settings_url="settings")
+                      install_boards=[DOCK, DISPLAY], settings_url="settings",
+                      install_url=install_url)
         http = ServerThread(server.app, "127.0.0.1", 0, timeout_s=2)
         http.start()
         threads.append(http)
@@ -169,6 +170,32 @@ def test_network_settings_not_set_are_named_as_in_settings(tmp_path, serve):
     assert result.returncode == 1
     assert result.stderr.strip() == ("Missing: Server address, Wi-Fi password, MQTT broker. "
                                      f"Add them in Settings: {server}/settings")
+
+
+def test_network_settings_not_set_are_named_as_on_the_install_page_that_holds_them(tmp_path,
+                                                                                  serve):
+    server = serve(network=NetworkSettings(wifi_ssid="Home"), install_url="web/install")
+
+    result = run(tmp_path, server, "dock-network")
+
+    assert result.returncode == 1
+    assert result.stderr.strip() == ("Missing: Server address, Wi-Fi password, MQTT broker. "
+                                     f"Add them on the install page: {server}/web/install")
+
+
+@pytest.mark.parametrize("install_url, place", [(None, "in Settings"),
+                                                ("web/install", "on the install page")])
+def test_a_fault_after_the_install_says_where_the_network_settings_are(tmp_path, serve,
+                                                                       install_url, place):
+    script = urllib.request.urlopen(f"{serve(install_url=install_url)}/{INSTALLER}",
+                                    timeout=5).read().decode()
+    functions = script[:script.index("[ $# -eq 1 ] || usage")]
+
+    said = subprocess.run(["sh", "-c", functions + "network_place"], capture_output=True,
+                          text=True, timeout=10)
+
+    assert said.stdout == place
+    assert script.count("$(network_place)") == 3
 
 
 def test_a_server_that_does_not_answer(tmp_path, serve):

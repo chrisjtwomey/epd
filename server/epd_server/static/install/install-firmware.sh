@@ -7,6 +7,7 @@
 # values
 SERVER_HERE=__SERVER__
 SETTINGS_PATH=__SETTINGS_PATH__
+NETWORK_PATH=__NETWORK_PATH__
 WIFI_SSID=__WIFI_SSID__
 BOARD_SERVER_URL=__BOARD_SERVER_URL__
 MQTT_HOST=__MQTT_HOST__
@@ -106,9 +107,17 @@ fetch() {
     curl -sS $insecure -o "$2" -w '%{http_code}' "$SERVER/$1" 2>/dev/null || true
 }
 
-settings_link() {
-    if [ -n "$SETTINGS_PATH" ]; then printf 'Settings: %s/%s' "$SERVER" "$SETTINGS_PATH"
-    else printf 'Settings.'; fi
+# Where a person sets the network settings: the project's install page when
+# it holds them, else Settings. The link carries the address when there is one.
+network_place() {
+    if [ -n "$NETWORK_PATH" ]; then printf 'on the install page'
+    else printf 'in Settings'; fi
+}
+
+network_link() {
+    if [ -n "$NETWORK_PATH" ]; then printf 'on the install page: %s/%s' "$SERVER" "$NETWORK_PATH"
+    elif [ -n "$SETTINGS_PATH" ]; then printf 'in Settings: %s/%s' "$SERVER" "$SETTINGS_PATH"
+    else printf 'in Settings.'; fi
 }
 
 # The Settings names of the keys a 409 from the server names.
@@ -137,7 +146,7 @@ download_files() {
     code=$(fetch "network.bin?product=$PRODUCT" "$CACHE/network.bin")
     case $code in
         200) ;;
-        409) fail "Missing: $(missing_fields "$CACHE/network.bin"). Add them in $(settings_link)" ;;
+        409) fail "Missing: $(missing_fields "$CACHE/network.bin"). Add them $(network_link)" ;;
         *) fail "$unreachable" ;;
     esac
 }
@@ -232,11 +241,11 @@ check_start() {
     if [ -z "$heard" ]; then
         fail "Installed, but received no data from the board. Reconnect it, then try again."
     elif [ -z "$wifi" ]; then
-        fail "Cannot join Wi-Fi \"$WIFI_SSID\". Check the Wi-Fi name and password in Settings, then try again."
+        fail "Cannot join Wi-Fi \"$WIFI_SSID\". Check the Wi-Fi name and password $(network_place), then try again."
     elif [ -z "$server" ]; then
-        fail "Board cannot reach the server at $BOARD_SERVER_URL. Check the server address in Settings, then try again."
+        fail "Board cannot reach the server at $BOARD_SERVER_URL. Check the server address $(network_place), then try again."
     elif [ -z "$mqtt" ]; then
-        fail "Cannot connect to MQTT at $MQTT_HOST. Check the MQTT broker in Settings."
+        fail "Cannot connect to MQTT at $MQTT_HOST. Check the MQTT broker $(network_place)."
     fi
     say "Installed. You can unplug the board."
 }

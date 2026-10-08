@@ -6,7 +6,11 @@
 // HTTPS port, which a page opened over plain HTTP needs.
 import { ESPLoader, Transport } from "./esptool-js-0.7.0.js";
 
-const config = JSON.parse(document.getElementById("install-config").textContent);
+// A project's page can change these values while it is open, as when a
+// person saves the network settings above the boards, so each install reads
+// them again.
+const readConfig = () => JSON.parse(document.getElementById("install-config").textContent);
+let config = readConfig();
 const main = document.getElementById("install");
 
 // The config keys a person sets, by the names the Settings page gives them.
@@ -46,6 +50,13 @@ const message = (...parts) => el("p", {}, ...parts);
 const note = (...parts) => el("p", { class: "note" }, ...parts);
 const link = (address) => el("a", { href: address }, address);
 const settings = () => (config.settingsUrl ? el("a", { href: config.settingsUrl }, "Settings") : "Settings");
+// Where a person sets the network settings: on this page, on the project's
+// install page, or in Settings.
+const NETWORK_PLACE = config.networkHere ? "above"
+  : config.networkUrl ? "on the install page" : "in Settings";
+const networkLink = () => (config.networkHere ? ["above"]
+  : config.networkUrl ? ["on ", el("a", { href: config.networkUrl }, "the install page")]
+  : ["in ", settings()]);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function isIpAddress(host) {
@@ -82,7 +93,7 @@ function start() {
   }
   if (config.missing.length) {
     const names = config.missing.map((key) => FIELDS[key] ?? key).join(", ");
-    main.append(message(`Missing: ${names}. Add them in `, settings(), "."));
+    main.append(message(`Missing: ${names}. Add them `, ...networkLink(), "."));
     return;
   }
 
@@ -137,6 +148,7 @@ class Status {
 }
 
 async function install(board, status) {
+  config = readConfig();
   const buttons = document.querySelectorAll("button");
   for (const button of buttons) button.disabled = true;
   try {
@@ -255,12 +267,13 @@ async function check(board, status) {
                 "Reconnect it, then select Install again.");
   } else if (!passed.has("wifi")) {
     status.fail(`Cannot join Wi-Fi "${config.ssid}". Check the Wi-Fi name and password ` +
-                "in Settings, then select Install again.");
+                `${NETWORK_PLACE}, then select Install again.`);
   } else if (!passed.has("server")) {
     status.fail(`Cannot reach the server at ${config.serverUrl}. Check the server address ` +
-                "in Settings, then select Install again.");
+                `${NETWORK_PLACE}, then select Install again.`);
   } else if (steps.length > passed.size) {
-    status.fail(`Cannot connect to MQTT at ${config.mqttHost}. Check the MQTT broker in Settings.`);
+    status.fail(`Cannot connect to MQTT at ${config.mqttHost}. ` +
+                `Check the MQTT broker ${NETWORK_PLACE}.`);
   } else {
     status.say("Installed. You can unplug the board.");
   }

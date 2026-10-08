@@ -830,6 +830,8 @@ def test_the_install_page_carries_what_its_script_needs(tmp_path):
         "httpsPort": 8443,
         "serverName": "epd.local",
         "settingsUrl": "web/config",
+        "networkUrl": None,
+        "networkHere": False,
         "storeOffset": 0x9000,
     }
 
@@ -886,6 +888,28 @@ def test_a_project_draws_the_page_in_its_own_layout_from_its_config(tmp_path):
 
     assert config["root"] == "../" and config["settingsUrl"] == "../web/config"
     assert server.install_config()["settingsUrl"] == "web/config"
+
+
+def test_a_project_page_that_holds_the_network_settings_says_so(tmp_path):
+    server = make(tmp_path, firmware=FirmwareSettings(True, str(tmp_path), "my-display", False),
+                  network=NETWORK, install_boards=[DISPLAY_BOARD], settings_url="web/config",
+                  install_url="web/install")
+
+    here = server.install_config(root="../", network_here=True)
+    plain = server.install_config()
+
+    assert (here["networkUrl"], here["networkHere"]) == ("../web/install", True)
+    assert (plain["networkUrl"], plain["networkHere"]) == ("web/install", False)
+    assert plain["settingsUrl"] == "web/config"
+
+
+def test_the_page_names_the_place_of_the_network_settings_in_every_fault():
+    with open(os.path.join(STATIC_DIR, "install.js")) as f:
+        script = f.read()
+
+    assert script.count("${NETWORK_PLACE}") == 3
+    assert "Add them `, ...networkLink()" in script
+    assert 'in Settings, then' not in script and "broker in Settings" not in script
 
 
 def test_the_page_waits_for_lines_the_firmware_logs():

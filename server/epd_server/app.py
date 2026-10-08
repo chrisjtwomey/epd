@@ -204,11 +204,17 @@ class DisplayServer:
             with ``server_version``, older than the board's own or newer;
             without it, the newest file.
         network: if given with ``firmware``, serve each product's network
-            settings at ``/network.bin``, for a USB flash.
+            settings at ``/network.bin``, for a USB flash. The install routes
+            read it at each request, so a project can replace
+            ``server.network`` while the server runs.
         install_boards: the boards the install page at ``/install`` offers.
             It needs ``firmware`` and ``network``.
         settings_url: where the install page sends a person to change a
             setting, relative to this server's root.
+        install_url: the project's own install page, relative to this
+            server's root, when that page holds the network settings. The
+            page and install-firmware.sh then send a person there to set them,
+            and to ``settings_url`` only for the HTTPS port.
         header_prefix: the product's name, which every header on the wire
             starts with. See :mod:`epd_server.headers`.
         server_version: what to report as this server's version. Defaults to
@@ -249,6 +255,7 @@ class DisplayServer:
         network: NetworkSettings | None = None,
         install_boards: Iterable[InstallBoard] = (),
         settings_url: str | None = None,
+        install_url: str | None = None,
         header_prefix: str = "EPD",
         server_version: str | None = None,
         version_gate: bool = False,
@@ -280,6 +287,7 @@ class DisplayServer:
         self.network = network
         self.install_boards = list(install_boards)
         self.settings_url = settings_url
+        self.install_url = install_url
         self.wire = Wire(header_prefix)
         self.server_version = server_version or __version__
         self.version_gate = version_gate
@@ -411,10 +419,11 @@ class DisplayServer:
             )
         return app
 
-    def install_config(self, root: str = "") -> dict:
+    def install_config(self, root: str = "", network_here: bool = False) -> dict:
         """What the install page's script needs to know, for a page that is
         ``root`` away from this server's root: "" for ``/install``, "../" for a
-        page one directory down, as a project draws it in its own layout."""
+        page one directory down, as a project draws it in its own layout.
+        ``network_here`` says the page holds the network settings itself."""
         assert self.network is not None   # checked in __init__
         return {
             "root": root,
@@ -432,6 +441,8 @@ class DisplayServer:
             "httpsPort": self.https_port,
             "serverName": server_name(self.network.server_url),
             "settingsUrl": root + self.settings_url if self.settings_url else None,
+            "networkUrl": root + self.install_url if self.install_url else None,
+            "networkHere": network_here,
             "storeOffset": STORE_OFFSET,
         }
 
@@ -447,6 +458,7 @@ class DisplayServer:
         script = installer_script(
             server=request.host_url.rstrip("/"),
             settings_path=self.settings_url or "",
+            network_path=self.install_url or "",
             wifi_ssid=self.network.wifi_ssid,
             board_server_url=self.network.server_url,
             mqtt_host=self.network.mqtt_host if self.mqtt and self.mqtt.enabled else "",

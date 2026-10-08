@@ -236,6 +236,9 @@ An enabled firmware block serves each image's `<version>.merged.bin` at
 `/firmware.merged.bin` too; see
 [docs/protocol.md](../docs/protocol.md#a-usb-flash). A key that is set is
 checked at start; one that is not only stops `/network.bin`, which names it.
+The install routes read `server.network` at each request, so a project can
+replace it while the server runs, as when a person saves new values: they
+change only what an install writes, so they need no restart.
 
 Add a `source` block and the server fills `dir` itself, from a
 repository's releases:
@@ -315,6 +318,17 @@ config = server.install_config(root="../")    # the page sits one level down, at
 #   <script type="module" src="../install/install.js"></script>
 ```
 
+Its page can hold the network settings too, above the boards, since nothing
+but an install uses them. Pass `install_url="web/install"` to
+`DisplayServer` and `network_here=True` to `install_config`. The page then
+says "Add them above" for a missing setting, and "Check the Wi-Fi name and
+password above" after a failed check; `/install` and the script send a
+person to the install page instead of Settings, and `settings_url` is left
+for the HTTPS port. The page reads the config element again at each install,
+so a project's page can write fresh values into it after a save without a
+reload. While an install runs, the page turns off only the buttons in its
+own element.
+
 Every address in the page is relative, so it works behind a reverse proxy at
 any path. It writes with [esptool-js](https://github.com/espressif/esptool-js)
 0.7.0, kept in `epd_server/static/install` with its licence (Apache-2.0) and
@@ -333,7 +347,8 @@ sh install-firmware.sh dock-network    # network settings only
 
 The server serves the script with its own values filled in: its address as
 the person reached it, and the boards, the Wi-Fi name and the addresses the
-page shows. A board's word is its name in lower case. The script downloads
+page shows, and where a person sets a missing value: the install page with
+`install_url`, else Settings. A board's word is its name in lower case. The script downloads
 Espressif's standalone esptool 5.4.0 once, checks it against the checksum
 published for it, and keeps it in `$XDG_CACHE_HOME/epd`, or `~/.cache/epd`
 when that is not set. It finds the board by the
