@@ -149,7 +149,7 @@ class Status {
 
 async function install(board, status) {
   config = readConfig();
-  const buttons = document.querySelectorAll("button");
+  const buttons = main.querySelectorAll("button");
   for (const button of buttons) button.disabled = true;
   try {
     await installOn(board, status);
