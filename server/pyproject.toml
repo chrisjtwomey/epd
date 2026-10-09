@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,7 +7,8 @@ name = "epd-server"
 version = "0.10.2"
 description = "Scheduled HTML-to-PNG rendering for battery-powered e-paper clients."
 readme = "README.md"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Chris Twomey" }]
 requires-python = ">=3.11"
 dependencies = [

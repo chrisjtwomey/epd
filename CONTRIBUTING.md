@@ -13,6 +13,8 @@ firmware/                 EpdClient — PlatformIO library (hardware-agnostic cl
   test/                   host-only tests, two environments
   test_support/           stub headers a consumer needs to test its own sequence
   platformio.ini          test project only; excluded from the published library
+  LICENSE                 a copy of the root LICENSE, as in boards/inkplate/ and
+                          server/: each package ships its own (Publishing)
 server/                   epd-server — pip package
   epd_server/             config, registry, cache, page, render, quantise,
                           source, pipeline, scheduling, mqtt, app, firmware,
@@ -129,6 +131,11 @@ python3 scripts/version.py 0.3.0    # set every declaration
 `server/tests/test_version.py` fails if they ever disagree. That matters more
 than tidiness: the server sends its own version to every client in the
 `EPD-Server-Version` header.
+
+Each package carries a copy of `LICENSE` in its own folder, because it is
+built from that folder and cannot reach the file at the root. Change the
+root `LICENSE` and copy it over: `server/tests/test_licence.py` fails while a
+copy differs.
 
 The registry ships what `library.json`'s `export` rules allow, not the
 directory, so build a consumer against the exact tarball before publishing
