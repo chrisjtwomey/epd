@@ -13,14 +13,14 @@ everything that does not depend on what is being displayed.
 From PyPI:
 
 ```sh
-pip install "epd-server~=0.10.2"
+pip install "epd-server~=0.10.3"
 ```
 
 In a project's `requirements.txt`, pin the release that the project's
 firmware is built with, because the two share the header contract:
 
 ```
-epd-server==0.10.2
+epd-server==0.10.3
 ```
 
 To work on the package, install a checkout editable:
