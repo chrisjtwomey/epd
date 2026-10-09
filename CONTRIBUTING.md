@@ -107,7 +107,9 @@ either:
   `PLATFORMIO_DEFAULT_ENVS=dev` makes a plain `pio run` build it. PlatformIO
   still downloads the registry's EpdClient there, because EpdBoardInkplate
   depends on it, but the build compiles the checkout's. A project that has
-  not moved to the registry yet builds only through the symlink.
+  not moved to the registry yet builds only through the symlink. A host test
+  of a project's wake has the same pair of environments
+  ([docs/testing.md](docs/testing.md)).
 - Server: `epd-server==x.y.z` from PyPI in `requirements.txt`.
 
 Before opening a pull request, build a consumer against your branch: its

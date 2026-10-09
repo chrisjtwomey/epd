@@ -53,6 +53,7 @@ PINNED_IN = [
     "README.md",
     "docs/configuration.md",
     "docs/custom-board.md",
+    "docs/testing.md",
     "server/README.md",
     "examples/minimal/platformio.ini",
     "examples/minimal/README.md",

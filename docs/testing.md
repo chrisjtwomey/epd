@@ -25,33 +25,48 @@ platform = native
 test_framework = unity
 test_build_src = yes
 test_filter = test_integration
+lib_deps = chrisjtwomey/EpdClient @ ^0.10.2
+lib_ignore = EpdClient
+epd = ${platformio.libdeps_dir}/${this.__env__}/EpdClient
 build_flags =
 	-std=c++14
 	-Iinclude
-	-I../epd/firmware/include
-	-I../epd/firmware/test_support
+	-I${this.epd}/include
+	-I${this.epd}/test_support
 	-Itest/test_integration
 	-DLOG_LEVEL=0
 	-DNATIVE
 build_src_filter =
 	+<app.cpp>
-	+<../../epd/firmware/src/wake.cpp>
-	+<../../epd/firmware/src/ota_offer.cpp>
-	+<../../epd/firmware/src/backoff.cpp>
-	+<../../epd/firmware/src/user_agent.cpp>
+	+<${this.epd}/src/wake.cpp>
+	+<${this.epd}/src/ota_offer.cpp>
+	+<${this.epd}/src/backoff.cpp>
+	+<${this.epd}/src/user_agent.cpp>
+
+[env:native_integration-dev]
+extends = env:native_integration
+lib_deps =
+epd = ${PROJECT_DIR}/../epd/firmware
 ```
 
 List whichever epd sources your `app.cpp` actually calls; anything you leave
 out fails to link and tells you so.
 
-These paths point into an epd checkout beside your project. The host test is
-the one part of a project that needs the checkout, because it compiles epd's
-sources and stub headers by path.
+`lib_deps` downloads EpdClient from the registry: pin it at the same version
+as your board environment. The package holds epd's sources and the stub
+headers, and `epd` names its folder, so the paths compile only the sources
+you list. `lib_ignore` keeps PlatformIO from building the whole library for
+the host.
+
+The `-dev` twin compiles the same sources from an epd checkout beside your
+project, to try a change to epd before it is released
+([CONTRIBUTING.md](../CONTRIBUTING.md#consumers)).
 
 Then run it:
 
 ```sh
 pio test -e native_integration
+pio test -e native_integration-dev    # against the checkout
 ```
 
 Two things make this work. First, keep the order of a wake in its own file —
