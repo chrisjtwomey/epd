@@ -2,12 +2,14 @@
 # Installs a board's firmware and network settings over USB, from the server
 # that served this script, then follows the board's log as the install page
 # does. The server filled in the values below; SERVER, PORT and ESPTOOL
-# override them.
+# override them. With TOKEN, the server's access token, the script signs in
+# with that instead of asking for the server password.
 
 # values
 SERVER_HERE=__SERVER__
 SETTINGS_PATH=__SETTINGS_PATH__
 NETWORK_PATH=__NETWORK_PATH__
+LOGIN_PATH=__LOGIN_PATH__
 WIFI_SSID=__WIFI_SSID__
 BOARD_SERVER_URL=__BOARD_SERVER_URL__
 MQTT_HOST=__MQTT_HOST__
@@ -15,6 +17,10 @@ BOARDS=__BOARDS__
 # end of values
 
 SERVER=${SERVER:-$SERVER_HERE}
+SIGN_IN_DIR=
+unreachable="Cannot reach the server at $SERVER. Check that it is running, then try again."
+needs_token="Sign-in needed. Set TOKEN to the access token from Settings, then try again."
+sign_in_failed="Sign-in failed. Set TOKEN to the access token from Settings, then try again."
 CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/epd
 LOG=$CACHE/install-firmware.log
 
@@ -99,12 +105,76 @@ esptool_path() {
     say "$path"
 }
 
-# Downloads $1 from the server into $2, and prints the HTTP status: 000 when
-# the server did not answer.
-fetch() {
+# Runs curl on the server's $1 with the rest of the arguments.
+curl_server() {
+    target=$1
+    shift
     insecure=
     case $SERVER in https://*) insecure=-k ;; esac
-    curl -sS $insecure -o "$2" -w '%{http_code}' "$SERVER/$1" 2>/dev/null || true
+    curl -sS $insecure "$@" "$SERVER/$target" 2>/dev/null
+}
+
+# Downloads $1 from the server into $2, and prints the HTTP status: 000 when
+# the server did not answer. It sends TOKEN, else the cookie of a sign-in.
+# The token goes to curl on stdin, so ps does not show it.
+fetch() {
+    if [ -n "${TOKEN:-}" ]; then
+        printf 'Authorization: Bearer %s\n' "$TOKEN" |
+            curl_server "$1" -H @- -o "$2" -w '%{http_code}' || true
+    elif [ -n "$SIGN_IN_DIR" ]; then
+        curl_server "$1" -b "$SIGN_IN_DIR/cookies" -o "$2" -w '%{http_code}' || true
+    else
+        curl_server "$1" -o "$2" -w '%{http_code}' || true
+    fi
+}
+
+# Asks for the server password and signs in with it. The cookie lasts for
+# this run only. The password goes to curl on stdin, so ps does not show it.
+sign_in() {
+    if [ -z "$LOGIN_PATH" ] || [ ! -t 0 ]; then
+        fail "$needs_token"
+    fi
+    printf 'Server password: ' >&2
+    terminal=$(stty -g)
+    trap 'stty "$terminal"; exit 130' INT TERM
+    stty -echo
+    read -r password
+    stty "$terminal"
+    trap - INT TERM
+    printf '\n' >&2
+    [ -n "$password" ] || fail "No password entered. Try again."
+
+    SIGN_IN_DIR=$(mktemp -d) || fail "$sign_in_failed"
+    trap 'rm -rf "$SIGN_IN_DIR"' EXIT
+    code=$(printf '%s' "$password" |
+        curl_server "$LOGIN_PATH" --data-urlencode 'password@-' -c "$SIGN_IN_DIR/cookies" \
+            -D "$SIGN_IN_DIR/headers" -o /dev/null -w '%{http_code}' || true)
+    case $code in
+        2??|3??) ;;
+        401) fail "Wrong password. Try again." ;;
+        429)
+            wait_s=$(sed -n 's/^[Rr]etry-[Aa]fter: *\([0-9][0-9]*\).*/\1/p' "$SIGN_IN_DIR/headers")
+            if [ -z "$wait_s" ]; then fail "Too many tries. Try again later."; fi
+            minutes=$(((wait_s + 59) / 60))
+            if [ "$minutes" -eq 1 ]; then fail "Too many tries. Try again in 1 minute."; fi
+            fail "Too many tries. Try again in $minutes minutes." ;;
+        000) fail "$unreachable" ;;
+        *) fail "$sign_in_failed" ;;
+    esac
+}
+
+# Downloads $1 into $2 as fetch does, and signs in once when the server
+# asks. Sets CODE to the HTTP status.
+download() {
+    CODE=$(fetch "$1" "$2")
+    if [ "$CODE" = 401 ] && [ -z "${TOKEN:-}" ] && [ -z "$SIGN_IN_DIR" ]; then
+        sign_in
+        CODE=$(fetch "$1" "$2")
+    fi
+    if [ "$CODE" = 401 ]; then
+        if [ -n "${TOKEN:-}" ]; then fail "Access token refused. Copy it from Settings, then try again."; fi
+        fail "$sign_in_failed"
+    fi
 }
 
 # Where a person sets the network settings: the project's install page when
@@ -134,17 +204,16 @@ missing_fields() {
 }
 
 download_files() {
-    unreachable="Cannot reach the server at $SERVER. Check that it is running, then try again."
     if [ "$WITH_FIRMWARE" = yes ]; then
-        code=$(fetch "firmware.merged.bin?product=$PRODUCT" "$CACHE/firmware.bin")
-        case $code in
+        download "firmware.merged.bin?product=$PRODUCT" "$CACHE/firmware.bin"
+        case $CODE in
             200) ;;
             404) fail "No firmware to install for the $NAME yet. It appears once the server has built it." ;;
             *) fail "$unreachable" ;;
         esac
     fi
-    code=$(fetch "network.bin?product=$PRODUCT" "$CACHE/network.bin")
-    case $code in
+    download "network.bin?product=$PRODUCT" "$CACHE/network.bin"
+    case $CODE in
         200) ;;
         409) fail "Missing: $(missing_fields "$CACHE/network.bin"). Add them $(network_link)" ;;
         *) fail "$unreachable" ;;

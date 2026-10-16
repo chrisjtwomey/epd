@@ -60,13 +60,14 @@ def shell_quoted(value: str) -> str:
     return "'" + value.replace("'", "'\\''") + "'"
 
 
-def installer_script(*, server: str, settings_path: str, network_path: str, wifi_ssid: str,
-                     board_server_url: str, mqtt_host: str,
+def installer_script(*, server: str, settings_path: str, network_path: str, login_path: str,
+                     wifi_ssid: str, board_server_url: str, mqtt_host: str,
                      boards: list[InstallBoard]) -> str:
     """install-firmware.sh with this server's values filled in: ``server`` as
     the person reached it, and the rest as the install page has them.
     ``network_path`` is the project's install page that holds the network
-    settings, or "" when Settings holds them."""
+    settings, or "" when Settings holds them. ``login_path`` is the project's
+    sign-in form, or "" when it has none."""
     lines = [
         "|".join((board_word(b), b.product, b.chip.lower().replace("-", ""), b.name,
                   ",".join(f"0x{v:04x}" for v in b.usb_vendor_ids)))
@@ -76,6 +77,7 @@ def installer_script(*, server: str, settings_path: str, network_path: str, wifi
         "SERVER_HERE": server,
         "SETTINGS_PATH": settings_path,
         "NETWORK_PATH": network_path,
+        "LOGIN_PATH": login_path,
         "WIFI_SSID": wifi_ssid,
         "BOARD_SERVER_URL": board_server_url,
         "MQTT_HOST": mqtt_host,

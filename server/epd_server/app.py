@@ -223,6 +223,12 @@ class DisplayServer:
             server's root, when that page holds the network settings. The
             page and install-firmware.sh then send a person there to set them,
             and to ``settings_url`` only for the HTTPS port.
+        login_url: the project's sign-in form, relative to this server's
+            root, when the project puts a sign-in in front of
+            ``/network.bin``. On a 401 there, install-firmware.sh asks for
+            the password, posts it to this form as the field ``password``,
+            and sends the cookie it gets back. A 401 from the form is a wrong
+            password; a 429 is too many tries, with Retry-After.
         header_prefix: the product's name, which every header on the wire
             starts with. See :mod:`epd_server.headers`.
         server_version: what to report as this server's version. Defaults to
@@ -274,6 +280,7 @@ class DisplayServer:
         install_boards: Iterable[InstallBoard] = (),
         settings_url: str | None = None,
         install_url: str | None = None,
+        login_url: str | None = None,
         header_prefix: str = "EPD",
         server_version: str | None = None,
         version_gate: bool = False,
@@ -309,6 +316,7 @@ class DisplayServer:
         self.install_boards = list(install_boards)
         self.settings_url = settings_url
         self.install_url = install_url
+        self.login_url = login_url
         self.wire = Wire(header_prefix)
         self.server_version = server_version or __version__
         self.version_gate = version_gate
@@ -492,6 +500,7 @@ class DisplayServer:
             server=request.host_url.rstrip("/"),
             settings_path=self.settings_url or "",
             network_path=self.install_url or "",
+            login_path=self.login_url or "",
             wifi_ssid=self.network.wifi_ssid,
             board_server_url=self.network.server_url,
             mqtt_host=self.network.mqtt_host if self.mqtt and self.mqtt.enabled else "",

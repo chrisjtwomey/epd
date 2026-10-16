@@ -1,11 +1,13 @@
 """install-firmware.sh, run by a real shell against a test server, with a
 stand-in esptool and a file in place of the board's port."""
 import os
+import pty
 import re
 import subprocess
 import urllib.request
 
 import pytest
+from flask import redirect, request
 
 from epd_server.app import ServerThread
 from epd_server.config import FirmwareSettings, MqttSettings, NetworkSettings
@@ -23,6 +25,9 @@ STARTED = ["... wifi connected in 1100 ms: 10.0.0.9",
            "... reached the server at http://epd.local:8080/today.png",
            "... connected to MQTT broker epd.local:1883"]
 
+TOKEN = "t0ken"
+PASSWORD = "horse & battery=100%"
+
 FAKE_ESPTOOL = r"""#!/bin/sh
 printf '%s\n' "$*" >> "$FAKE_DIR/calls"
 for arg in "$@"; do
@@ -33,9 +38,39 @@ printf 'Serial port %s:\n' "$FAKE_PORT"
 """
 
 
+def sign_in_in_front(app, too_many):
+    """A stand-in for a project's sign-in in front of /network.bin: it takes
+    TOKEN, or the cookie that its form at /web/login sets for PASSWORD. With
+    ``too_many``, the form answers 429, with that Retry-After when it is not
+    "". Returns the passwords posted to the form."""
+    posted = []
+
+    @app.before_request
+    def signed_in_only():
+        if request.path == "/network.bin" and request.cookies.get("signed-in") != "yes" \
+                and request.headers.get("Authorization") != f"Bearer {TOKEN}":
+            return "", 401
+        return None
+
+    @app.post("/web/login")
+    def sign_in():
+        posted.append(request.form.get("password"))
+        if too_many is not None:
+            return "", 429, {"Retry-After": too_many} if too_many else {}
+        if request.form.get("password") != PASSWORD:
+            return "", 401
+        rsp = redirect("/web/", 303)
+        rsp.set_cookie("signed-in", "yes", httponly=True)
+        return rsp
+
+    return posted
+
+
 @pytest.fixture
 def serve(tmp_path):
-    """Starts a test server and returns its address."""
+    """Starts a test server and returns its address. With ``signed_in``, a
+    sign-in stands in front of /network.bin, and the list of passwords
+    posted to it is ``posted``."""
     fw = tmp_path / "fw"
     for product in ("my-dock", "my-display"):
         (fw / product).mkdir(parents=True)
@@ -45,12 +80,15 @@ def serve(tmp_path):
     (tmp_path / "hourly.png").write_bytes(PNG)
     threads = []
 
-    def start(network=NETWORK, install_url=None):
+    def start(network=NETWORK, install_url=None, login_url=None, signed_in=False,
+              too_many=None):
         firmware = FirmwareSettings(enabled=True, dir=str(fw), product="my-dock",
                                     offer_dev_builds=False, products=("my-dock", "my-display"))
         server = make(tmp_path, firmware=firmware, network=network, mqtt=MQTT,
                       install_boards=[DOCK, DISPLAY], settings_url="settings",
-                      install_url=install_url)
+                      install_url=install_url, login_url=login_url)
+        if signed_in:
+            start.posted = sign_in_in_front(server.app, too_many)
         http = ServerThread(server.app, "127.0.0.1", 0, timeout_s=2)
         http.start()
         threads.append(http)
@@ -61,8 +99,9 @@ def serve(tmp_path):
         http.shutdown()
 
 
-def run(tmp_path, server, *args, says=None, port_lines=(), env=None):
-    """Downloads the script from ``server`` and runs it with ``args``."""
+def run(tmp_path, server, *args, says=None, port_lines=(), env=None, typed=None):
+    """Downloads the script from ``server`` and runs it with ``args``. With
+    ``typed``, its stdin is a terminal, and ``typed`` is the line typed there."""
     script = tmp_path / INSTALLER
     script.write_bytes(urllib.request.urlopen(f"{server}/{INSTALLER}", timeout=5).read())
     fake = tmp_path / "fake"
@@ -73,13 +112,25 @@ def run(tmp_path, server, *args, says=None, port_lines=(), env=None):
     port = tmp_path / "port"
     port.write_text("".join(f"{line}\n" for line in port_lines))
     locale = {k: v for k, v in os.environ.items() if k in ("LANG", "LC_ALL", "LC_CTYPE")}
+    temp = tmp_path / "temp"
+    temp.mkdir(exist_ok=True)
     environ = {"PATH": os.environ["PATH"], "HOME": str(tmp_path), **locale,
                "XDG_CACHE_HOME": str(tmp_path / ".cache"), "ESPTOOL": str(esptool),
-               "FAKE_DIR": str(fake), "FAKE_PORT": str(port), **(env or {})}
+               "FAKE_DIR": str(fake), "FAKE_PORT": str(port), "TMPDIR": str(temp),
+               **(env or {})}
     if says:
         environ["FAKE_SAYS"] = says
-    return subprocess.run(["sh", str(script), *args], env=environ, capture_output=True,
-                          text=True, timeout=30)
+    if typed is None:
+        return subprocess.run(["sh", str(script), *args], env=environ, stdin=subprocess.DEVNULL,
+                              capture_output=True, text=True, timeout=30)
+    keyboard, terminal = pty.openpty()
+    try:
+        os.write(keyboard, typed.encode() + b"\n")
+        return subprocess.run(["sh", str(script), *args], env=environ, stdin=terminal,
+                              capture_output=True, text=True, timeout=30)
+    finally:
+        os.close(terminal)
+        os.close(keyboard)
 
 
 def calls(tmp_path) -> list[str]:
@@ -88,7 +139,7 @@ def calls(tmp_path) -> list[str]:
 
 
 def test_the_script_carries_this_servers_values(tmp_path, serve):
-    server = serve()
+    server = serve(login_url="web/login")
 
     rsp = urllib.request.urlopen(f"{server}/{INSTALLER}", timeout=5)
     script = rsp.read().decode()
@@ -99,10 +150,11 @@ def test_the_script_carries_this_servers_values(tmp_path, serve):
     assert subprocess.run(["sh", "-n", "-c", script]).returncode == 0
     values = script[script.index("# values"):script.index("# end of values")]
     shown = subprocess.run(
-        ["sh", "-c", values + 'printf "%s\\n" "$SERVER_HERE" "$SETTINGS_PATH" "$WIFI_SSID" '
-         '"$BOARD_SERVER_URL" "$MQTT_HOST" "$BOARDS"'],
+        ["sh", "-c", values + 'printf "%s\\n" "$SERVER_HERE" "$SETTINGS_PATH" "$LOGIN_PATH" '
+         '"$WIFI_SSID" "$BOARD_SERVER_URL" "$MQTT_HOST" "$BOARDS"'],
         capture_output=True, text=True).stdout.splitlines()
-    assert shown == [server, "settings", "Home's \"Wi-Fi\" $(x)", "http://epd.local:8080",
+    assert shown == [server, "settings", "web/login", "Home's \"Wi-Fi\" $(x)",
+                     "http://epd.local:8080",
                      "epd.local", "dock|my-dock|esp32s3|Dock|0x303a",
                      "display|my-display|esp32|Display|0x1a86"]
 
@@ -196,6 +248,101 @@ def test_a_fault_after_the_install_says_where_the_network_settings_are(tmp_path,
 
     assert said.stdout == place
     assert script.count("$(network_place)") == 3
+
+
+def test_a_server_with_a_sign_in_takes_the_password_typed(tmp_path, serve):
+    server = serve(login_url="web/login", signed_in=True)
+
+    result = run(tmp_path, server, "dock", port_lines=STARTED, typed=PASSWORD)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stderr == "Server password: \n"
+    assert result.stdout.splitlines()[-1] == "Installed. You can unplug the board."
+    assert serve.posted == [PASSWORD]
+    assert (tmp_path / "fake" / "network.bin").read_bytes() == network_settings_file(
+        NETWORK, MQTT, product="my-dock", first_page="today.png")
+    assert os.listdir(tmp_path / "temp") == []
+
+
+@pytest.mark.parametrize("typed, text", [("horse", "Wrong password. Try again."),
+                                         ("", "No password entered. Try again.")])
+def test_a_wrong_password_stops_the_install(tmp_path, serve, typed, text):
+    server = serve(login_url="web/login", signed_in=True)
+
+    result = run(tmp_path, server, "dock", typed=typed)
+
+    assert result.returncode == 1
+    assert result.stderr == f"Server password: \n{text}\n"
+    assert calls(tmp_path) == []
+    assert os.listdir(tmp_path / "temp") == []
+
+
+@pytest.mark.parametrize("retry_after, wait", [("840", "in 14 minutes"), ("30", "in 1 minute"),
+                                               ("", "later")])
+def test_too_many_tries_says_when_to_try_again(tmp_path, serve, retry_after, wait):
+    server = serve(login_url="web/login", signed_in=True, too_many=retry_after)
+
+    result = run(tmp_path, server, "dock", typed=PASSWORD)
+
+    assert result.returncode == 1
+    assert result.stderr.splitlines()[-1] == f"Too many tries. Try again {wait}."
+
+
+def test_the_token_signs_in_without_the_password(tmp_path, serve):
+    server = serve(login_url="web/login", signed_in=True)
+
+    result = run(tmp_path, server, "dock", port_lines=STARTED, env={"TOKEN": TOKEN},
+                 typed=PASSWORD)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stderr == ""
+    assert serve.posted == []
+    assert (tmp_path / "fake" / "network.bin").read_bytes() == network_settings_file(
+        NETWORK, MQTT, product="my-dock", first_page="today.png")
+
+
+def test_a_refused_token_stops_the_install(tmp_path, serve):
+    server = serve(login_url="web/login", signed_in=True)
+
+    result = run(tmp_path, server, "dock", env={"TOKEN": "old"}, typed=PASSWORD)
+
+    assert result.returncode == 1
+    assert result.stderr.strip() == "Access token refused. Copy it from Settings, then try again."
+    assert serve.posted == []
+    assert calls(tmp_path) == []
+
+
+@pytest.mark.parametrize("login_url, typed", [("web/login", None), (None, PASSWORD)])
+def test_a_sign_in_the_script_cannot_do_names_the_token(tmp_path, serve, login_url, typed):
+    server = serve(login_url=login_url, signed_in=True)
+
+    result = run(tmp_path, server, "dock", typed=typed)
+
+    assert result.returncode == 1
+    assert result.stderr.strip() == ("Sign-in needed. Set TOKEN to the access token from "
+                                     "Settings, then try again.")
+    assert serve.posted == []
+
+
+@pytest.mark.parametrize("env, typed, secret", [({}, PASSWORD, PASSWORD),
+                                                 ({"TOKEN": TOKEN}, None, TOKEN)])
+def test_no_secret_goes_on_curls_command_line(tmp_path, serve, env, typed, secret):
+    server = serve(login_url="web/login", signed_in=True)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    real = subprocess.run(["sh", "-c", "command -v curl"], capture_output=True,
+                          text=True).stdout.strip()
+    logged = tmp_path / "curl-args"
+    curl = bin_dir / "curl"
+    curl.write_text(f'#!/bin/sh\nprintf "%s\\n" "$*" >> "{logged}"\nexec "{real}" "$@"\n')
+    curl.chmod(0o755)
+
+    result = run(tmp_path, server, "dock-network", port_lines=STARTED, typed=typed,
+                 env={"PATH": f"{bin_dir}:{os.environ['PATH']}", **env})
+
+    assert result.returncode == 0, result.stderr
+    assert "network.bin" in logged.read_text()
+    assert secret not in logged.read_text()
 
 
 def test_a_server_that_does_not_answer(tmp_path, serve):

@@ -379,6 +379,7 @@ from a terminal on macOS or Linux (on Windows, Git Bash, untested):
 curl -O http://epd.local:8080/install-firmware.sh
 sh install-firmware.sh dock            # firmware and network settings
 sh install-firmware.sh dock-network    # network settings only
+TOKEN=<access token> sh install-firmware.sh dock   # with no password prompt
 ```
 
 The server serves the script with its own values filled in: its address as
@@ -394,6 +395,16 @@ overlap, and follows the board's log for the same three lines. `SERVER`,
 `PORT` and `ESPTOOL` override the server's address, the board's port and the
 esptool to run. esptool's own output goes to `install-firmware.log` in the
 same folder.
+
+A project that puts a sign-in in front of `/network.bin` passes
+`login_url`, its sign-in form relative to the server's root. On a 401 the
+script asks for the server password, posts it to that form as the field
+`password`, and sends the cookie it gets back. The cookie lasts for that run
+only. The form answers 401 for a wrong password, and 429 with `Retry-After`
+after too many. With `TOKEN` set to the project's access token, the script
+sends `Authorization: Bearer <token>` instead, and asks for nothing: that
+is how it runs with no terminal. The password and the token go to curl on
+stdin, so `ps` does not show them.
 
 ## Wiring a project
 
