@@ -63,8 +63,33 @@ void test_an_image_with_a_broker_stores_its_whole_block(void) {
     TEST_ASSERT_EQUAL_STRING("mqtt/canary", Preferences().getString("mqttPrefix", "").c_str());
 }
 
+void test_a_board_without_a_stored_key_has_none(void) {
+    Preferences().clear();
+    TEST_ASSERT_FALSE(loadBoardKey().present);
+}
+
+void test_a_stored_key_is_read_back_with_its_id(void) {
+    Preferences().clear();
+    uint8_t key[BOARD_KEY_LEN];
+    for (int i = 0; i < BOARD_KEY_LEN; ++i) key[i] = (uint8_t)i;
+    TEST_ASSERT_TRUE(storeBoardKey(key));
+    const BoardKey kept = loadBoardKey();
+    TEST_ASSERT_TRUE(kept.present);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(key, kept.key, BOARD_KEY_LEN);
+    TEST_ASSERT_EQUAL_STRING("630dcd2966c43366", kept.id);
+}
+
+void test_a_stored_key_of_the_wrong_length_counts_as_none(void) {
+    Preferences().clear();
+    Preferences().putBytes("boardKey", "short", 5);
+    TEST_ASSERT_FALSE(loadBoardKey().present);
+}
+
 int main(int argc, char** argv) {
     UNITY_BEGIN();
+    RUN_TEST(test_a_board_without_a_stored_key_has_none);
+    RUN_TEST(test_a_stored_key_is_read_back_with_its_id);
+    RUN_TEST(test_a_stored_key_of_the_wrong_length_counts_as_none);
     RUN_TEST(test_a_pipeline_image_logs_to_the_broker_the_board_stored);
     RUN_TEST(test_a_store_with_no_prefix_takes_the_images);
     RUN_TEST(test_an_image_with_a_broker_stores_its_whole_block);

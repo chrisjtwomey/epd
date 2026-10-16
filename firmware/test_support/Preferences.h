@@ -36,6 +36,15 @@ public:
     }
     size_t putBool(const char* key, bool value) { return putString(key, value ? "1" : "0"); }
     size_t putInt(const char* key, int value) { return putString(key, std::to_string(value)); }
+    size_t putBytes(const char* key, const void* value, size_t len) {
+        return putString(key, std::string((const char*)value, len));
+    }
+    size_t getBytesLength(const char* key) { return isKey(key) ? store()[key].size() : 0; }
+    size_t getBytes(const char* key, void* out, size_t len) {
+        if (!isKey(key) || store()[key].size() > len) return 0;
+        memcpy(out, store()[key].data(), store()[key].size());
+        return store()[key].size();
+    }
 };
 
 #endif // __STUB_PREFERENCES_H__

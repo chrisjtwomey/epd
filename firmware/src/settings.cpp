@@ -6,6 +6,7 @@
 
 // One namespace for everything this client keeps between boots.
 #define SETTINGS_NAMESPACE "epd"
+#define BOARD_KEY_SETTING "boardKey"
 
 // Resolve one setting and keep this build's value when it is a real one, so a
 // board flashed over USB provisions itself for every later image.
@@ -84,4 +85,25 @@ ClientConfig loadConfig(const ClientConfig& builtIn) {
     cfg.wifiSSID = ssid.c_str();
     cfg.wifiPass = pass.c_str();
     return cfg;
+}
+
+BoardKey loadBoardKey() {
+    Preferences prefs;
+    BoardKey none = {};
+    if (!prefs.begin(SETTINGS_NAMESPACE, true)) return none;
+    uint8_t key[BOARD_KEY_LEN];
+    // isKey() first: getBytesLength() on an absent key logs an error of its own.
+    const bool whole = prefs.isKey(BOARD_KEY_SETTING) &&
+                       prefs.getBytesLength(BOARD_KEY_SETTING) == BOARD_KEY_LEN &&
+                       prefs.getBytes(BOARD_KEY_SETTING, key, BOARD_KEY_LEN) == BOARD_KEY_LEN;
+    prefs.end();
+    return whole ? boardKeyFrom(key) : none;
+}
+
+bool storeBoardKey(const uint8_t key[BOARD_KEY_LEN]) {
+    Preferences prefs;
+    if (!prefs.begin(SETTINGS_NAMESPACE, false)) return false;
+    const bool kept = prefs.putBytes(BOARD_KEY_SETTING, key, BOARD_KEY_LEN) == BOARD_KEY_LEN;
+    prefs.end();
+    return kept;
 }

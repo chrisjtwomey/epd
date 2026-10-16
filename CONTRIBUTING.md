@@ -8,17 +8,19 @@ For what the kit is and how a project uses it, start with [README.md](README.md)
 
 ```
 firmware/                 EpdClient — PlatformIO library (hardware-agnostic client)
-  include/  src/          IBoard, the steps of a wake, network / sleep / display helpers
+  include/  src/          IBoard, the steps of a wake, network / sleep / display helpers,
+                          the board key's signatures
   boards/inkplate/        EpdBoardInkplate — the Inkplate IBoard, a separate library
-  test/                   host-only tests, two environments
-  test_support/           stub headers a consumer needs to test its own sequence
+  test/                   host-only tests, in four environments
+  test_support/           stub headers a consumer needs to test its own sequence,
+                          and stand-ins for mbedTLS's hashes and base64, for the board key's test
   platformio.ini          test project only; excluded from the published library
   LICENSE                 a copy of the root LICENSE, as in boards/inkplate/ and
                           server/: each package ships its own (Publishing)
 server/                   epd-server — pip package
   epd_server/             config, registry, cache, page, render, quantise,
                           source, pipeline, scheduling, mqtt, app, firmware,
-                          network, certificate, install
+                          network, certificate, install, board_keys
     static/install/       the install page, install-firmware.sh, and
                           esptool-js kept at a fixed version with its licences
   tests/
@@ -52,7 +54,8 @@ No device, network, or browser is needed for any test.
 cd firmware
 pio test -e native              # pure helpers: back-off, battery, refresh header parsing
 pio test -e native_mock         # display + sleep against MockBoard
-pio test -e native_settings     # loadConfig against a Preferences stub
+pio test -e native_settings     # loadConfig and the board key's store against a Preferences stub
+pio test -e native_board_key    # the board key's signatures, against the RFCs and the server's vectors
 cd ../examples/minimal
 pio run -e dev                  # an ESP32 build of this checkout; the host tests never see the framework
 ```

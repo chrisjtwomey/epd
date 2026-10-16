@@ -29,13 +29,15 @@ builds the names from it::
                                                   project's sensor_poll gives one for it
 
     GET /firmware.bin[?product=<name>&version=<version>]
-      200 application/octet-stream, Content-Length, x-MD5
+      200 application/octet-stream, Content-Length, x-MD5, Content-Digest;
+          signed for a board whose key the server holds (epd_server.board_keys)
       304 when the request's x-ESP32-version is the version held
       404 when the server holds no such image
 
     GET /firmware.merged.bin[?product=<name>]
-      200 application/octet-stream, Content-Length, x-MD5: the merged image
-          of the version offered over the air, for a USB flash from address 0
+      200 application/octet-stream, Content-Length, x-MD5, Content-Digest: the
+          merged image of the version offered over the air, for a USB flash
+          from address 0
       404 when the server holds no such image
 
     GET /network.bin[?product=<name>]
@@ -53,15 +55,19 @@ builds the names from it::
     POST /<name>        a project's ingest route: a JSON object, or an array
                         of them, in; 204 out, or 200 with the handler's JSON;
                         409 when version_gate is on and the board's version
-                        cannot work with the server's
+                        cannot work with the server's; 401 with EPD-Key when
+                        signatures are required and the post has no good one
     GET /<name>?k=v     a project's query route: JSON out, 404 when there
-                        is no answer
+                        is no answer; signed when it is in signed_queries
+    POST /pair          a board's half of its key exchange in, the server's
+                        out (only while signatures are required)
 
 The server is the single source of truth for *when* the client wakes and
 *what* it shows. The client does no timezone maths and holds no schedule.
 """
 from __future__ import annotations
 
+import base64
 import io
 import logging
 import os
@@ -75,6 +81,7 @@ from urllib.parse import urlencode
 from flask import Flask, abort, jsonify, make_response, request, send_file, send_from_directory
 from werkzeug.serving import WSGIRequestHandler, make_server
 
+from .board_keys import REFUSED, BoardKeys, Verdict, content_digest
 from .certificate import certificate_names, ensure_certificate
 from .compat import compatible, version_order
 from .config import FirmwareSettings, MqttSettings, NetworkSettings
@@ -131,6 +138,7 @@ def _image_response(image: FirmwareImage, download_name: str):
     ))
     rsp.headers["Content-Length"] = str(image.size)
     rsp.headers["x-MD5"] = image.md5
+    rsp.headers["Content-Digest"] = content_digest(data)
     return rsp
 
 
@@ -232,6 +240,16 @@ class DisplayServer:
             states none; None back sends no header. Sent on every response
             it answers, so a board learns it from whatever request it last
             made.
+        board_keys: the boards' keys (:mod:`epd_server.board_keys`). With
+            them, the image and each query in ``signed_queries`` are signed
+            for a board whose key the server holds: the one it names in
+            ``<prefix>-Key-Id``, else its approved one.
+        require_signatures: with ``board_keys``, offer ``POST /pair``, and
+            refuse every ingest post without a good signature from an
+            approved key, with a 401 whose ``<prefix>-Key`` header says what
+            the board should do.
+        signed_queries: the query routes whose answers change a board, which
+            it takes only signed once it has a key.
     """
 
     def __init__(
@@ -261,6 +279,9 @@ class DisplayServer:
         version_gate: bool = False,
         sensor_poll: Callable[[float, str | None], int | None] | None = None,
         on_refused: Callable[[str, str], None] | None = None,
+        board_keys: BoardKeys | None = None,
+        require_signatures: bool = False,
+        signed_queries: Iterable[str] = (),
     ):
         self.pages = list(pages)
         self.source = source
@@ -293,6 +314,9 @@ class DisplayServer:
         self.version_gate = version_gate
         self.sensor_poll = sensor_poll
         self.on_refused = on_refused
+        self.board_keys = board_keys
+        self.require_signatures = require_signatures
+        self.signed_queries = tuple(signed_queries)
         self.firmware_stores = ({p: FirmwareStore(firmware.dir_for(p)) for p in firmware.names()}
                                 if firmware and firmware.enabled else {})
         # The default product's: what the release watcher fills and / reports.
@@ -319,6 +343,13 @@ class DisplayServer:
         clash = sorted((set(self.ingest) | set(self.queries)) & {"install", INSTALLER})
         if clash:
             raise ValueError(f"routes {clash} collide with the install page")
+        if require_signatures and board_keys is None:
+            raise ValueError("require_signatures needs board_keys")
+        if board_keys is not None and "pair" in set(self.ingest) | set(self.queries):
+            raise ValueError("a route named pair collides with the boards' pairing")
+        unknown = sorted(set(self.signed_queries) - set(self.queries))
+        if unknown:
+            raise ValueError(f"signed_queries {unknown} are not queries")
         if self.install_boards:
             if firmware is None or network is None:
                 raise ValueError("the install page needs firmware and network settings")
@@ -390,6 +421,8 @@ class DisplayServer:
         if self.network is not None and self.firmware is not None:
             app.add_url_rule("/network.bin", endpoint="network",
                              view_func=self._serve_network)
+        if self.board_keys is not None and self.require_signatures:
+            app.add_url_rule("/pair", endpoint="pair", view_func=self._pair, methods=["POST"])
         if self.install_boards:
             app.add_url_rule("/install", endpoint="install", view_func=self._serve_install)
             app.add_url_rule("/install/<name>", endpoint="install_script",
@@ -501,7 +534,7 @@ class DisplayServer:
 
     def _make_ingest(self, name: str, handler: Callable[[list[dict]], dict | None]):
         def accept():
-            refusal = self._version_refusal()
+            refusal = self._version_refusal() or self._signature_refusal()
             if refusal is not None:
                 return refusal
             body = request.get_json(silent=True)
@@ -538,6 +571,65 @@ class DisplayServer:
             self.on_refused(device or "", version or "")
         return jsonify(error="version", device=version, server=self.server_version), 409
 
+    def _signature_refusal(self):
+        """A 401 for a post without a good signature from an approved key, while
+        ``require_signatures`` is on. Its ``<prefix>-Key`` header says what the
+        board should do: pair, wait for the approval, take the server's clock,
+        or try again later."""
+        if self.board_keys is None or not self.require_signatures:
+            return None
+        verdict = self.board_keys.check_request(
+            request.method, request.path, request.query_string.decode("ascii", "replace"),
+            request.headers, request.get_data(cache=True))
+        stated = (request.headers.get(self.wire.device) or "").strip()
+        if not verdict.state and stated and stated != verdict.device:
+            verdict = Verdict(REFUSED, verdict.device,
+                              f"Signed by the key of {verdict.device}, not {stated}.")
+        if not verdict.state:
+            return None
+        log.warning("refused %s from %s: %s", request.path,
+                    verdict.device or stated or "an unnamed client", verdict.words)
+        rsp = jsonify(problem=verdict.words)
+        rsp.status_code = 401
+        rsp.headers[self.wire.key] = verdict.state
+        # Signed with the post's own key, so that the board can trust a
+        # "pair" that would replace the key it holds.
+        rsp.headers.update(self.board_keys.sign_refusal(
+            verdict, 401, content_digest(rsp.get_data()), request.method, request.path,
+            request.query_string.decode("ascii", "replace"),
+            content_digest(request.get_data(cache=True))))
+        return rsp
+
+    def _pair(self):
+        """The server's half of a board's key exchange: ``{"device": name,
+        "key": base64 point}`` in, ``{"key": base64 point}`` out."""
+        assert self.board_keys is not None   # the route exists only when it does
+        body = request.get_json(silent=True)
+        if not isinstance(body, dict):
+            abort(400, "expected {device, key}")
+        try:
+            ours = self.board_keys.pair(str(body.get("device", "")),
+                                        base64.b64decode(str(body.get("key", "")), validate=True))
+        except ValueError as exc:
+            abort(400, str(exc))
+        return jsonify(key=base64.b64encode(ours).decode())
+
+    def _sign_answer(self, rsp) -> None:
+        """Sign the image, and each answer in ``signed_queries``, for a board
+        whose key the server holds: the one it names in ``<prefix>-Key-Id``,
+        else its approved one."""
+        if self.board_keys is None or rsp.status_code != 200:
+            return
+        if request.endpoint != "firmware" and request.endpoint not in {
+                f"query_{name}" for name in self.signed_queries}:
+            return
+        device = (request.headers.get(self.wire.device) or "").strip()
+        digest = rsp.headers.get("Content-Digest") or content_digest(rsp.get_data())
+        rsp.headers.update(self.board_keys.sign_answer(
+            device, rsp.status_code, digest, request.method, request.path,
+            request.query_string.decode("ascii", "replace"),
+            (request.headers.get(self.wire.key_id) or "").strip()))
+
     def _offer_image(self, product: str) -> FirmwareImage | None:
         """The image a board of ``product`` should run, before asking whether
         it runs it already."""
@@ -563,7 +655,7 @@ class DisplayServer:
         image = store.image(version) if version else self._offer_image(product)
         if image is None:
             abort(404)
-        # HTTPUpdate sends the running version, so an image it already has
+        # The board sends the version it runs, so an image it already has
         # costs one small response instead of a megabyte.
         if request.headers.get("x-ESP32-version") == image.version:
             log.info("%s already runs firmware %s", request.user_agent.string, image.version)
@@ -693,6 +785,7 @@ class DisplayServer:
             if seconds is not None:
                 rsp.headers[self.wire.next_sensor_poll] = str(int(seconds))
         self._firmware_headers(rsp)
+        self._sign_answer(rsp)
         return rsp
 
     # ── Lifecycle ─────────────────────────────────────────────────────────

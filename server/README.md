@@ -47,6 +47,7 @@ the pinned release back whenever the checkout declares another version.
 | `epd_server.firmware` | `FirmwareStore` — a directory of `<version>.bin`, each with a `<version>.merged.bin` for a USB flash when one is copied in; `ReleaseWatcher` — fill it from a repository's releases; `client_from_headers`, `parse_user_agent`, `is_clean_tag`, `update_applies` — which board an image is an update for |
 | `epd_server.mqtt` | `client_log_subscriber` — relay the client's MQTT log topic into Python logging; it keeps trying while the broker cannot be reached |
 | `epd_server.certificate` | `ensure_certificate`, `certificate_names` — the self-signed certificate for the HTTPS port, kept for ten years and made anew when its names change |
+| `epd_server.board_keys` | `BoardKeys` — each board's key, agreed over the air at `POST /pair` and approved by a person, kept in a JSON file only the server reads; the RFC 9421 signatures made with it, on a board's posts and on the server's answers |
 | `epd_server.install` | `InstallBoard` — a board the install page at `/install` offers; the page writes its firmware and network settings over USB from the browser; `install-firmware.sh` does the same from a terminal |
 | `epd_server.network` | `network_settings_file` — the network settings a USB flash writes to a board, as its settings store, made with Espressif's `esp-idf-nvs-partition-gen` |
 | `epd_server.source` | `DataSource` — named, lazily fetched datasets; `StaticSource` for constants; `CompositeSource` to merge; `IngestSource` — what a board posted, from a `ReadingsStore` |
@@ -134,6 +135,38 @@ the server was down lands where it belongs, and a second copy of the same
 `device` and `ts` is ignored. `add_many` writes a batch in one transaction
 and answers with which documents were new. `store.prune(before)` deletes
 older ones.
+
+## Board keys
+
+To take a board's posts only when the board signs them, and to sign the
+answers that change a board, give the server the boards' keys:
+
+```python
+from epd_server import BoardKeys
+
+keys = BoardKeys("data/board-keys.json", ["my-sensor", "my-display"])
+DisplayServer(..., board_keys=keys, require_signatures=True,
+              signed_queries=("settings",))
+```
+
+- `require_signatures=True` offers `POST /pair`, and refuses each ingest
+  post without a good signature from an approved key, with a 401 whose
+  `EPD-Key` header tells the board what to do.
+- The image, and each query in `signed_queries`, are signed for a board whose
+  key the server holds, whether signatures are required or not: with the key
+  the board names in `EPD-Key-Id`, else its approved one.
+- `keys.boards()` lists each board with its approved key and its pending one,
+  and when each was approved or asked for, for a page where a person decides.
+  `keys.approve(name)` puts the pending key in place of the approved one,
+  `keys.reject(name)` drops the pending key, and `keys.forget(name)` drops
+  both, so the board pairs again. A dropped key is kept a while among the
+  board's `retired` keys, which take no post: they sign the refusal that tells
+  a board still on one to pair, and its answers until it does.
+- The file holds the keys themselves, mode 0600. Keep it in the data volume,
+  so a redeploy keeps every key.
+
+[docs/protocol.md](../docs/protocol.md#board-keys) has the routes and the
+headers.
 
 ## Config
 

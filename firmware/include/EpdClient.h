@@ -22,7 +22,7 @@
 #include "settings.h"      // ClientConfig, loadConfig
 
 #include "wake.h"          // the steps of one wake
-#include "network_utils.h" // configureWiFi, downloadFile, postJson
+#include "network_utils.h" // configureWiFi, downloadFile, downloadSigned, postJson
 #include "image.h"         // draw a page, and cache the last one
 #include "sleep_utils.h"   // sleep_for, sleep, deepSleep
 #include "ota.h"           // take a firmware update, confirm it, roll it back

@@ -12,6 +12,7 @@ The pieces a project composes:
 - :mod:`epd_server.firmware`   which client an image is an update for; the image store
 - :mod:`epd_server.mqtt`       subscribe to every board's remote log topic
 - :mod:`epd_server.certificate` the self-signed certificate for the HTTPS port
+- :mod:`epd_server.board_keys`  each board's key, paired over the air, and the signatures made with it
 - :mod:`epd_server.network`    the network settings a USB flash writes to a board
 - :mod:`epd_server.install`    the install page, and install-firmware.sh: firmware onto a board over USB
 - :mod:`epd_server.logs`       LogStore: the boards' log lines, in SQLite, read back in order
@@ -25,6 +26,7 @@ The pieces a project composes:
 from ._version import __version__  # noqa: E402
 
 from .app import DisplayServer, align_process_timezone  # noqa: E402
+from .board_keys import BoardKeys  # noqa: E402
 from .config import (  # noqa: E402
     ConfigError,
     CoreConfig,
@@ -63,6 +65,7 @@ from .render import ChromiumRenderer, Renderer  # noqa: E402
 
 __all__ = [
     "DisplayServer", "align_process_timezone",
+    "BoardKeys",
     "ConfigError", "CoreConfig", "ServerSettings", "ImageSettings", "MqttSettings",
     "FirmwareSettings", "FirmwareSource", "NetworkSettings", "load_core_config", "load_yaml",
     "ClientId", "FirmwareImage", "FirmwareStore", "ReleaseWatcher",

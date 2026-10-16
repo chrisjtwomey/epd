@@ -32,4 +32,9 @@
 #define EPD_H_FIRMWARE_VERSION EPD_HEADER("-Server-Firmware-Version")
 #define EPD_H_FIRMWARE_URL     EPD_HEADER("-Server-Firmware-URL")
 
+// Why the server refused a board's post: pair, pending, clock or refused.
+#define EPD_H_KEY              EPD_HEADER("-Key")
+// The board's key, by its id, for the server to sign its answer with.
+#define EPD_H_KEY_ID           EPD_HEADER("-Key-Id")
+
 #endif  // EPD_HEADERS_H

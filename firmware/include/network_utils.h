@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "board_key.h"
 #include "epd_headers.h"
 #include "error_utils.h"
 
@@ -72,15 +73,34 @@ uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* size,
                       PageResponse* rsp);
 
 /**
+  Download as downloadFile does, for an answer that changes the board, such
+  as its settings. Once the board has a key, the answer must carry the
+  server's signature over it under that key, or this returns nullptr.
+*/
+uint8_t* downloadSigned(const char* url, const char* userAgent, int32_t* size,
+                        PageResponse* rsp);
+
+/**
   POST body to url as application/json.
 
   What the server said about itself is written to rsp, which a POST fills
   only in part: a board that never fetches a page still learns the server's
   version and clock. Pass nullptr to ignore it.
 
+  Once the board has a key, each post is signed with it. A 401 that asks
+  for the server's clock sets the board's clock from it and posts once more.
+  A 401 that asks the board to pair pairs it and posts once more, when the
+  board has no key, or when the refusal is signed with the key it holds;
+  otherwise the board keeps its key. The server refuses a post under a new
+  key too until a person approves it, so the caller keeps the body for later
+  on a 401.
+
   @returns the HTTP status code, or a negative HTTPClient error code when
   no response arrived.
 */
 int postJson(const char* url, const char* userAgent, const char* body,
              PageResponse* rsp = nullptr);
+
+/** The key this board signs with, read from the settings store the first time. */
+const BoardKey& currentBoardKey();
 #endif

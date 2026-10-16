@@ -277,7 +277,7 @@ itself — is already written.
 | **[Examples](examples/)** | Three projects to copy: the quickstart above, the same panel updating itself, and a server with live data behind two pages. |
 | **[Configuration](docs/configuration.md)** | Every setting, the build flags, and reading settings from an SD card instead of compiling them in. |
 | **[Updates over the air](docs/ota.md)** | Publish a new version and every panel takes it at its next wake. How a bad release is caught and undone by itself. |
-| **[The HTTP contract](docs/protocol.md)** | The exact requests and headers, for debugging with `curl` or writing your own client. |
+| **[The HTTP contract](docs/protocol.md)** | The exact requests and headers, for debugging with `curl` or writing your own client. How each board signs its posts with a key of its own. |
 | **[Other hardware](docs/custom-board.md)** | Any ESP32 e-paper board, by writing one class. The Inkplate one is about 260 lines. |
 | **[Testing your own project](docs/testing.md)** | Run your panel's logic on your laptop, with no board attached. |
 | **[Server reference](server/README.md)** | Pages, data sources, scheduling, image quantising, the config file. |

@@ -2,7 +2,8 @@
 
 Everything between a panel and its server is plain HTTP. Two headers on a
 page response carry the whole schedule; two more offer a firmware update.
-There is no state on either side beyond that. A server may serve the same
+There is no state on either side beyond that, except a key each board may
+share with its server ([Board keys](#board-keys)). A server may serve the same
 routes over HTTPS on a second port, for a browser; the panels never use it.
 
 Read this if you are debugging with `curl`, writing a client for hardware
@@ -60,7 +61,10 @@ EPD-Device-Version: v1.2.0
 ```
 
 The server uses the name to decide which firmware image, if any, is for this
-panel, and the version to decide whether it already has it. It logs both, so
+panel, and which board key signs its answers to it; and the version to decide
+whether it already has the image. A board with a key also sends that key's id
+as `EPD-Key-Id` on the requests whose answers must be signed
+([Board keys](#board-keys)). It logs both, so
 you can see which board asked for what.
 
 A request also carries a conventional User-Agent, built from the same two
@@ -212,15 +216,17 @@ The image itself is a separate route:
 
 ```
 GET /firmware.bin[?product=<name>&version=<version>]
-  200 application/octet-stream, with Content-Length and x-MD5
+  200 application/octet-stream, with Content-Length, x-MD5 and Content-Digest,
+      and a signature for a board with a key (Board keys, below)
   304 when the request's x-ESP32-version equals the version held
   404 when the server holds no such image
 ```
 
 Without the query it serves the image it would offer the default product.
 
-`x-MD5` is what the ESP32 update library checks the download against, so it
-must be the md5 of the exact bytes served.
+`x-MD5` is what the ESP32's `Update` checks the download against, so it must
+be the md5 of the exact bytes served. `Content-Digest` is their SHA-256, which
+the signature covers.
 
 The client fetches the image only after it has drawn its page. A failed
 update therefore costs nothing on the panel: the wake ends the way it would
@@ -237,7 +243,7 @@ does. The server serves that script at `GET /install-firmware.sh`
 
 ```
 GET /firmware.merged.bin[?product=<name>]
-  200 application/octet-stream, with Content-Length and x-MD5
+  200 application/octet-stream, with Content-Length, x-MD5 and Content-Digest
   404 text/plain when the server has no such product, or no merged image of
       the version it offers
 ```
@@ -257,7 +263,8 @@ GET /network.bin[?product=<name>]
 The network settings are the panel's whole settings store, written at
 0x9000 after the merged image. They hold the server URL, the Wi-Fi network
 and its password, and the MQTT block when MQTT is on, with the product's
-name as the client ID. The server makes the file from its config at each
+name as the client ID. They replace the whole store, the board's key
+included, so a paired board pairs again after the flash. The server makes the file from its config at each
 download, and anyone who can reach the server can download it, password
 included.
 
@@ -275,6 +282,8 @@ POST /<name>
   Content-Type: application/json
   {"temperature": 19.4, "humidity": 58}
   204, or 200 with the handler's JSON
+  401 when the server requires signatures and this post has no good one
+      (Board keys, below)
 ```
 
 The body is one JSON object or an array of them, so a board that held
@@ -321,6 +330,131 @@ DisplayServer(..., queries={"calibration": handler})
 `handler(args)` gets the query string as a dict, and what it returns is the
 JSON answer. None becomes a 404 and a `ValueError` a 400. One name can have
 both routes: a POST that sends something and a GET that asks for it back.
+
+## Board keys
+
+A server can take a board's posts only when the board signs them, and sign
+its own answers to the board, with a key the two share. Each board has its
+own key, agreed over the air and approved by a person. On the server this is
+`epd_server.board_keys`; on the board, `board_key.h` and `postJson`.
+
+### Pairing
+
+```
+POST /pair
+  {"device": "my-sensor", "key": "<base64: the board's P-256 point, uncompressed>"}
+  200 {"key": "<base64: the server's P-256 point, uncompressed>"}
+  400 when the body is not that object, the server names no board of that name,
+      or the key is not base64 of a point on the curve
+```
+
+Each side combines its own private half with the other's point (ECDH), and
+derives the key from the shared secret with HKDF-SHA256: no salt, and
+`epd board key <device>` as the info. The key never travels. The server
+keeps it as pending until a person approves it (`BoardKeys.approve`), so a
+device that pairs in a board's name gains nothing on its own. A new request
+for a board replaces its pending key and leaves its approved one working
+until the new one is approved.
+
+A board with no key pairs when a refusal says `pair`. **A board that holds a
+key pairs again only when that refusal is signed with its key** (A signed
+refusal, below), because only its own server holds the key. Otherwise a
+device that answered in the server's place could make the board take a key
+of the device's own, and then sign its own images.
+
+The board pairs on a FreeRTOS task of its own, with a 16 KB stack: mbedTLS's
+P-256 maths needs more than a board's loop has to spare. The signature
+buffers sit on the heap for the same reason.
+
+The route exists only while the server requires signatures.
+
+### A signed post
+
+The signature follows RFC 9421 with hmac-sha256, under the label `sig1`,
+and the body's SHA-256 as its Content-Digest (RFC 9530):
+
+```
+POST /readings
+  Content-Digest: sha-256=:<base64 SHA-256 of the body>:
+  Signature-Input: sig1=("@method" "@path" "@query" "content-digest");created=<epoch>;keyid="<16 hex>"
+  Signature: sig1=:<base64 HMAC-SHA256 of the signature base>:
+```
+
+The key id is the first 16 hex digits of the key's SHA-256. The signature
+carries no `alg` parameter: the key decides it, as RFC 9421 advises. The
+server takes a signature made within 300 s of its own clock, and takes each
+one once.
+
+A post the server refuses gets a 401 that says why:
+
+```
+401 application/json {"problem": "<words for the log>"}
+  EPD-Key: pair | pending | clock | refused
+```
+
+| `EPD-Key` | Why | What the board does |
+|---|---|---|
+| `pair` | No signature, a key the server does not hold, or one it no longer takes posts under | Pairs, then posts once more. A board with a key does so only when the refusal is signed with that key; otherwise it keeps its key, and logs that a USB install clears it |
+| `pending` | The key waits for a person's approval | Keeps the document for later |
+| `clock` | Signed more than 300 s from the server's clock | Takes `EPD-Server-Epoch-Seconds`, signs again, posts once more |
+| `refused` | The body, path or query changed, a signature used before, or another board's key | Keeps the document for later |
+
+`postJson` does all of that, so a project only keeps the body when the
+answer is a 401.
+
+### A signed refusal
+
+A refusal of a post that is shown to be signed with a key the server holds
+is itself signed with that key, as an answer is (below), and also over the
+post's `"content-digest";req`, so it answers that post alone:
+
+```
+401
+  Content-Digest: sha-256=:<base64 SHA-256 of the refusal's body>:
+  Signature-Input: sig1=("@status" "content-digest" "@method";req "@path";req "@query";req "content-digest";req);created=<epoch>;keyid="<16 hex>"
+  Signature: sig1=:<base64 HMAC-SHA256>:
+```
+
+The keys it holds for this are a board's approved one, its pending one, and
+the last four it stopped using: rejected, forgotten, or replaced by an
+approval. The server takes no post under a key it stopped using. It keeps
+them so that a board still on one can be told, in a way it can trust, to pair
+again, and gets its answers signed with it until it does.
+
+### A signed answer
+
+For a board whose key the server holds, the server signs the image and its
+answer to each query a project names (`signed_queries`):
+
+```
+200
+  Content-Digest: sha-256=:<base64 SHA-256 of the body>:
+  Signature-Input: sig1=("@status" "content-digest" "@method";req "@path";req "@query";req);created=<epoch>;keyid="<16 hex>"
+  Signature: sig1=:<base64 HMAC-SHA256>:
+```
+
+The `;req` components are the request's, so no answer can stand in for
+another: the settings of one board for another's, or the image of one
+version for another's. The server picks the key by the `EPD-Device` header
+and the `EPD-Key-Id` the board sends with its key's id: any key it holds for
+that board, so a board that waits for approval keeps its settings and its
+updates. Without `EPD-Key-Id` it signs with the approved key. A board with a
+key takes such an answer only with a good signature made within 300 s of its
+clock, or of any time while its clock is not set: `downloadSigned`, and the
+update download ([Updates over the air](ota.md#signed-images)).
+
+### While the server does not require signatures
+
+It takes every post, signed or not, offers no pairing, and goes on signing
+its answers for each board whose key it holds. A board keeps its key, so the
+check can be turned off and on again without a new pairing.
+
+A USB install writes the board's settings store anew, so the board loses
+its key and pairs again at its first refused post. **A server that loses its
+keys file leaves each board with a key unable to take the server's settings
+and images, and, with signatures required, its posts:** the server can no
+longer sign a `pair` the board would trust. A USB install clears the board's
+key, and it pairs again.
 
 ## Status
 

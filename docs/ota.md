@@ -13,7 +13,8 @@ enough.
 
 1. The panel fetches its page and draws it, exactly as it always does.
 2. If the response offered a newer version, the panel downloads it.
-3. It writes the image, restarts, and comes up running the new software.
+3. It writes the image, checks it, restarts, and comes up running the new
+   software.
 
 The update is last on purpose. A download that fails, a server that has gone
 away, a flat battery — none of it stops the picture reaching the screen. The
@@ -48,12 +49,26 @@ that version again. Without that memory it would roll back, be offered the
 same image, take it again, and loop. Publish the fix under a new version
 number; the panel will take that one.
 
+## Signed images
+
+epd downloads the image itself, with `HTTPClient` and `Update`. It writes
+the image to the idle slot and hashes it with SHA-256 as it arrives, and
+only then makes it the image to boot. `Update` checks it against `x-MD5`, as
+before.
+
+Once a panel has a board key ([The HTTP contract](protocol.md#board-keys)),
+it also checks the server's signature over that hash, under its own key.
+An image without a good signature is written but never booted, and the
+panel logs why: so a device that answers in the server's place cannot make
+a panel run its image. A panel without a key takes any image, as before.
+
 ## Credentials, and the one USB flash
 
 An image built by a release pipeline cannot contain your WiFi password. So
 the panel keeps its own copy of the settings that cannot be compiled in — the
 server URL, the network name and its password, and where to send its logs —
-in the ESP32's own storage (`Preferences`, namespace `epd`).
+in the ESP32's own storage (`Preferences`, namespace `epd`), beside the
+board key when it has one.
 
 The rule is simple:
 
@@ -83,9 +98,10 @@ esptool write-flash 0x9000 my-display-network.bin
 ```
 
 The file replaces everything the store held, the settings a firmware keeps
-there of its own included. It is made from the config at each download, and
-a panel reads it only when it is written: a Wi-Fi password changed in the
-config reaches a panel through another USB flash.
+there of its own included, and the board key (`boardKey`): a panel paired
+before a USB flash pairs again after it. It is made from the config at each
+download, and a panel reads it only when it is written: a Wi-Fi password
+changed in the config reaches a panel through another USB flash.
 
 The MQTT block is resolved as a unit, and the broker host decides. A real
 broker means this image carries real settings, which are stored for the

@@ -28,3 +28,5 @@ class Wire:
         self.next_url = f"{cleaned}-Next-URL"
         self.firmware_version = f"{cleaned}-Server-Firmware-Version"
         self.firmware_url = f"{cleaned}-Server-Firmware-URL"
+        self.key = f"{cleaned}-Key"
+        self.key_id = f"{cleaned}-Key-Id"
