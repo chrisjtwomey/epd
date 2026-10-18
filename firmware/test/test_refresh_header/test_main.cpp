@@ -7,6 +7,7 @@
 
 #include <unity.h>
 #include <stdint.h>
+#include <stddef.h>
 #include "refresh_header.h"
 
 
@@ -90,6 +91,41 @@ void test_rejects_trailing_whitespace(void) {
 }
 
 
+// ---------- copyWholeValue ----------
+
+void test_copies_a_value_that_fits(void) {
+    char field[6] = "old";
+    TEST_ASSERT_TRUE(copyWholeValue("v1.2", field, sizeof(field)));
+    TEST_ASSERT_EQUAL_STRING("v1.2", field);
+}
+
+void test_copies_a_value_that_fills_the_field(void) {
+    char field[6] = "old";
+    TEST_ASSERT_TRUE(copyWholeValue("v1.23", field, sizeof(field)));
+    TEST_ASSERT_EQUAL_STRING("v1.23", field);
+}
+
+void test_leaves_the_field_when_the_value_does_not_fit(void) {
+    char field[6] = "old";
+    TEST_ASSERT_FALSE(copyWholeValue("v1.234", field, sizeof(field)));
+    TEST_ASSERT_EQUAL_STRING("old", field);
+}
+
+void test_copies_an_empty_value(void) {
+    char field[6] = "old";
+    TEST_ASSERT_TRUE(copyWholeValue("", field, sizeof(field)));
+    TEST_ASSERT_EQUAL_STRING("", field);
+}
+
+void test_rejects_a_null_value_or_field(void) {
+    char field[6] = "old";
+    TEST_ASSERT_FALSE(copyWholeValue(NULL, field, sizeof(field)));
+    TEST_ASSERT_FALSE(copyWholeValue("v1", NULL, 6));
+    TEST_ASSERT_FALSE(copyWholeValue("v1", field, 0));
+    TEST_ASSERT_EQUAL_STRING("old", field);
+}
+
+
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
     UNITY_BEGIN();
@@ -106,5 +142,10 @@ int main(int argc, char **argv) {
     RUN_TEST(test_rejects_old_hhmmss_format);
     RUN_TEST(test_rejects_overflow);
     RUN_TEST(test_rejects_trailing_whitespace);
+    RUN_TEST(test_copies_a_value_that_fits);
+    RUN_TEST(test_copies_a_value_that_fills_the_field);
+    RUN_TEST(test_leaves_the_field_when_the_value_does_not_fit);
+    RUN_TEST(test_copies_an_empty_value);
+    RUN_TEST(test_rejects_a_null_value_or_field);
     return UNITY_END();
 }

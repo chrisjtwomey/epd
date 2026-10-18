@@ -10,8 +10,9 @@
 /**
   What the server said alongside the image, from the response headers.
 
-  A field the server did not send is left as the caller set it, so a zero
-  value or an empty string means "not said this time".
+  A field the server did not send, or sent too long for the field, is left
+  as the caller set it, so a zero value or an empty string means "not said
+  this time".
 */
 struct PageResponse {
     uint32_t nextRefreshSeconds;   // EPD_H_NEXT_REFRESH

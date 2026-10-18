@@ -29,6 +29,21 @@ build_flags = -DEPD_HEADER_PREFIX='"Canary"'
 A mismatch is silent. The client simply never sees the headers and falls
 back to its compiled-in interval, so set both from one place.
 
+## Value lengths
+
+The board keeps each text header in a field of fixed size. It drops a longer
+value with a warning and acts as if the header was not sent, because a URL or
+a version cut short is wrong. A dropped `EPD-Next-URL` leaves the board on the
+address it has; a dropped firmware URL or version means no update is offered.
+
+| Header | Most characters |
+|---|---|
+| `EPD-Next-URL` | 255 |
+| `EPD-Server-Firmware-URL` | 255 |
+| `EPD-Server-Firmware-Version` | 31 |
+| `EPD-Server-Version` | 31 |
+| `EPD-Server-Timezone` | 63 |
+
 ## Fetching a page
 
 ```

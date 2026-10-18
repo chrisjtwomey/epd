@@ -1,6 +1,7 @@
 #ifndef EPD_REFRESH_HEADER_H
 #define EPD_REFRESH_HEADER_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -13,5 +14,13 @@
  * pointer, empty string, any non-digit character, or value > UINT32_MAX).
  */
 bool parseRefreshTime(const char* headerVal, uint32_t* out);
+
+/**
+ * Copy a response header value into a fixed field of `size` bytes.
+ *
+ * A URL or a version cut short is wrong, so a value that does not fit is not
+ * copied: returns false and leaves `out` unchanged.
+ */
+bool copyWholeValue(const char* headerVal, char* out, size_t size);
 
 #endif
