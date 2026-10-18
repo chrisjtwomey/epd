@@ -44,7 +44,9 @@ GET /<page>.png
 ```
 
 The server is the only thing that knows when to wake and what to show. The
-client does no timezone arithmetic and holds no schedule.
+client does no timezone arithmetic and holds no schedule. A server may also
+answer the address with another page, chosen from the data just before the
+wake ([Choosing a page from the data](../server/README.md#choosing-a-page-from-the-data)).
 
 Both headers are optional. A client that receives neither keeps the value it
 last had, or its compiled default on a cold boot, and asks for the same URL

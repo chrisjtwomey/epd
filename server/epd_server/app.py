@@ -256,6 +256,13 @@ class DisplayServer:
             the board should do.
         signed_queries: the query routes whose answers change a board, which
             it takes only signed once it has a key.
+        choose_page: picks a wake's page from the data. Just before the
+            server makes the page for a wake, it calls this with the
+            scheduled page's filename and the wake, and makes the filename it
+            returns. The display's fetch of the scheduled page then gets the
+            page made, until the next wake's page is made; ``EPD-Next-URL``
+            still names the scheduled page. A failure, or a filename this
+            server does not serve, makes the scheduled page.
     """
 
     def __init__(
@@ -289,6 +296,7 @@ class DisplayServer:
         board_keys: BoardKeys | None = None,
         require_signatures: bool = False,
         signed_queries: Iterable[str] = (),
+        choose_page: Callable[[str, datetime], str] | None = None,
     ):
         self.pages = list(pages)
         self.source = source
@@ -325,6 +333,8 @@ class DisplayServer:
         self.board_keys = board_keys
         self.require_signatures = require_signatures
         self.signed_queries = tuple(signed_queries)
+        self.choose_page = choose_page
+        self.made_for: dict[str, str] = {}
         self.firmware_stores = ({p: FirmwareStore(firmware.dir_for(p)) for p in firmware.names()}
                                 if firmware and firmware.enabled else {})
         # The default product's: what the release watcher fills and / reports.
@@ -743,6 +753,8 @@ class DisplayServer:
         return serve
 
     def _serve(self, page: Page):
+        made = self.made_for.get(page.png_filename)
+        page = next((p for p in self.pages if p.png_filename == made), page)
         path = page.png_path
         if not os.path.exists(path):
             if self.first_render_pending.is_set():
@@ -886,10 +898,33 @@ class DisplayServer:
             log.info("Regenerating %s at %s (in %ds)", path, regen_dt.isoformat(), int(wait))
             if self.shutdown_event.wait(wait):
                 break
+            chosen = self._choose(path, wake_dt)
+            self.made_for = {}
             try:
-                self.regenerate(only=path, force_refresh=True)
+                self.regenerate(only=chosen, force_refresh=True)
             except Exception:  # noqa: BLE001 - keep serving; retry at the next slot
                 log.exception("Scheduled regeneration failed; will retry at next regen time")
+            else:
+                if chosen != path:
+                    self.made_for = {path: chosen}
+
+    def _choose(self, path: str, wake_dt: datetime) -> str:
+        """The page to make for the wake at ``wake_dt``: ``choose_page``'s
+        answer when it names a page this server serves, else ``path``."""
+        if self.choose_page is None:
+            return path
+        try:
+            chosen = self.choose_page(path, wake_dt)
+        except Exception:  # noqa: BLE001 - the scheduled page is always a good answer
+            log.exception("choose_page failed; making %s", path)
+            return path
+        if chosen not in {p.png_filename for p in self.pages}:
+            log.error("choose_page named %r, which this server does not serve; making %s",
+                      chosen, path)
+            return path
+        if chosen != path:
+            log.info("Making %s in place of %s", chosen, path)
+        return chosen
 
     def _shutdown(self) -> None:
         if self.release_watcher is not None:

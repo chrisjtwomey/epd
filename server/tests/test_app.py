@@ -1163,3 +1163,71 @@ def test_the_gate_never_refuses_a_page(tmp_path):
                                             "EPD-Device-Version": "v0.3.0"})
 
     assert rsp.status_code == 200
+
+
+# ── choose_page ───────────────────────────────────────────────────────
+
+def one_wake(server, monkeypatch, made=None):
+    """Runs one wake of _loop; ``made`` collects the pages it makes."""
+    made = [] if made is None else made
+    monkeypatch.setattr(server, "regenerate",
+                        lambda only=None, force_refresh=False: made.append(only))
+    server.shutdown_event = OneTickEvent()
+    server._loop()
+    return made
+
+
+def test_the_page_chosen_for_a_wake_is_made_and_served_for_the_scheduled_one(tmp_path,
+                                                                            monkeypatch):
+    (tmp_path / "today.png").write_bytes(PNG)
+    (tmp_path / "hourly.png").write_bytes(PNG + b"hourly")
+    asked = []
+
+    def choose(path, wake):
+        asked.append((path, wake))
+        return "hourly.png" if path == "today.png" else "today.png"
+
+    server = make(tmp_path, choose_page=choose)
+    made = one_wake(server, monkeypatch)
+    (scheduled, wake), = asked
+    other = "hourly.png" if scheduled == "today.png" else "today.png"
+
+    assert made == [other]
+    assert wake.tzinfo is not None
+    rsp = server.app.test_client().get("/" + scheduled)
+    assert rsp.data == (tmp_path / other).read_bytes()
+    assert rsp.headers["EPD-Next-URL"].endswith("/" + server.next_wake()[1])
+    assert server.app.test_client().get("/" + other).data == (tmp_path / other).read_bytes()
+
+
+@pytest.mark.parametrize("answer", [lambda: "nope.png", lambda: 1 / 0])
+def test_a_choice_that_fails_makes_the_scheduled_page(server, monkeypatch, caplog, answer):
+    asked = []
+
+    def choose(path, wake):
+        asked.append(path)
+        return answer()
+
+    server.choose_page = choose
+    made = one_wake(server, monkeypatch)
+
+    assert made == asked and len(made) == 1
+    assert server.made_for == {}
+    assert "making " + made[0] in caplog.text
+
+
+def test_a_failed_making_serves_the_scheduled_page(server, monkeypatch):
+    server.choose_page = lambda path, wake: "hourly.png" if path == "today.png" else "today.png"
+
+    def boom(only=None, force_refresh=False):
+        raise RuntimeError("chromium crashed")
+    monkeypatch.setattr(server, "regenerate", boom)
+    server.shutdown_event = OneTickEvent()
+    server._loop()
+
+    assert server.made_for == {}
+
+
+def test_without_a_choice_the_scheduled_page_is_made(server, monkeypatch):
+    made = one_wake(server, monkeypatch)
+    assert made[0] in ("today.png", "hourly.png") and server.made_for == {}

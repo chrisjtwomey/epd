@@ -105,7 +105,7 @@ alone. `run()` relays the client's MQTT log topic if enabled, starting once the 
 server answers while it renders. A page asked for before its first render
 gets `503` with `Retry-After`. `run()` then sleeps until `regen_lead_seconds`
 before each scheduled wake, regenerating that wake's page with a fresh
-fetch. `SIGTERM` / `SIGINT` stop it cleanly.
+fetch, or the page `choose_page` names ([below](#choosing-a-page-from-the-data)). `SIGTERM` / `SIGINT` stop it cleanly.
 
 Routes come from the page list — `/<page>.png` for each — plus `/`, which
 returns the page list, the schedule and the next wake as JSON. The schedule
@@ -295,6 +295,27 @@ belongs in `CLIENT_FIRMWARE_SOURCE_TOKEN` rather than the file. With
 
 Every key can be overridden by an env var named from its path:
 `SERVER_PORT`, `IMAGE_INNERWIDTH`, `MQTT_ENABLED`, `DEBUG`.
+
+## Choosing a page from the data
+
+The schedule names each wake's page from the clock and the pools alone,
+before the wake. A project that wants the data to decide, for example to show
+a reading that has crossed its limit, passes `choose_page`:
+
+```python
+def urgent_first(scheduled: str, wake: datetime) -> str:
+    return "co2.png" if co2_now() > 1500 else scheduled
+
+DisplayServer(..., choose_page=urgent_first)
+```
+
+Just before the server makes a wake's page, at `regen_lead_seconds` before
+the wake, it calls `choose_page` with the scheduled page's filename and the
+wake, and makes the page it returns. So the choice sees the newest data. The
+display still fetches the scheduled page, which `EPD-Next-URL` named at its
+last wake, and gets the page made, until the next wake's page is made. A
+failure in `choose_page`, or a filename the server does not serve, makes the
+scheduled page and logs why. Without `choose_page` the schedule alone decides.
 
 ## The install page
 
