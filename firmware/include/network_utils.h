@@ -63,11 +63,16 @@ void keepWiFiConnected();
   userAgent is sent as the User-Agent header; null or empty keeps the
   HTTP library's default.
 
-  *size is the expected length, used when the server sends none, and is set
-  to the length the server reported. What the server said about the next
-  wake and about firmware is written to rsp; pass nullptr to ignore it.
+  *size is the most to accept when the server sends no length, and is set to
+  the length read. What the server said about the next wake and about
+  firmware is written to rsp; pass nullptr to ignore it.
 
-  @returns the buffer, or nullptr when the request or the allocation failed.
+  Blocks until the body is read; a chunked body is joined. Fails when the
+  server sends no byte for 5 s, closes before the body ends, sends more than
+  the buffer holds, or sends a chunk size that cannot be read.
+
+  @returns the buffer, or nullptr when the request, the allocation or the
+  read failed.
 */
 uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* size,
                       PageResponse* rsp);

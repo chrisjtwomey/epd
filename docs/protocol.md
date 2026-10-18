@@ -52,6 +52,19 @@ Both headers are optional. A client that receives neither keeps the value it
 last had, or its compiled default on a cold boot, and asks for the same URL
 again. That is what makes a server restart harmless.
 
+The board reads a page, and any other answer it fetches with `downloadFile`
+or `downloadSigned`, into one buffer of the `Content-Length`. With no length,
+a server sends the body in chunks (`Transfer-Encoding: chunked`) or closes
+the connection to end it, and the buffer is the size the project allows. A
+firmware image is not read this way: it streams to flash
+([ota.md](ota.md)). The download fails when:
+
+- the server sends no byte for 5 s;
+- it closes before the `Content-Length` it sent, or before the last chunk;
+- with no `Content-Length`, the body is longer than the size the project
+  allows;
+- a chunk size cannot be read.
+
 ## Identifying the client
 
 Every request carries the panel's identity in two headers, from the

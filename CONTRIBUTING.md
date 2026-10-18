@@ -52,7 +52,7 @@ No device, network, or browser is needed for any test.
 
 ```sh
 cd firmware
-pio test -e native              # pure helpers: back-off, battery, refresh header parsing
+pio test -e native              # pure helpers: back-off, battery, header parsing, reading a response body, and more
 pio test -e native_mock         # display + sleep against MockBoard
 pio test -e native_settings     # loadConfig and the board key's store against a Preferences stub
 pio test -e native_board_key    # the board key's signatures, against the RFCs and the server's vectors

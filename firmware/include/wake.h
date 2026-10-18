@@ -63,9 +63,9 @@ struct PageFetch {
 /**
   Download a page, trying again up to ``retries`` further times.
 
-  @param out on entry, ``length`` is the size to expect when the server sends
-  no Content-Length; on success, the buffer and what the server said, whose
-  clock and time zone are then the board's.
+  @param out on entry, ``length`` is the most to accept when the server sends
+  no Content-Length; on success, the buffer, the length read, and what the
+  server said, whose clock and time zone are then the board's.
   @param errMsg set to what to put on the panel when this returns false.
   @returns true when a page was downloaded.
 */

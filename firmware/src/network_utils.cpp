@@ -9,6 +9,7 @@
 #include <mbedtls/ecp.h>
 #include <mbedtls/md.h>
 
+#include "body_read.h"
 #include "log_utils.h"
 #include "mem_utils.h"
 #include "refresh_header.h"
@@ -198,6 +199,28 @@ static bool refusalHolds(HTTPClient& http, const char* url, const char* postDige
     return false;
 }
 
+// The wait for the next byte of a body: the wait HTTPClient gives the
+// connection and the headers.
+static const uint32_t kBodyStallMs = HTTPCLIENT_DEFAULT_TCP_TIMEOUT;
+
+// A response body as HTTPClient receives it.
+class HttpBody : public IBodySource {
+public:
+    explicit HttpBody(HTTPClient& http) : http_(http), stream_(*http.getStreamPtr()) {}
+    size_t available() override { return stream_.available(); }
+    size_t read(uint8_t* out, size_t len) override {
+        const int n = stream_.read(out, len);
+        return n > 0 ? (size_t)n : 0;
+    }
+    bool connected() override { return http_.connected(); }
+    uint32_t nowMs() override { return millis(); }
+    void wait() override { delay(1); }
+
+private:
+    HTTPClient& http_;
+    WiFiClient& stream_;
+};
+
 static uint8_t* fetch(const char* url, const char* userAgent, int32_t* defaultLen,
                       PageResponse* rsp, bool signedAnswer) {
     logf(LOG_INFO, "downloading file at URL %s", url);
@@ -212,7 +235,7 @@ static uint8_t* fetch(const char* url, const char* userAgent, int32_t* defaultLe
         EPD_H_NEXT_REFRESH,     EPD_H_NEXT_URL,         EPD_H_SERVER_VERSION,
         EPD_H_SERVER_EPOCH,     EPD_H_SERVER_TIMEZONE,  EPD_H_NEXT_SENSOR_POLL,
         EPD_H_FIRMWARE_VERSION, EPD_H_FIRMWARE_URL,     "Content-Digest",
-        "Signature-Input",      "Signature",
+        "Signature-Input",      "Signature",            "Transfer-Encoding",
     };
     http.collectHeaders(headersToCollect,
                         sizeof(headersToCollect) / sizeof(headersToCollect[0]));
@@ -220,7 +243,6 @@ static uint8_t* fetch(const char* url, const char* userAgent, int32_t* defaultLe
     if (userAgent && userAgent[0])
         http.setUserAgent(userAgent);
 
-    // Connect with HTTP
     http.begin(url);
     addDeviceHeaders(http);
     if (check) http.addHeader(EPD_H_KEY_ID, currentBoardKey().id);
@@ -237,24 +259,19 @@ static uint8_t* fetch(const char* url, const char* userAgent, int32_t* defaultLe
         return nullptr;
     }
 
-    int32_t size = http.getSize();
-    if (size == -1)
-        size = *defaultLen;
-    else
-        *defaultLen = size;
+    const int32_t reported = http.getSize();
+    const size_t capacity = reported >= 0 ? (size_t)reported : (size_t)*defaultLen;
 
-    uint8_t* buffer = (uint8_t *)boardMalloc(size);
+    uint8_t* buffer = (uint8_t *)boardMalloc(capacity);
     if (!buffer) {
-        logf(LOG_ERROR, "failed to allocate %d bytes for download buffer", size);
+        logf(LOG_ERROR, "failed to allocate %u bytes for download buffer", (unsigned)capacity);
         http.end();
         WiFi.setSleep(sleep);
         return nullptr;
     }
-    uint8_t *buffPtr = buffer;
 
     // The socket exists only after GET() has connected.
     http.getStream().setNoDelay(true);
-    http.getStream().setTimeout(5);
 
     if (rsp) {
         // The server is authoritative for when to refresh next; the board just
@@ -265,37 +282,24 @@ static uint8_t* fetch(const char* url, const char* userAgent, int32_t* defaultLe
         readServerHeaders(http, rsp);
     }
 
-    int32_t total = http.getSize();
-    int32_t len = total;
-
-    uint8_t buff[512] = {0};
-    mbedtls_md_context_t sha;
-    mbedtls_md_init(&sha);
-    if (check) {
-        mbedtls_md_setup(&sha, mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), 0);
-        mbedtls_md_starts(&sha);
+    HttpBody body(http);
+    size_t got = 0;
+    const bool chunked = http.header("Transfer-Encoding").equalsIgnoreCase("chunked");
+    const BodyRead read =
+        chunked ? readChunkedBody(body, buffer, capacity, kBodyStallMs, &got)
+                : readBody(body, reported, buffer, capacity, kBodyStallMs, &got);
+    if (read != BodyRead::Complete) {
+        logf(LOG_ERROR, "download from %s failed after %u bytes: %s", url, (unsigned)got,
+             bodyReadName(read));
+        free(buffer);
+        buffer = nullptr;
+    } else {
+        *defaultLen = (int32_t)got;
     }
 
-    WiFiClient* stream = http.getStreamPtr();
-    while (http.connected() && (len > 0 || len == -1)) {
-        size_t size = stream->available();
-
-        if (size) {
-            int c = stream->readBytes(
-                buff, ((size > sizeof(buff)) ? sizeof(buff) : size));
-            memcpy(buffPtr, buff, c);
-            if (check) mbedtls_md_update(&sha, buff, c);
-
-            if (len > 0) len -= c;
-            buffPtr += c;
-        } else if (len == -1) {
-            len = 0;
-        }
-    }
-
-    if (check) {
+    if (buffer && check) {
         uint8_t digest[32];
-        mbedtls_md_finish(&sha, digest);
+        mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), buffer, got, digest);
         char why[112];
         if (!answerHolds(currentBoardKey(), httpCode, digest, "GET", url,
                          http.header("Content-Digest").c_str(),
@@ -306,7 +310,6 @@ static uint8_t* fetch(const char* url, const char* userAgent, int32_t* defaultLe
             buffer = nullptr;
         }
     }
-    mbedtls_md_free(&sha);
 
     http.end();
     WiFi.setSleep(sleep);
