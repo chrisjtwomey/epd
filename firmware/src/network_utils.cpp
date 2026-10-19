@@ -425,26 +425,29 @@ struct PairJob {
     const char* url;
     const char* userAgent;
     esp_err_t result;
-    TaskHandle_t caller;
+    SemaphoreHandle_t done;
 };
 
 static void pairTask(void* arg) {
     PairJob* job = (PairJob*)arg;
     job->result = pairNow(job->url, job->userAgent);
-    xTaskNotifyGive(job->caller);
+    xSemaphoreGive(job->done);
     vTaskDelete(nullptr);
 }
 
 // pairNow on a task of its own: mbedTLS's elliptic-curve maths needs more
-// stack than a board's loop has to spare.
+// stack than a board's loop has to spare. The wait is on a semaphore of its
+// own, not the caller's task notification, which the caller's code may use.
 static esp_err_t pairWithServer(const char* url, const char* userAgent) {
-    PairJob job = {url, userAgent, ESP_FAIL, xTaskGetCurrentTaskHandle()};
-    if (xTaskCreate(pairTask, "epd-pair", PAIR_STACK_BYTES, &job, uxTaskPriorityGet(nullptr),
-                    nullptr) != pdPASS) {
+    PairJob job = {url, userAgent, ESP_FAIL, xSemaphoreCreateBinary()};
+    if (!job.done || xTaskCreate(pairTask, "epd-pair", PAIR_STACK_BYTES, &job,
+                                 uxTaskPriorityGet(nullptr), nullptr) != pdPASS) {
         log(LOG_ERROR, "pairing failed: no memory for its task");
+        if (job.done) vSemaphoreDelete(job.done);
         return ESP_FAIL;
     }
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    xSemaphoreTake(job.done, portMAX_DELAY);
+    vSemaphoreDelete(job.done);
     return job.result;
 }
 
