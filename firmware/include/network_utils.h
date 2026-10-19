@@ -3,7 +3,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "epd_headers.h"
 #include "error_utils.h"
 
 /**
