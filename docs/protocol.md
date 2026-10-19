@@ -78,7 +78,13 @@ firmware image is not read this way: it streams to flash
 - it closes before the `Content-Length` it sent, or before the last chunk;
 - with no `Content-Length`, the body is longer than the size the project
   allows;
-- a chunk size cannot be read.
+- a chunk size cannot be read;
+- the body is empty, with or without a length. Every answer a board fetches
+  carries a body, so an empty one is a fault, and a caller never gets a
+  buffer it would have to check for size 0.
+
+The headers are read before the body, so a download that fails still hands
+back what the server said about the next wake, its clock and firmware.
 
 ## Identifying the client
 

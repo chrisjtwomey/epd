@@ -66,14 +66,16 @@ void keepWiFiConnected();
 
   *size is the most to accept when the server sends no length, and is set to
   the length read. What the server said about the next wake and about
-  firmware is written to rsp; pass nullptr to ignore it.
+  firmware is written to rsp after any 200, even when the body then fails;
+  pass nullptr to ignore it.
 
   Blocks until the body is read; a chunked body is joined. Fails when the
   server sends no byte for 5 s, closes before the body ends, sends more than
-  the buffer holds, or sends a chunk size that cannot be read.
+  the buffer holds, sends a chunk size that cannot be read, or sends an empty
+  body.
 
   @returns the buffer, or nullptr when the request, the allocation or the
-  read failed.
+  read failed, or the body is empty.
 */
 uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* size,
                       PageResponse* rsp);

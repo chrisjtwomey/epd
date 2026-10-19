@@ -253,7 +253,22 @@ static uint8_t* fetch(const char* url, const char* userAgent, int32_t* defaultLe
         return nullptr;
     }
 
+    if (rsp) {
+        // The server is authoritative for when to refresh next; the board just
+        // counts down. No timezone arithmetic on the client.
+        numberHeader(http, EPD_H_NEXT_REFRESH, &rsp->nextRefreshSeconds);
+
+        copyHeader(http, EPD_H_NEXT_URL, rsp->nextURL, sizeof(rsp->nextURL));
+        readServerHeaders(http, rsp);
+    }
+
     const int32_t reported = http.getSize();
+    if (reported == 0) {
+        logf(LOG_ERROR, "empty answer from %s", url);
+        http.end();
+        WiFi.setSleep(sleep);
+        return nullptr;
+    }
     const size_t capacity = reported >= 0 ? (size_t)reported : (size_t)*defaultLen;
 
     uint8_t* buffer = (uint8_t *)boardMalloc(capacity);
@@ -267,15 +282,6 @@ static uint8_t* fetch(const char* url, const char* userAgent, int32_t* defaultLe
     // The socket exists only after GET() has connected.
     http.getStream().setNoDelay(true);
 
-    if (rsp) {
-        // The server is authoritative for when to refresh next; the board just
-        // counts down. No timezone arithmetic on the client.
-        numberHeader(http, EPD_H_NEXT_REFRESH, &rsp->nextRefreshSeconds);
-
-        copyHeader(http, EPD_H_NEXT_URL, rsp->nextURL, sizeof(rsp->nextURL));
-        readServerHeaders(http, rsp);
-    }
-
     HttpBody body(http);
     size_t got = 0;
     const bool chunked = http.header("Transfer-Encoding").equalsIgnoreCase("chunked");
@@ -285,6 +291,10 @@ static uint8_t* fetch(const char* url, const char* userAgent, int32_t* defaultLe
     if (read != BodyRead::Complete) {
         logf(LOG_ERROR, "download from %s failed after %u bytes: %s", url, (unsigned)got,
              bodyReadName(read));
+        free(buffer);
+        buffer = nullptr;
+    } else if (got == 0) {
+        logf(LOG_ERROR, "empty answer from %s", url);
         free(buffer);
         buffer = nullptr;
     } else {
