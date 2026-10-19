@@ -57,7 +57,8 @@ esp_err_t configureWiFi(const char* ssid, const char* pass, int retries);
 void keepWiFiConnected();
 
 /**
-  Download a file at the given URL into a buffer the caller frees.
+  Download a file at the given URL into a buffer the caller frees with
+  free(). The buffer is in PSRAM when the board has it.
 
   userAgent is sent as the User-Agent header; null or empty keeps the
   HTTP library's default.
@@ -67,7 +68,8 @@ void keepWiFiConnected();
   firmware is written to rsp after any 200, even when the body then fails;
   pass nullptr to ignore it.
 
-  Blocks until the body is read; a chunked body is joined. Fails when the
+  Blocks until the body is read; a chunked body is joined. Wi-Fi power
+  saving is off for the request, and set back as it was after. Fails when the
   server sends no byte for 5 s, closes before the body ends, sends more than
   the buffer holds, sends a chunk size that cannot be read, or sends an empty
   body.
@@ -100,6 +102,9 @@ uint8_t* downloadSigned(const char* url, const char* userAgent, int32_t* size,
   otherwise the board keeps its key. The server refuses a post under a new
   key too until a person approves it, so the caller keeps the body for later
   on a 401.
+
+  Pairing runs on a task of its own with a 16 KB stack, from the heap, and
+  this call blocks until it ends.
 
   @returns the HTTP status code, or a negative HTTPClient error code when
   no response arrived.
