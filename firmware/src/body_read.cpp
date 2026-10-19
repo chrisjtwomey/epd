@@ -24,20 +24,28 @@ public:
         return true;
     }
 
-    // Reads what is ready, up to len bytes.
-    size_t readReady(uint8_t* out, size_t len) {
-        const size_t ready = src_.available();
-        const size_t n = src_.read(out, ready < len ? ready : len);
-        lastByteMs_ = src_.nowMs();
-        return n;
+    // Reads at least one byte, up to len, into out. A read that gives nothing
+    // while bytes are ready counts towards the stall.
+    bool readSome(uint8_t* out, size_t len, size_t* n) {
+        for (;;) {
+            if (!waitForBytes()) return false;
+            const size_t ready = src_.available();
+            *n = src_.read(out, ready < len ? ready : len);
+            if (*n) {
+                lastByteMs_ = src_.nowMs();
+                return true;
+            }
+            if (src_.nowMs() - lastByteMs_ >= stallMs_) return fail(BodyRead::Stalled);
+            src_.wait();
+        }
     }
 
     // Reads exactly len bytes into out; *got counts them as they arrive.
     bool readExactly(uint8_t* out, size_t len, size_t* got) {
         size_t done = 0;
         while (done < len) {
-            if (!waitForBytes()) return false;
-            const size_t n = readReady(out + done, len - done);
+            size_t n = 0;
+            if (!readSome(out + done, len - done, &n)) return false;
             done += n;
             *got += n;
         }
@@ -51,8 +59,8 @@ public:
         for (size_t seen = 0;; ++seen) {
             if (seen == kMaxLineBytes) return fail(BodyRead::Malformed);
             uint8_t c = 0;
-            if (!waitForBytes()) return false;
-            readReady(&c, 1);
+            size_t n = 0;
+            if (!readSome(&c, 1, &n)) return false;
             if (c == '\n') break;
             if (len + 1 < outSize) out[len++] = (char)c;
         }
@@ -109,7 +117,9 @@ BodyRead readBody(IBodySource& src, int32_t expectedLen, uint8_t* buf, size_t ca
     }
     while (in.waitForBytes()) {
         if (*got == capacity) return BodyRead::TooLong;
-        *got += in.readReady(buf + *got, capacity - *got);
+        size_t n = 0;
+        if (!in.readSome(buf + *got, capacity - *got, &n)) break;
+        *got += n;
     }
     return in.failure() == BodyRead::CutShort ? BodyRead::Complete : in.failure();
 }

@@ -54,6 +54,19 @@ private:
     size_t offset_ = 0;
 };
 
+// A connection that says bytes are ready, but whose read gives none.
+class ReadFailsSource : public IBodySource {
+public:
+    size_t available() override { return 3; }
+    size_t read(uint8_t*, size_t) override { return 0; }
+    bool connected() override { return true; }
+    uint32_t nowMs() override { return now_; }
+    void wait() override { ++now_; }
+
+private:
+    uint32_t now_ = 0;
+};
+
 static const uint32_t kStallMs = 5000;
 static const uint32_t kNeverCloses = UINT32_MAX;
 
@@ -132,6 +145,15 @@ void test_a_server_that_stops_sending_stalls() {
     size_t got = 0;
     TEST_ASSERT_EQUAL(BodyRead::Stalled, readBody(src, 5, buf, sizeof(buf), kStallMs, &got));
     TEST_ASSERT_EQUAL(3, got);
+    TEST_ASSERT_EQUAL_UINT32(kStallMs, src.nowMs());
+}
+
+void test_a_read_that_gives_nothing_stalls() {
+    ReadFailsSource src;
+    uint8_t buf[5];
+    size_t got = 0;
+    TEST_ASSERT_EQUAL(BodyRead::Stalled, readBody(src, 5, buf, sizeof(buf), kStallMs, &got));
+    TEST_ASSERT_EQUAL(0, got);
     TEST_ASSERT_EQUAL_UINT32(kStallMs, src.nowMs());
 }
 
@@ -269,6 +291,7 @@ int main(int, char**) {
     RUN_TEST(test_an_unknown_length_that_fills_the_buffer_exactly_completes);
     RUN_TEST(test_an_unknown_length_past_the_buffer_fails_without_writing_past_it);
     RUN_TEST(test_a_server_that_stops_sending_stalls);
+    RUN_TEST(test_a_read_that_gives_nothing_stalls);
     RUN_TEST(test_the_stall_counts_from_the_last_byte);
     RUN_TEST(test_an_empty_body_completes);
     RUN_TEST(test_chunks_are_joined_without_their_sizes);
