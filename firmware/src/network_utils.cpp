@@ -113,7 +113,7 @@ static void numberHeader(HTTPClient& http, const char* name, uint32_t* out) {
     uint32_t parsed = 0;
     if (parseRefreshTime(value.c_str(), &parsed)) {
         *out = parsed;
-        logf(LOG_INFO, "received header %s: %u", name, parsed);
+        logf(LOG_INFO, "received header %s: %lu", name, (unsigned long)parsed);
     } else {
         logf(LOG_WARNING, "%s value '%s' is malformed, ignoring", name, value.c_str());
     }
