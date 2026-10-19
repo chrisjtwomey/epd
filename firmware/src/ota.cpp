@@ -10,6 +10,7 @@
 #include <Preferences.h>
 
 #include "board_key.h"
+#include "current_board_key.h"
 #include "epd_headers.h"
 #include "log_utils.h"
 #include "network_utils.h"

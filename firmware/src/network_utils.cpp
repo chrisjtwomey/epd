@@ -10,6 +10,7 @@
 #include <mbedtls/md.h>
 
 #include "body_read.h"
+#include "current_board_key.h"
 #include "log_utils.h"
 #include "mem_utils.h"
 #include "refresh_header.h"

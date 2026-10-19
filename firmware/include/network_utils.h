@@ -3,7 +3,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "board_key.h"
 #include "epd_headers.h"
 #include "error_utils.h"
 
@@ -109,6 +108,4 @@ uint8_t* downloadSigned(const char* url, const char* userAgent, int32_t* size,
 int postJson(const char* url, const char* userAgent, const char* body,
              PageResponse* rsp = nullptr);
 
-/** The key this board signs with, read from the settings store the first time. */
-const BoardKey& currentBoardKey();
 #endif
