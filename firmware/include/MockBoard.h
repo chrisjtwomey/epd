@@ -104,9 +104,6 @@ public:
     bool drawPngFromBuffer(uint8_t*, int32_t, int, int, bool, bool) override {
         return drawPngReturn;
     }
-    bool drawPngFromSd(const char*, int, int, bool, bool) override {
-        return drawPngReturn;
-    }
     bool drawBitmap(uint8_t* buf, int x, int y, int w, int h,
                     uint16_t, uint16_t) override {
         drawBitmapBuf    = buf;
@@ -164,6 +161,9 @@ public:
 #if defined(USE_SDCARD)
     bool sdCardInit()  override { return sdCardInitReturn; }
     void sdCardSleep() override {}
+    bool drawPngFromSd(const char*, int, int, bool, bool) override {
+        return drawPngReturn;
+    }
 
     bool sdWriteFile(const char*, const uint8_t*, size_t) override {
         return sdWriteFileReturn;

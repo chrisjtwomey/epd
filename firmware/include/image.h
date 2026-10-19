@@ -5,10 +5,11 @@
 /**
   Load an image to the display buffer.
 
-  @param filePath the path of the file on disk.
+  @param filePath the path of the file on the SD card.
   @returns the esp_err_t code:
   - ESP_OK if successful.
   - ESP_ERR_EDRAW if the image cannot be decoded.
+  - ESP_ERR_NOT_SUPPORTED in a build without USE_SDCARD.
 */
 esp_err_t loadImage(const char* filePath);
 

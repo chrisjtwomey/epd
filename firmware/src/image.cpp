@@ -38,6 +38,7 @@ bool loadImageCache() {
     return ok;
 }
 
+#if defined(USE_SDCARD)
 esp_err_t loadImage(const char* filePath) {
     logf(LOG_INFO, "drawing image from path: %s", filePath);
 
@@ -47,6 +48,12 @@ esp_err_t loadImage(const char* filePath) {
 
     return ESP_OK;
 }
+#else
+esp_err_t loadImage(const char* filePath) {
+    logf(LOG_ERROR, "cannot draw %s: this build has no SD card support", filePath);
+    return ESP_ERR_NOT_SUPPORTED;
+}
+#endif
 
 esp_err_t loadImage(uint8_t* buf, int32_t len) {
     log(LOG_INFO, "drawing image from buffer");

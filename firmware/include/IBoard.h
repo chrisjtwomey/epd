@@ -85,20 +85,6 @@ public:
                                    bool dither, bool invert) = 0;
 
     /**
-     * Decode a PNG from a file on SD card and draw it at (x, y).
-     *
-     * @param path    absolute path on the SD card.
-     * @param x       top-left x coordinate.
-     * @param y       top-left y coordinate.
-     * @param dither  enable dithering.
-     * @param invert  invert colours.
-     * @returns true on success.
-     */
-    virtual bool drawPngFromSd(const char* path,
-                               int x, int y,
-                               bool dither, bool invert) = 0;
-
-    /**
      * Draw a raw 1-bit bitmap at (x, y).
      *
      * @param buf  byte array of bitmap data.
@@ -223,6 +209,20 @@ public:
     virtual void sdCardSleep() = 0;
 
     /**
+     * Decode a PNG from a file on SD card and draw it at (x, y).
+     *
+     * @param path    absolute path on the SD card.
+     * @param x       top-left x coordinate.
+     * @param y       top-left y coordinate.
+     * @param dither  enable dithering.
+     * @param invert  invert colours.
+     * @returns true on success.
+     */
+    virtual bool drawPngFromSd(const char* path,
+                               int x, int y,
+                               bool dither, bool invert) = 0;
+
+    /**
      * Write `len` bytes to `path`, replacing any existing file.
      *
      * @param path  absolute path on the SD card.
@@ -245,9 +245,9 @@ public:
      */
     virtual size_t sdReadFile(const char* path, uint8_t* buf, size_t maxLen) = 0;
 
-    // Note: no getSdFat() here by design. Storage access goes through the two
-    // methods above so the client library never needs a concrete SD type, and
-    // therefore never depends on a specific board driver.
+    // Note: no getSdFat() here by design. Storage access goes through
+    // sdWriteFile and sdReadFile so the client library never needs a concrete
+    // SD type, and therefore never depends on a specific board driver.
 #endif
 };
 

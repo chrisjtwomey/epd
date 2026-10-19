@@ -39,7 +39,6 @@ EpdClient runs only on the ESP32 (`platforms: espressif32` in its
 | Method | Purpose |
 |---|---|
 | `drawPngFromBuffer(buf, len, x, y, dither, invert)` | Decode a PNG from a byte buffer and render it at `(x, y)`. Returns `true` on success. |
-| `drawPngFromSd(path, x, y, dither, invert)` | Decode a PNG from an SD-card file and render it at `(x, y)`. Returns `true` on success. You must implement it, but EpdClient calls it only when `USE_SDCARD` is defined. |
 | `drawBitmap(buf, x, y, w, h, fg, bg)` | Draw a raw 1-bit bitmap at `(x, y)`. Used for battery status icons. Returns `true` on success. |
 
 ### Text / GFX primitives
@@ -101,6 +100,7 @@ These methods are compiled only when the `USE_SDCARD` build flag is set.
 |---|---|
 | `sdCardInit()` | Initialise the SD card. Returns `true` on success. |
 | `sdCardSleep()` | Put the SD card into low-power sleep before deep sleep. |
+| `drawPngFromSd(path, x, y, dither, invert)` | Decode a PNG from an SD-card file and render it at `(x, y)`. Returns `true` on success. It is here, not with the other image methods, because a virtual method always links: outside this block it would put an SD library into every image, card or no card. |
 | `sdWriteFile(path, buf, len)` | Write `len` bytes to `path`, replacing any existing file. Returns `true` on success. Used to cache the downloaded image. |
 | `sdReadFile(path, buf, maxLen)` | Read up to `maxLen` bytes from `path`. Returns the byte count, or `0` if the file is missing or empty. Used to load `config.yaml`. |
 
@@ -145,9 +145,6 @@ public:
     bool drawPngFromBuffer(uint8_t* buf, int32_t len,
                            int x, int y,
                            bool dither, bool invert) override;
-    bool drawPngFromSd(const char* path,
-                       int x, int y,
-                       bool dither, bool invert) override;
     bool drawBitmap(uint8_t* buf,
                     int x, int y, int w, int h,
                     uint16_t fg, uint16_t bg) override;
@@ -185,6 +182,8 @@ public:
 #if defined(USE_SDCARD)
     bool   sdCardInit()  override;
     void   sdCardSleep() override;
+    bool   drawPngFromSd(const char* path, int x, int y,
+                         bool dither, bool invert) override;
     bool   sdWriteFile(const char* path, const uint8_t* buf, size_t len) override;
     size_t sdReadFile(const char* path, uint8_t* buf, size_t maxLen) override;
 #endif

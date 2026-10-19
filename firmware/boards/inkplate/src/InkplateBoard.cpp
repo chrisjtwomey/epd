@@ -90,12 +90,6 @@ bool InkplateBoard::drawPngFromBuffer(uint8_t* buf, int32_t len,
     return _inkplate.image.drawPngFromBuffer(buf, len, x, y, pngDither(_inkplate, dither), invert);
 }
 
-bool InkplateBoard::drawPngFromSd(const char* path,
-                                  int x, int y,
-                                  bool dither, bool invert) {
-    return _inkplate.image.drawPngFromSd(path, x, y, pngDither(_inkplate, dither), invert);
-}
-
 bool InkplateBoard::drawBitmap(uint8_t* buf,
                                int x, int y, int w, int h,
                                uint16_t fg, uint16_t bg) {
@@ -216,6 +210,12 @@ bool InkplateBoard::sdCardInit() {
 
 void InkplateBoard::sdCardSleep() {
     _inkplate.sdCardSleep();
+}
+
+bool InkplateBoard::drawPngFromSd(const char* path,
+                                  int x, int y,
+                                  bool dither, bool invert) {
+    return _inkplate.image.drawPngFromSd(path, x, y, pngDither(_inkplate, dither), invert);
 }
 
 SdFat& InkplateBoard::getSdFat() {

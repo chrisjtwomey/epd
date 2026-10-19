@@ -75,7 +75,8 @@ bool fetchPage(const char* url, const char* userAgent, int retries, PageFetch* o
 /**
   Draw a page, trying again up to ``retries`` further times.
 
-  @param filePath a copy on disk to draw from; null draws from the buffer.
+  @param filePath a copy on the SD card to draw from, in a USE_SDCARD build;
+  null draws from the buffer.
   @param overlay drawn over the page before the panel is refreshed, which is
   the only moment it can be; empty to draw the page alone. A board that draws
   nothing over its pages keeps the indicator's fonts out of its image.

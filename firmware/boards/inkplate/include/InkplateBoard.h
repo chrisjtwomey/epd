@@ -37,9 +37,6 @@ public:
     bool drawPngFromBuffer(uint8_t* buf, int32_t len,
                            int x, int y,
                            bool dither, bool invert) override;
-    bool drawPngFromSd(const char* path,
-                       int x, int y,
-                       bool dither, bool invert) override;
     bool drawBitmap(uint8_t* buf,
                     int x, int y, int w, int h,
                     uint16_t fg, uint16_t bg) override;
@@ -81,6 +78,9 @@ public:
     // SD card
     bool sdCardInit() override;
     void sdCardSleep() override;
+    bool drawPngFromSd(const char* path,
+                       int x, int y,
+                       bool dither, bool invert) override;
     bool sdWriteFile(const char* path, const uint8_t* buf, size_t len) override;
     size_t sdReadFile(const char* path, uint8_t* buf, size_t maxLen) override;
     // getSdFat() is not part of IBoard: SdFat is InkplateLibrary-specific.
