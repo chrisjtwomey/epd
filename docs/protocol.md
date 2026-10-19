@@ -74,6 +74,9 @@ the connection to end it, and the buffer is the size the project allows. A
 firmware image is not read this way: it streams to flash
 ([ota.md](ota.md)). The download fails when:
 
+- the `Content-Length` is over the size the project allows. This fails
+  before any buffer is allocated, so a server cannot make the board reserve
+  more memory than the project chose;
 - the server sends no byte for 5 s;
 - it closes before the `Content-Length` it sent, or before the last chunk;
 - with no `Content-Length`, the body is longer than the size the project

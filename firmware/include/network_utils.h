@@ -63,16 +63,15 @@ void keepWiFiConnected();
   userAgent is sent as the User-Agent header; null or empty keeps the
   HTTP library's default.
 
-  *size is the most to accept when the server sends no length, and is set to
-  the length read. What the server said about the next wake and about
-  firmware is written to rsp after any 200, even when the body then fails;
-  pass nullptr to ignore it.
+  *size is the most to accept, and is set to the length read. An answer
+  whose length is over it fails before any buffer is allocated. What the
+  server said about the next wake and about firmware is written to rsp after
+  any 200, even when the body then fails; pass nullptr to ignore it.
 
   Blocks until the body is read; a chunked body is joined. Wi-Fi power
   saving is off for the request, and set back as it was after. Fails when the
   server sends no byte for 5 s, closes before the body ends, sends more than
-  the buffer holds, sends a chunk size that cannot be read, or sends an empty
-  body.
+  *size, sends a chunk size that cannot be read, or sends an empty body.
 
   @returns the buffer, or nullptr when the request, the allocation or the
   read failed, or the body is empty.

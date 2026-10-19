@@ -271,7 +271,15 @@ static uint8_t* fetch(const char* url, const char* userAgent, int32_t* defaultLe
         WiFi.setSleep(sleep);
         return nullptr;
     }
-    const size_t capacity = reported >= 0 ? (size_t)reported : (size_t)*defaultLen;
+    const size_t limit = *defaultLen > 0 ? (size_t)*defaultLen : 0;
+    if (reported > 0 && (size_t)reported > limit) {
+        logf(LOG_ERROR, "answer from %s is %ld bytes, more than the %u allowed", url,
+             (long)reported, (unsigned)limit);
+        http.end();
+        WiFi.setSleep(sleep);
+        return nullptr;
+    }
+    const size_t capacity = reported >= 0 ? (size_t)reported : limit;
 
     uint8_t* buffer = (uint8_t *)boardMalloc(capacity);
     if (!buffer) {
