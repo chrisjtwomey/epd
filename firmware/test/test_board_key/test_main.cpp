@@ -241,6 +241,23 @@ void test_a_url_that_is_not_http_or_does_not_fit_is_refused(void) {
     TEST_ASSERT_FALSE(splitTarget("http://host/far-too-long", p, sizeof(p), q, sizeof(q)));
 }
 
+void test_the_pair_answer_gives_the_servers_half(void) {
+    char out[16];
+    TEST_ASSERT_TRUE(keyInPairAnswer("{\"key\": \"QUJD\"}", out, sizeof(out)));
+    TEST_ASSERT_EQUAL_STRING("QUJD", out);
+    TEST_ASSERT_TRUE(keyInPairAnswer("{\"id\":\"ab\",\"key\":\"QUJD\"}", out, sizeof(out)));
+    TEST_ASSERT_EQUAL_STRING("QUJD", out);
+}
+
+void test_a_pair_answer_without_a_whole_key_is_refused(void) {
+    char out[5];
+    TEST_ASSERT_FALSE(keyInPairAnswer("{\"id\": \"ab\"}", out, sizeof(out)));
+    TEST_ASSERT_FALSE(keyInPairAnswer("{\"key\": 5}", out, sizeof(out)));
+    TEST_ASSERT_FALSE(keyInPairAnswer("{\"key\": \"QUJD", out, sizeof(out)));
+    TEST_ASSERT_FALSE(keyInPairAnswer("{\"key\": \"QUJDRA\"}", out, sizeof(out)));
+    TEST_ASSERT_TRUE(keyInPairAnswer("{\"key\": \"QUJD\"}", out, sizeof(out)));
+}
+
 void test_the_server_root_is_the_url_before_its_path(void) {
     char root[64];
     TEST_ASSERT_TRUE(serverRoot("http://192.168.1.20:8080/sensor-readings?x=1", root, sizeof(root)));
@@ -268,5 +285,7 @@ int main(int argc, char** argv) {
     RUN_TEST(test_a_url_splits_into_its_path_and_query);
     RUN_TEST(test_a_url_that_is_not_http_or_does_not_fit_is_refused);
     RUN_TEST(test_the_server_root_is_the_url_before_its_path);
+    RUN_TEST(test_the_pair_answer_gives_the_servers_half);
+    RUN_TEST(test_a_pair_answer_without_a_whole_key_is_refused);
     return UNITY_END();
 }

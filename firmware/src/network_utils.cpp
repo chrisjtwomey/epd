@@ -346,20 +346,6 @@ static int fillRandom(void*, unsigned char* out, size_t len) {
     return 0;
 }
 
-// The value of "key" in the server's answer to /pair, {"key": "<base64>"}.
-static bool keyInAnswer(const char* json, char* out, size_t size) {
-    const char* at = strstr(json, "\"key\"");
-    if (!at) return false;
-    at += 5;
-    while (*at == ' ' || *at == ':') ++at;
-    if (*at++ != '"') return false;
-    const char* end = strchr(at, '"');
-    if (!end || (size_t)(end - at) >= size) return false;
-    memcpy(out, at, (size_t)(end - at));
-    out[end - at] = '\0';
-    return true;
-}
-
 // Agree a key with the server by ECDH on P-256, and keep it. The server
 // holds it as pending until a person approves it.
 static esp_err_t pairNow(const char* url, const char* userAgent) {
@@ -405,7 +391,7 @@ static esp_err_t pairNow(const char* url, const char* userAgent) {
             logf(LOG_ERROR, "pairing with %s failed: %d", pairURL, code);
             break;
         }
-        if (!keyInAnswer(answer.c_str(), answer64, sizeof(answer64)) ||
+        if (!keyInPairAnswer(answer.c_str(), answer64, sizeof(answer64)) ||
             mbedtls_base64_decode(theirHalf, sizeof(theirHalf), &theirLen,
                                   (const unsigned char*)answer64, strlen(answer64)) != 0 ||
             mbedtls_ecp_point_read_binary(&grp, &theirs, theirHalf, theirLen) != 0 ||

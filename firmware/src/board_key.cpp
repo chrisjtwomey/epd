@@ -251,3 +251,16 @@ void deriveBoardKey(const uint8_t* shared, size_t sharedLen, const char* device,
     mbedtls_md_hmac(sha256Info(), prk, sizeof(prk), message, (size_t)n + 1, out);
     memset(prk, 0, sizeof(prk));
 }
+
+bool keyInPairAnswer(const char* json, char* out, size_t size) {
+    const char* at = strstr(json, "\"key\"");
+    if (!at) return false;
+    at += 5;
+    while (*at == ' ' || *at == ':') ++at;
+    if (*at++ != '"') return false;
+    const char* end = strchr(at, '"');
+    if (!end || (size_t)(end - at) >= size) return false;
+    memcpy(out, at, (size_t)(end - at));
+    out[end - at] = '\0';
+    return true;
+}

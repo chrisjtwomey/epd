@@ -12,7 +12,8 @@
   The board signs each POST over its method, path, query and Content-Digest
   (RFC 9530). The server signs its answer to the image and to the routes a
   project names; once the board has a key, it takes those answers only with
-  a good signature.
+  a good signature. When the board pairs, the server's half of the key comes
+  in its answer to /pair.
 
   Nothing here touches the network or the settings store, so the host tests
   check it against the RFC's own example and against the server's vectors.
@@ -105,5 +106,12 @@ bool answerHolds(const BoardKey& key, int status, const uint8_t sha256[32], cons
 */
 void deriveBoardKey(const uint8_t* shared, size_t sharedLen, const char* device,
                     uint8_t out[BOARD_KEY_LEN]);
+
+/**
+  The server's half of the key from its answer to /pair, {"key": "<base64>"},
+  copied into out. False when the answer holds no "key" string, or the value
+  does not fit in size with its terminator.
+*/
+bool keyInPairAnswer(const char* json, char* out, size_t size);
 
 #endif  // EPD_BOARD_KEY_H
