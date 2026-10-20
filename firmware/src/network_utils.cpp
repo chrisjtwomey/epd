@@ -83,7 +83,7 @@ static void beginRequest(HTTPClient& http, const char* url, const char* userAgen
 }
 
 // The stack of the task that pairs: mbedTLS's P-256 maths takes several KB.
-#define PAIR_STACK_BYTES 16384
+static const uint32_t kPairStackBytes = 16384;
 
 // The key, read from the settings store by the first request that needs it.
 static BoardKey boardKey = {};
@@ -379,7 +379,7 @@ static void pairTask(void* arg) {
 // own, not the caller's task notification, which the caller's code may use.
 static esp_err_t pairWithServer(const char* url, const char* userAgent) {
     PairJob job = {url, userAgent, ESP_FAIL, xSemaphoreCreateBinary()};
-    if (!job.done || xTaskCreate(pairTask, "epd-pair", PAIR_STACK_BYTES, &job,
+    if (!job.done || xTaskCreate(pairTask, "epd-pair", kPairStackBytes, &job,
                                  uxTaskPriorityGet(nullptr), nullptr) != pdPASS) {
         log(LOG_ERROR, "pairing failed: no memory for its task");
         if (job.done) vSemaphoreDelete(job.done);
