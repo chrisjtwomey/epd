@@ -281,10 +281,15 @@ static int fillRandom(void*, unsigned char* out, size_t len) {
     return 0;
 }
 
+// An uncompressed P-256 point: 0x04, then x and y.
+static const size_t kP256PointBytes = 65;
+// Room for a point in base64: 88 characters and the terminator.
+static const size_t kP256PointBase64Size = 96;
+
 // Agree a key with the server by ECDH on P-256, and keep it. The server
 // holds it as pending until a person approves it.
 static esp_err_t pairNow(const char* url, const char* userAgent) {
-    char root[192], pairURL[200];
+    char root[192], pairURL[sizeof(root) + sizeof("/pair")];
     if (!serverRoot(url, root, sizeof(root))) return ESP_FAIL;
     snprintf(pairURL, sizeof(pairURL), "%s/pair", root);
 
@@ -298,9 +303,9 @@ static esp_err_t pairNow(const char* url, const char* userAgent) {
     mbedtls_ecp_point_init(&theirs);
 
     esp_err_t result = ESP_FAIL;
-    uint8_t half[65], theirHalf[65], shared[32], key[BOARD_KEY_LEN];
+    uint8_t half[kP256PointBytes], theirHalf[kP256PointBytes], shared[32], key[BOARD_KEY_LEN];
     size_t halfLen = 0, theirLen = 0, written = 0;
-    char half64[96], answer64[96], body[192];
+    char half64[kP256PointBase64Size], answer64[kP256PointBase64Size], body[192];
     const char* failed = nullptr;
     do {
         if (mbedtls_ecp_group_load(&grp, MBEDTLS_ECP_DP_SECP256R1) != 0 ||
@@ -425,6 +430,9 @@ int postJson(const char* url, const char* userAgent, const char* body, ServerRes
     return code;
 }
 
+// Room for the <prefix>-Key value of a refusal: "clock", "pair" or "pending".
+static const size_t kKeyStateSize = 12;
+
 static RefusalStep stepAfter(const char* state, const ServerResponse* into, bool trusted) {
     const Refusal refusal = {state, into->serverEpoch != 0, currentBoardKey().present, trusted};
     return afterRefusal(refusal);
@@ -432,7 +440,7 @@ static RefusalStep stepAfter(const char* state, const ServerResponse* into, bool
 
 static int postSigned(const char* url, const char* userAgent, const char* body,
                       ServerResponse* into) {
-    char state[12] = "";
+    char state[kKeyStateSize] = "";
     bool trusted = false;
     int code = postOnce(url, userAgent, body, into, state, sizeof(state), &trusted);
     if (code != 401) return code;
