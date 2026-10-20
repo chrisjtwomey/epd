@@ -7,7 +7,6 @@
 #include <mbedtls/bignum.h>
 #include <mbedtls/ecdh.h>
 #include <mbedtls/ecp.h>
-#include <mbedtls/md.h>
 
 #include "body_read.h"
 #include "current_board_key.h"
@@ -116,8 +115,7 @@ static bool refusalHolds(HTTPClient& http, const char* url, const char* postDige
     if (!postDigest[0]) return false;
     const String answer = http.getString();
     uint8_t sha[32];
-    mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), (const unsigned char*)answer.c_str(),
-               answer.length(), sha);
+    sha256Of((const uint8_t*)answer.c_str(), answer.length(), sha);
     char why[ANSWER_WHY_SIZE];
     if (answerHolds(currentBoardKey(), 401, sha, "POST", url,
                     http.header(CONTENT_DIGEST_HEADER).c_str(),
@@ -248,7 +246,7 @@ static uint8_t* fetch(const char* url, const char* userAgent, int32_t* defaultLe
 
     if (buffer && check) {
         uint8_t digest[32];
-        mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), buffer, got, digest);
+        sha256Of(buffer, got, digest);
         char why[ANSWER_WHY_SIZE];
         if (!answerHolds(currentBoardKey(), httpCode, digest, "GET", url,
                          http.header(CONTENT_DIGEST_HEADER).c_str(),

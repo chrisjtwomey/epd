@@ -51,6 +51,9 @@ struct SignedRequest {
 /** ``key`` as a BoardKey, with its id. */
 BoardKey boardKeyFrom(const uint8_t key[BOARD_KEY_LEN]);
 
+/** The SHA-256 of ``len`` bytes. */
+void sha256Of(const uint8_t* data, size_t len, uint8_t out[32]);
+
 /** The Content-Digest field of a body whose SHA-256 is ``sha256``. */
 void contentDigest(const uint8_t sha256[32], char out[CONTENT_DIGEST_SIZE]);
 

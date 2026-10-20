@@ -37,12 +37,16 @@ static void base64(const uint8_t* in, size_t len, char* out, size_t size) {
     out[written] = '\0';
 }
 
+void sha256Of(const uint8_t* data, size_t len, uint8_t out[32]) {
+    mbedtls_md(sha256Info(), data, len, out);
+}
+
 BoardKey boardKeyFrom(const uint8_t key[BOARD_KEY_LEN]) {
     BoardKey out = {};
     out.present = true;
     memcpy(out.key, key, BOARD_KEY_LEN);
     uint8_t sha[32];
-    mbedtls_md(sha256Info(), key, BOARD_KEY_LEN, sha);
+    sha256Of(key, BOARD_KEY_LEN, sha);
     for (int i = 0; i < BOARD_KEY_ID_LEN / 2; ++i) snprintf(out.id + 2 * i, 3, "%02x", sha[i]);
     return out;
 }
@@ -55,7 +59,7 @@ void contentDigest(const uint8_t sha256[32], char out[CONTENT_DIGEST_SIZE]) {
 
 void contentDigestOf(const uint8_t* body, size_t len, char out[CONTENT_DIGEST_SIZE]) {
     uint8_t sha[32];
-    mbedtls_md(sha256Info(), body, len, sha);
+    sha256Of(body, len, sha);
     contentDigest(sha, out);
 }
 
