@@ -183,7 +183,7 @@ static uint8_t* fetch(const char* url, const char* userAgent, int32_t* size,
         if (httpCode < 0)
             logf(LOG_ERROR, "GET %s failed: %s", url, HTTPClient::errorToString(httpCode).c_str());
         else
-            logf(LOG_ERROR, "Non-200 response from URL %s: %d", url, httpCode);
+            logf(LOG_ERROR, "GET %s answered %d", url, httpCode);
         http.end();
         WiFi.setSleep(sleep);
         return nullptr;
@@ -326,7 +326,11 @@ static esp_err_t pairNow(const char* url, const char* userAgent) {
         const String answer = code == HTTP_CODE_OK ? http.getString() : String();
         http.end();
         if (code != HTTP_CODE_OK) {
-            logf(LOG_ERROR, "pairing with %s failed: %d", pairURL, code);
+            if (code < 0)
+                logf(LOG_ERROR, "pairing with %s failed: %s", pairURL,
+                     HTTPClient::errorToString(code).c_str());
+            else
+                logf(LOG_ERROR, "pairing with %s failed: %d", pairURL, code);
             break;
         }
         if (!keyInPairAnswer(answer.c_str(), answer64, sizeof(answer64)) ||
