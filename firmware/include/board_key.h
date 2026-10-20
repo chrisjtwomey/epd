@@ -28,6 +28,10 @@
 // Room for "sig1=:" + 44 base64 characters + ":".
 #define SIGNATURE_SIZE 56
 #define SIGNATURE_INPUT_SIZE 160
+// The header fields that carry a signature and the digest it covers.
+#define CONTENT_DIGEST_HEADER "Content-Digest"
+#define SIGNATURE_INPUT_HEADER "Signature-Input"
+#define SIGNATURE_HEADER "Signature"
 
 struct BoardKey {
     bool present;

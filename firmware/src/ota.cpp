@@ -87,7 +87,8 @@ esp_err_t applyFirmwareUpdate(const char* url, const char* offeredVersion,
          offeredVersion, url);
 
     HTTPClient http;
-    const char* headers[] = {"x-MD5", "Content-Digest", "Signature-Input", "Signature"};
+    const char* headers[] = {"x-MD5", CONTENT_DIGEST_HEADER, SIGNATURE_INPUT_HEADER,
+                             SIGNATURE_HEADER};
     http.collectHeaders(headers, sizeof(headers) / sizeof(headers[0]));
     http.setTimeout(OTA_HTTP_TIMEOUT_MS);
     if (userAgent && userAgent[0]) http.setUserAgent(userAgent);
@@ -121,9 +122,9 @@ esp_err_t applyFirmwareUpdate(const char* url, const char* offeredVersion,
     }
     const String md5 = http.header("x-MD5");
     if (md5.length() == 32) Update.setMD5(md5.c_str());
-    const String digest = http.header("Content-Digest");
-    const String input = http.header("Signature-Input");
-    const String signature = http.header("Signature");
+    const String digest = http.header(CONTENT_DIGEST_HEADER);
+    const String input = http.header(SIGNATURE_INPUT_HEADER);
+    const String signature = http.header(SIGNATURE_HEADER);
     const bool whole = receive(http, &d);
     http.end();
     if (!whole) {

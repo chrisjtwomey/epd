@@ -103,9 +103,9 @@ static void addSignature(HTTPClient& http, const char* url, const char* body,
         logf(LOG_WARNING, "cannot sign a post to %s", url);
         return;
     }
-    http.addHeader("Content-Digest", sig.contentDigest);
-    http.addHeader("Signature-Input", sig.signatureInput);
-    http.addHeader("Signature", sig.signature);
+    http.addHeader(CONTENT_DIGEST_HEADER, sig.contentDigest);
+    http.addHeader(SIGNATURE_INPUT_HEADER, sig.signatureInput);
+    http.addHeader(SIGNATURE_HEADER, sig.signature);
     strlcpy(digest, sig.contentDigest, CONTENT_DIGEST_SIZE);
 }
 
@@ -119,9 +119,11 @@ static bool refusalHolds(HTTPClient& http, const char* url, const char* postDige
     mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), (const unsigned char*)answer.c_str(),
                answer.length(), sha);
     char why[112];
-    if (answerHolds(currentBoardKey(), 401, sha, "POST", url, http.header("Content-Digest").c_str(),
-                    http.header("Signature-Input").c_str(), http.header("Signature").c_str(),
-                    (uint32_t)time(nullptr), why, sizeof(why), postDigest)) {
+    if (answerHolds(currentBoardKey(), 401, sha, "POST", url,
+                    http.header(CONTENT_DIGEST_HEADER).c_str(),
+                    http.header(SIGNATURE_INPUT_HEADER).c_str(),
+                    http.header(SIGNATURE_HEADER).c_str(), (uint32_t)time(nullptr), why,
+                    sizeof(why), postDigest)) {
         return true;
     }
     logf(LOG_ERROR, "refusal from %s not trusted: %s", url, why);
@@ -163,8 +165,8 @@ static uint8_t* fetch(const char* url, const char* userAgent, int32_t* defaultLe
     const char* headersToCollect[] = {
         EPD_H_NEXT_REFRESH,     EPD_H_NEXT_URL,         EPD_H_SERVER_VERSION,
         EPD_H_SERVER_EPOCH,     EPD_H_SERVER_TIMEZONE,  EPD_H_NEXT_SENSOR_POLL,
-        EPD_H_FIRMWARE_VERSION, EPD_H_FIRMWARE_URL,     "Content-Digest",
-        "Signature-Input",      "Signature",            "Transfer-Encoding",
+        EPD_H_FIRMWARE_VERSION, EPD_H_FIRMWARE_URL,     CONTENT_DIGEST_HEADER,
+        SIGNATURE_INPUT_HEADER, SIGNATURE_HEADER,       "Transfer-Encoding",
     };
     http.collectHeaders(headersToCollect,
                         sizeof(headersToCollect) / sizeof(headersToCollect[0]));
@@ -249,9 +251,10 @@ static uint8_t* fetch(const char* url, const char* userAgent, int32_t* defaultLe
         mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), buffer, got, digest);
         char why[112];
         if (!answerHolds(currentBoardKey(), httpCode, digest, "GET", url,
-                         http.header("Content-Digest").c_str(),
-                         http.header("Signature-Input").c_str(), http.header("Signature").c_str(),
-                         (uint32_t)time(nullptr), why, sizeof(why))) {
+                         http.header(CONTENT_DIGEST_HEADER).c_str(),
+                         http.header(SIGNATURE_INPUT_HEADER).c_str(),
+                         http.header(SIGNATURE_HEADER).c_str(), (uint32_t)time(nullptr), why,
+                         sizeof(why))) {
             logf(LOG_ERROR, "refused the answer from %s: %s", url, why);
             free(buffer);
             buffer = nullptr;
@@ -398,8 +401,8 @@ static int postOnce(const char* url, const char* userAgent, const char* body,
     const char* headersToCollect[] = {EPD_H_SERVER_VERSION,   EPD_H_SERVER_EPOCH,
                                       EPD_H_SERVER_TIMEZONE,  EPD_H_NEXT_SENSOR_POLL,
                                       EPD_H_FIRMWARE_VERSION, EPD_H_FIRMWARE_URL,
-                                      EPD_H_KEY,              "Content-Digest",
-                                      "Signature-Input",      "Signature"};
+                                      EPD_H_KEY,              CONTENT_DIGEST_HEADER,
+                                      SIGNATURE_INPUT_HEADER, SIGNATURE_HEADER};
     http.collectHeaders(headersToCollect, sizeof(headersToCollect) / sizeof(headersToCollect[0]));
     if (userAgent && userAgent[0])
         http.setUserAgent(userAgent);
