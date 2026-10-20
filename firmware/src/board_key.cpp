@@ -264,3 +264,14 @@ bool keyInPairAnswer(const char* json, char* out, size_t size) {
     out[end - at] = '\0';
     return true;
 }
+
+RefusalStep afterRefusal(const Refusal& refusal) {
+    const char* state = refusal.keyState ? refusal.keyState : "";
+    if (strcmp(state, "clock") == 0)
+        return refusal.serverSentClock ? RefusalStep::TakeClock : RefusalStep::Refused;
+    if (strcmp(state, "pair") == 0)
+        return refusal.boardHasKey && !refusal.signedWithBoardKey ? RefusalStep::KeepKey
+                                                                  : RefusalStep::Pair;
+    if (strcmp(state, "pending") == 0) return RefusalStep::Wait;
+    return RefusalStep::Refused;
+}

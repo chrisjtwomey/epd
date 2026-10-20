@@ -1,6 +1,7 @@
 // Native tests for the board key's signatures: first the stand-in hashes
 // against their standards, then RFC 9421's own example, then the vectors
-// server/tests/test_board_keys.py checks, so both ends sign alike.
+// server/tests/test_board_keys.py checks, so both ends sign alike. Then the
+// URL helpers, the /pair answer, and the board's step after a refused post.
 
 #include <unity.h>
 
@@ -258,6 +259,29 @@ void test_a_pair_answer_without_a_whole_key_is_refused(void) {
     TEST_ASSERT_TRUE(keyInPairAnswer("{\"key\": \"QUJD\"}", out, sizeof(out)));
 }
 
+static RefusalStep step(const char* keyState, bool serverSentClock, bool boardHasKey,
+                        bool signedWithBoardKey) {
+    Refusal r = {keyState, serverSentClock, boardHasKey, signedWithBoardKey};
+    return afterRefusal(r);
+}
+
+void test_a_clock_refusal_takes_the_servers_time_when_it_sends_one(void) {
+    TEST_ASSERT_TRUE(RefusalStep::TakeClock == step("clock", true, true, false));
+    TEST_ASSERT_TRUE(RefusalStep::Refused == step("clock", false, true, false));
+}
+
+void test_a_pair_refusal_pairs_only_a_board_it_can_trust(void) {
+    TEST_ASSERT_TRUE(RefusalStep::Pair == step("pair", false, false, false));
+    TEST_ASSERT_TRUE(RefusalStep::Pair == step("pair", false, true, true));
+    TEST_ASSERT_TRUE(RefusalStep::KeepKey == step("pair", false, true, false));
+}
+
+void test_a_pending_key_waits_and_anything_else_is_refused(void) {
+    TEST_ASSERT_TRUE(RefusalStep::Wait == step("pending", true, true, true));
+    TEST_ASSERT_TRUE(RefusalStep::Refused == step("", true, true, true));
+    TEST_ASSERT_TRUE(RefusalStep::Refused == step("other", false, false, false));
+}
+
 void test_the_server_root_is_the_url_before_its_path(void) {
     char root[64];
     TEST_ASSERT_TRUE(serverRoot("http://192.168.1.20:8080/sensor-readings?x=1", root, sizeof(root)));
@@ -287,5 +311,8 @@ int main(int argc, char** argv) {
     RUN_TEST(test_the_server_root_is_the_url_before_its_path);
     RUN_TEST(test_the_pair_answer_gives_the_servers_half);
     RUN_TEST(test_a_pair_answer_without_a_whole_key_is_refused);
+    RUN_TEST(test_a_clock_refusal_takes_the_servers_time_when_it_sends_one);
+    RUN_TEST(test_a_pair_refusal_pairs_only_a_board_it_can_trust);
+    RUN_TEST(test_a_pending_key_waits_and_anything_else_is_refused);
     return UNITY_END();
 }

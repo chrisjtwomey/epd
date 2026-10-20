@@ -499,30 +499,36 @@ int postJson(const char* url, const char* userAgent, const char* body, ServerRes
     return code;
 }
 
+static RefusalStep stepAfter(const char* state, const ServerResponse* into, bool trusted) {
+    const Refusal refusal = {state, into->serverEpoch != 0, currentBoardKey().present, trusted};
+    return afterRefusal(refusal);
+}
+
 static int postSigned(const char* url, const char* userAgent, const char* body,
                       ServerResponse* into) {
     char state[12] = "";
     bool trusted = false;
     int code = postOnce(url, userAgent, body, into, state, sizeof(state), &trusted);
     if (code != 401) return code;
-    if (strcmp(state, "clock") == 0 && into->serverEpoch) {
+    if (stepAfter(state, into, trusted) == RefusalStep::TakeClock) {
         logf(LOG_WARNING, "signed with the wrong time; taking the server's, %lu",
              (unsigned long)into->serverEpoch);
         setClock((time_t)into->serverEpoch);
         code = postOnce(url, userAgent, body, into, state, sizeof(state), &trusted);
     }
-    if (code == 401 && strcmp(state, "pair") == 0) {
-        if (currentBoardKey().present && !trusted) {
+    if (code == 401) {
+        const RefusalStep step = stepAfter(state, into, trusted);
+        if (step == RefusalStep::KeepKey) {
             logf(LOG_ERROR, "the server asks this board to pair, but does not prove it holds "
                             "key %s; keeping it. A USB install clears it",
                  currentBoardKey().id);
-        } else {
+        } else if (step == RefusalStep::Pair) {
             log(LOG_WARNING, "the server asks this board to pair");
             if (pairWithServer(url, userAgent) == ESP_OK)
                 code = postOnce(url, userAgent, body, into, state, sizeof(state), &trusted);
         }
     }
-    if (code == 401 && strcmp(state, "pending") == 0)
+    if (code == 401 && stepAfter(state, into, trusted) == RefusalStep::Wait)
         logf(LOG_WARNING, "board key %s waits for approval in the server's Settings",
              currentBoardKey().id);
     else if (code == 401)

@@ -436,7 +436,7 @@ A post the server refuses gets a 401 that says why:
 |---|---|---|
 | `pair` | No signature, a key the server does not hold, or one it no longer takes posts under | Pairs, then posts once more. A board with a key does so only when the refusal is signed with that key; otherwise it keeps its key, and logs that a USB install clears it |
 | `pending` | The key waits for a person's approval | Keeps the document for later |
-| `clock` | Signed more than 300 s from the server's clock | Takes `EPD-Server-Epoch-Seconds`, signs again, posts once more |
+| `clock` | Signed more than 300 s from the server's clock | Takes `EPD-Server-Epoch-Seconds`, signs again, posts once more. Without that header, keeps the document for later |
 | `refused` | The body, path or query changed, a signature used before, or another board's key | Keeps the document for later |
 
 `postJson` does all of that, so a project only keeps the body when the

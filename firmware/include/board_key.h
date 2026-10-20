@@ -114,4 +114,27 @@ void deriveBoardKey(const uint8_t* shared, size_t sharedLen, const char* device,
 */
 bool keyInPairAnswer(const char* json, char* out, size_t size);
 
+/** What the server's 401 to a post says about the board, and what the board knows. */
+struct Refusal {
+    const char* keyState;      // the <prefix>-Key header: "clock", "pair", "pending" or other
+    bool serverSentClock;      // the answer carried the server's epoch
+    bool boardHasKey;
+    bool signedWithBoardKey;   // the refusal is signed for this post with the board's key
+};
+
+enum class RefusalStep {
+    TakeClock,  // set the clock from the server's and post again
+    Pair,       // pair, then post again
+    KeepKey,    // a "pair" the board cannot trust: keep the key it holds
+    Wait,       // the key waits for a person to approve it
+    Refused,
+};
+
+/**
+  The board's next step after a refused post. A board that holds a key pairs
+  again only on a refusal signed with that key, so that a device answering
+  in the server's place cannot make it take a key of the device's own.
+*/
+RefusalStep afterRefusal(const Refusal& refusal);
+
 #endif  // EPD_BOARD_KEY_H
