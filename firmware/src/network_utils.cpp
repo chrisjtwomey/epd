@@ -118,7 +118,7 @@ static bool refusalHolds(HTTPClient& http, const char* url, const char* postDige
     uint8_t sha[32];
     mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), (const unsigned char*)answer.c_str(),
                answer.length(), sha);
-    char why[112];
+    char why[ANSWER_WHY_SIZE];
     if (answerHolds(currentBoardKey(), 401, sha, "POST", url,
                     http.header(CONTENT_DIGEST_HEADER).c_str(),
                     http.header(SIGNATURE_INPUT_HEADER).c_str(),
@@ -249,7 +249,7 @@ static uint8_t* fetch(const char* url, const char* userAgent, int32_t* defaultLe
     if (buffer && check) {
         uint8_t digest[32];
         mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), buffer, got, digest);
-        char why[112];
+        char why[ANSWER_WHY_SIZE];
         if (!answerHolds(currentBoardKey(), httpCode, digest, "GET", url,
                          http.header(CONTENT_DIGEST_HEADER).c_str(),
                          http.header(SIGNATURE_INPUT_HEADER).c_str(),

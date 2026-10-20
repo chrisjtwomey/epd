@@ -134,7 +134,7 @@ esp_err_t applyFirmwareUpdate(const char* url, const char* offeredVersion,
     }
 
     const BoardKey& key = currentBoardKey();
-    char why[112];
+    char why[ANSWER_WHY_SIZE];
     if (key.present && !answerHolds(key, code, d.sha256, "GET", url, digest.c_str(),
                                     input.c_str(), signature.c_str(), (uint32_t)time(nullptr),
                                     why, sizeof(why))) {

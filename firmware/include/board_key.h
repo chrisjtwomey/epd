@@ -32,6 +32,8 @@
 #define CONTENT_DIGEST_HEADER "Content-Digest"
 #define SIGNATURE_INPUT_HEADER "Signature-Input"
 #define SIGNATURE_HEADER "Signature"
+// Room for the reason answerHolds gives when an answer does not hold.
+#define ANSWER_WHY_SIZE 112
 
 struct BoardKey {
     bool present;
