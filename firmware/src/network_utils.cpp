@@ -65,6 +65,13 @@ static void readServerHeaders(HTTPClient& http, ServerResponse* rsp) {
     numberHeader(http, EPD_H_NEXT_SENSOR_POLL, &rsp->nextSensorPollSeconds);
 }
 
+// What readServerHeaders reads, and the signature over an answer: every
+// request collects these.
+#define SERVER_AND_SIGNATURE_HEADERS                                     \
+    EPD_H_SERVER_VERSION, EPD_H_FIRMWARE_VERSION, EPD_H_FIRMWARE_URL,    \
+    EPD_H_SERVER_EPOCH, EPD_H_SERVER_TIMEZONE, EPD_H_NEXT_SENSOR_POLL,   \
+    CONTENT_DIGEST_HEADER, SIGNATURE_INPUT_HEADER, SIGNATURE_HEADER
+
 // The headers every request carries: the board decides these, not the
 // User-Agent, so neither end has to parse an identity back out of a
 // formatted string.
@@ -160,12 +167,8 @@ static uint8_t* fetch(const char* url, const char* userAgent, int32_t* defaultLe
 
     HTTPClient http;
 
-    const char* headersToCollect[] = {
-        EPD_H_NEXT_REFRESH,     EPD_H_NEXT_URL,         EPD_H_SERVER_VERSION,
-        EPD_H_SERVER_EPOCH,     EPD_H_SERVER_TIMEZONE,  EPD_H_NEXT_SENSOR_POLL,
-        EPD_H_FIRMWARE_VERSION, EPD_H_FIRMWARE_URL,     CONTENT_DIGEST_HEADER,
-        SIGNATURE_INPUT_HEADER, SIGNATURE_HEADER,       "Transfer-Encoding",
-    };
+    const char* headersToCollect[] = {EPD_H_NEXT_REFRESH, EPD_H_NEXT_URL, "Transfer-Encoding",
+                                      SERVER_AND_SIGNATURE_HEADERS};
     http.collectHeaders(headersToCollect,
                         sizeof(headersToCollect) / sizeof(headersToCollect[0]));
 
@@ -396,11 +399,7 @@ static esp_err_t pairWithServer(const char* url, const char* userAgent) {
 static int postOnce(const char* url, const char* userAgent, const char* body,
                     ServerResponse* rsp, char* keyState, size_t stateSize, bool* trusted) {
     HTTPClient http;
-    const char* headersToCollect[] = {EPD_H_SERVER_VERSION,   EPD_H_SERVER_EPOCH,
-                                      EPD_H_SERVER_TIMEZONE,  EPD_H_NEXT_SENSOR_POLL,
-                                      EPD_H_FIRMWARE_VERSION, EPD_H_FIRMWARE_URL,
-                                      EPD_H_KEY,              CONTENT_DIGEST_HEADER,
-                                      SIGNATURE_INPUT_HEADER, SIGNATURE_HEADER};
+    const char* headersToCollect[] = {EPD_H_KEY, SERVER_AND_SIGNATURE_HEADERS};
     http.collectHeaders(headersToCollect, sizeof(headersToCollect) / sizeof(headersToCollect[0]));
     if (userAgent && userAgent[0])
         http.setUserAgent(userAgent);
