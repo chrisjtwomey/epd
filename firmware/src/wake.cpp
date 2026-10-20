@@ -67,7 +67,7 @@ esp_err_t connectNetwork(const ClientConfig& cfg) {
     return ESP_OK;
 }
 
-void keepServerTime(const PageResponse& rsp) {
+void keepServerTime(const ServerResponse& rsp) {
     setTimezone(rsp.serverTimezone);
     if (!rsp.serverEpoch) return;
     setClock((time_t)rsp.serverEpoch);
@@ -108,7 +108,7 @@ bool drawPage(const PageFetch& page, const char* filePath, int retries,
     return false;
 }
 
-void takeOfferedUpdate(const PageResponse& rsp, const char* userAgent, int batteryPercent,
+void takeOfferedUpdate(const ServerResponse& rsp, const char* userAgent, int batteryPercent,
                        int minBatteryPercent, OtaProgress onProgress) {
     const char* rejected = otaRejectedVersion();
 

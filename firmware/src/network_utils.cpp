@@ -123,7 +123,7 @@ static void numberHeader(HTTPClient& http, const char* name, uint32_t* out) {
 
 // What the server says about itself and the firmware on offer, on any
 // response.
-static void readServerHeaders(HTTPClient& http, PageResponse* rsp) {
+static void readServerHeaders(HTTPClient& http, ServerResponse* rsp) {
     if (!rsp) return;
     copyHeader(http, EPD_H_SERVER_VERSION, rsp->serverVersion, sizeof(rsp->serverVersion));
     copyHeader(http, EPD_H_FIRMWARE_VERSION, rsp->firmwareVersion, sizeof(rsp->firmwareVersion));
@@ -218,7 +218,7 @@ private:
 };
 
 static uint8_t* fetch(const char* url, const char* userAgent, int32_t* defaultLen,
-                      PageResponse* rsp, bool signedAnswer) {
+                      ServerResponse* rsp, bool signedAnswer) {
     logf(LOG_INFO, "downloading file at URL %s", url);
     const bool check = signedAnswer && currentBoardKey().present;
 
@@ -332,12 +332,12 @@ static uint8_t* fetch(const char* url, const char* userAgent, int32_t* defaultLe
 }
 
 uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* defaultLen,
-                      PageResponse* rsp) {
+                      ServerResponse* rsp) {
     return fetch(url, userAgent, defaultLen, rsp, false);
 }
 
 uint8_t* downloadSigned(const char* url, const char* userAgent, int32_t* defaultLen,
-                        PageResponse* rsp) {
+                        ServerResponse* rsp) {
     return fetch(url, userAgent, defaultLen, rsp, true);
 }
 
@@ -474,7 +474,7 @@ static esp_err_t pairWithServer(const char* url, const char* userAgent) {
 // One post. On a 401 its <prefix>-Key goes to ``keyState``, and ``trusted``
 // says whether the refusal is signed for this post with the board's key.
 static int postOnce(const char* url, const char* userAgent, const char* body,
-                    PageResponse* rsp, char* keyState, size_t stateSize, bool* trusted) {
+                    ServerResponse* rsp, char* keyState, size_t stateSize, bool* trusted) {
     HTTPClient http;
     const char* headersToCollect[] = {EPD_H_SERVER_VERSION,   EPD_H_SERVER_EPOCH,
                                       EPD_H_SERVER_TIMEZONE,  EPD_H_NEXT_SENSOR_POLL,
@@ -501,12 +501,12 @@ static int postOnce(const char* url, const char* userAgent, const char* body,
 }
 
 static int postSigned(const char* url, const char* userAgent, const char* body,
-                      PageResponse* into);
+                      ServerResponse* into);
 
-int postJson(const char* url, const char* userAgent, const char* body, PageResponse* rsp) {
+int postJson(const char* url, const char* userAgent, const char* body, ServerResponse* rsp) {
     // The caller's own, else one on the heap: the stack is short already.
-    PageResponse* heard = rsp ? nullptr : (PageResponse*)calloc(1, sizeof(PageResponse));
-    PageResponse* into = rsp ? rsp : heard;
+    ServerResponse* heard = rsp ? nullptr : (ServerResponse*)calloc(1, sizeof(ServerResponse));
+    ServerResponse* into = rsp ? rsp : heard;
     if (!into) return HTTPC_ERROR_TOO_LESS_RAM;
     const int code = postSigned(url, userAgent, body, into);
     free(heard);
@@ -514,7 +514,7 @@ int postJson(const char* url, const char* userAgent, const char* body, PageRespo
 }
 
 static int postSigned(const char* url, const char* userAgent, const char* body,
-                      PageResponse* into) {
+                      ServerResponse* into) {
     char state[12] = "";
     bool trusted = false;
     int code = postOnce(url, userAgent, body, into, state, sizeof(state), &trusted);

@@ -51,13 +51,13 @@ esp_err_t connectNetwork(const ClientConfig& cfg);
   fetchPage() does it for every page. A board that also posts calls it with
   that response too.
 */
-void keepServerTime(const PageResponse& rsp);
+void keepServerTime(const ServerResponse& rsp);
 
 /** One page, downloaded. ``data`` is the caller's to free. */
 struct PageFetch {
     uint8_t* data;
     int32_t length;
-    PageResponse response;
+    ServerResponse response;
 };
 
 /**
@@ -97,7 +97,7 @@ bool drawPage(const PageFetch& page, const char* filePath, int retries,
   @param onProgress called as the image is written, as applyFirmwareUpdate()
   calls it; null for none.
 */
-void takeOfferedUpdate(const PageResponse& rsp, const char* userAgent, int batteryPercent,
+void takeOfferedUpdate(const ServerResponse& rsp, const char* userAgent, int batteryPercent,
                        int minBatteryPercent, OtaProgress onProgress = nullptr);
 
 #endif  // EPD_WAKE_H

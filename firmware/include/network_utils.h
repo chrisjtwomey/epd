@@ -6,13 +6,14 @@
 #include "error_utils.h"
 
 /**
-  What the server said alongside the image, from the response headers.
+  What the server said in the headers of an answer: a page, a post, or any
+  other request.
 
   A field the server did not send, or sent too long for the field, is left
   as the caller set it, so a zero value or an empty string means "not said
   this time".
 */
-struct PageResponse {
+struct ServerResponse {
     uint32_t nextRefreshSeconds;   // EPD_H_NEXT_REFRESH
     char nextURL[256];             // EPD_H_NEXT_URL
     char firmwareVersion[32];      // EPD_H_FIRMWARE_VERSION, when one is offered
@@ -77,7 +78,7 @@ void keepWiFiConnected();
   read failed, or the body is empty.
 */
 uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* size,
-                      PageResponse* rsp);
+                      ServerResponse* rsp);
 
 /**
   Download as downloadFile does, for an answer that changes the board, such
@@ -85,7 +86,7 @@ uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* size,
   server's signature over it under that key, or this returns nullptr.
 */
 uint8_t* downloadSigned(const char* url, const char* userAgent, int32_t* size,
-                        PageResponse* rsp);
+                        ServerResponse* rsp);
 
 /**
   POST body to url as application/json.
@@ -109,6 +110,6 @@ uint8_t* downloadSigned(const char* url, const char* userAgent, int32_t* size,
   no response arrived.
 */
 int postJson(const char* url, const char* userAgent, const char* body,
-             PageResponse* rsp = nullptr);
+             ServerResponse* rsp = nullptr);
 
 #endif

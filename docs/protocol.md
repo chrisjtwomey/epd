@@ -175,7 +175,7 @@ A board the function answers None for gets no header. It goes on every
 response, not only the one to a readings post, so a board learns it from
 whatever it last asked, and it is independent of
 `EPD-Next-Display-Refresh-Seconds`: the panel and the sync keep their own
-schedules. The client reads it into `PageResponse::nextSensorPollSeconds`,
+schedules. The client reads it into `ServerResponse::nextSensorPollSeconds`,
 which stays 0 when the server sends none.
 
 ## When a board and a server cannot work together

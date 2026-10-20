@@ -7,8 +7,8 @@
 #include "local_time.h"
 #include "network_utils.h"
 
-// Sized as PageResponse::serverTimezone, which holds only a whole zone.
-static RTC_DATA_ATTR char savedZone[sizeof(PageResponse::serverTimezone)];
+// Sized as ServerResponse::serverTimezone, which holds only a whole zone.
+static RTC_DATA_ATTR char savedZone[sizeof(ServerResponse::serverTimezone)];
 
 String nowTzFmt() { return timeTzFmt(time(nullptr)); }
 
