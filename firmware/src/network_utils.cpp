@@ -72,10 +72,12 @@ static void readServerHeaders(HTTPClient& http, ServerResponse* rsp) {
     EPD_H_SERVER_EPOCH, EPD_H_SERVER_TIMEZONE, EPD_H_NEXT_SENSOR_POLL,   \
     CONTENT_DIGEST_HEADER, SIGNATURE_INPUT_HEADER, SIGNATURE_HEADER
 
-// The headers every request carries: the board decides these, not the
-// User-Agent, so neither end has to parse an identity back out of a
-// formatted string.
-static void addDeviceHeaders(HTTPClient& http) {
+// Start a request with the headers every request carries. The board names
+// itself in these, not in the User-Agent, so neither end has to parse an
+// identity back out of a formatted string.
+static void beginRequest(HTTPClient& http, const char* url, const char* userAgent) {
+    if (userAgent && userAgent[0]) http.setUserAgent(userAgent);
+    http.begin(url);
     http.addHeader(EPD_H_DEVICE, CLIENT_NAME);
     http.addHeader(EPD_H_DEVICE_VERSION, CLIENT_VERSION);
 }
@@ -172,11 +174,7 @@ static uint8_t* fetch(const char* url, const char* userAgent, int32_t* defaultLe
     http.collectHeaders(headersToCollect,
                         sizeof(headersToCollect) / sizeof(headersToCollect[0]));
 
-    if (userAgent && userAgent[0])
-        http.setUserAgent(userAgent);
-
-    http.begin(url);
-    addDeviceHeaders(http);
+    beginRequest(http, url, userAgent);
     if (check) http.addHeader(EPD_H_KEY_ID, currentBoardKey().id);
 
     int httpCode = http.GET();
@@ -317,10 +315,8 @@ static esp_err_t pairNow(const char* url, const char* userAgent) {
         snprintf(body, sizeof(body), "{\"device\":\"%s\",\"key\":\"%s\"}", CLIENT_NAME, half64);
 
         HTTPClient http;
-        if (userAgent && userAgent[0]) http.setUserAgent(userAgent);
-        http.begin(pairURL);
+        beginRequest(http, pairURL, userAgent);
         http.addHeader("Content-Type", "application/json");
-        addDeviceHeaders(http);
         const int code = http.POST((uint8_t*)body, strlen(body));
         const String answer = code == HTTP_CODE_OK ? http.getString() : String();
         http.end();
@@ -401,11 +397,8 @@ static int postOnce(const char* url, const char* userAgent, const char* body,
     HTTPClient http;
     const char* headersToCollect[] = {EPD_H_KEY, SERVER_AND_SIGNATURE_HEADERS};
     http.collectHeaders(headersToCollect, sizeof(headersToCollect) / sizeof(headersToCollect[0]));
-    if (userAgent && userAgent[0])
-        http.setUserAgent(userAgent);
-    http.begin(url);
+    beginRequest(http, url, userAgent);
     http.addHeader("Content-Type", "application/json");
-    addDeviceHeaders(http);
     char postDigest[CONTENT_DIGEST_SIZE];
     addSignature(http, url, body, postDigest);
     int code = http.POST((uint8_t*)body, strlen(body));
