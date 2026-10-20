@@ -93,8 +93,8 @@ EpdClient because only a build with the flag uses them:
 
 ```ini
 lib_deps =
-	chrisjtwomey/EpdClient @ ^0.12.0
-	chrisjtwomey/EpdBoardInkplate @ ^0.12.0
+	chrisjtwomey/EpdClient @ ^0.13.0
+	chrisjtwomey/EpdBoardInkplate @ ^0.13.0
 	tobozo/YAMLDuino
 	bblanchon/ArduinoStreamUtils
 ```
