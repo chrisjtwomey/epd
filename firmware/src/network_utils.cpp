@@ -159,7 +159,7 @@ private:
     WiFiClient& stream_;
 };
 
-static uint8_t* fetch(const char* url, const char* userAgent, int32_t* defaultLen,
+static uint8_t* fetch(const char* url, const char* userAgent, int32_t* size,
                       ServerResponse* rsp, bool signedAnswer) {
     logf(LOG_INFO, "downloading file at URL %s", url);
     const bool check = signedAnswer && currentBoardKey().present;
@@ -205,7 +205,7 @@ static uint8_t* fetch(const char* url, const char* userAgent, int32_t* defaultLe
         WiFi.setSleep(sleep);
         return nullptr;
     }
-    const size_t limit = *defaultLen > 0 ? (size_t)*defaultLen : 0;
+    const size_t limit = *size > 0 ? (size_t)*size : 0;
     if (reported > 0 && (size_t)reported > limit) {
         logf(LOG_ERROR, "answer from %s is %ld bytes, more than the %u allowed", url,
              (long)reported, (unsigned)limit);
@@ -242,7 +242,7 @@ static uint8_t* fetch(const char* url, const char* userAgent, int32_t* defaultLe
         free(buffer);
         buffer = nullptr;
     } else {
-        *defaultLen = (int32_t)got;
+        *size = (int32_t)got;
     }
 
     if (buffer && check) {
@@ -266,14 +266,14 @@ static uint8_t* fetch(const char* url, const char* userAgent, int32_t* defaultLe
     return buffer;
 }
 
-uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* defaultLen,
+uint8_t* downloadFile(const char* url, const char* userAgent, int32_t* size,
                       ServerResponse* rsp) {
-    return fetch(url, userAgent, defaultLen, rsp, false);
+    return fetch(url, userAgent, size, rsp, false);
 }
 
-uint8_t* downloadSigned(const char* url, const char* userAgent, int32_t* defaultLen,
+uint8_t* downloadSigned(const char* url, const char* userAgent, int32_t* size,
                         ServerResponse* rsp) {
-    return fetch(url, userAgent, defaultLen, rsp, true);
+    return fetch(url, userAgent, size, rsp, true);
 }
 
 static int fillRandom(void*, unsigned char* out, size_t len) {
