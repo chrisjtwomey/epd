@@ -14,14 +14,27 @@ static WifiRetry wifiRetry(30000);
 // keepWiFiConnected(), and why the latest join failed, for configureWiFi().
 static volatile uint8_t wifiLostReason = 0;
 static volatile uint8_t wifiJoinReason = 0;
+// Given by the Wi-Fi event task when the board has an address, so the join
+// ends as soon as it does, not at the next check of the status.
+static SemaphoreHandle_t wifiGotAddress = nullptr;
+// The longest wait between two checks of the status.
+static const uint32_t kJoinCheckMs = 100;
 
 static void noteWifiLost(WiFiEvent_t, WiFiEventInfo_t info) {
     wifiJoinReason = info.wifi_sta_disconnected.reason;
     if (!wifiRetry.down()) wifiLostReason = info.wifi_sta_disconnected.reason;
 }
 
+static void noteWifiGotAddress(WiFiEvent_t, WiFiEventInfo_t) {
+    if (wifiGotAddress) xSemaphoreGive(wifiGotAddress);
+}
+
 esp_err_t configureWiFi(const char* ssid, const char* pass, int retries) {
-    if (!wifiSSID) WiFi.onEvent(noteWifiLost, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+    if (!wifiSSID) {
+        wifiGotAddress = xSemaphoreCreateBinary();
+        WiFi.onEvent(noteWifiLost, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+        WiFi.onEvent(noteWifiGotAddress, ARDUINO_EVENT_WIFI_STA_GOT_IP);
+    }
     wifiSSID = ssid;
     wifiPass = pass;
     WiFi.mode(WIFI_STA);
@@ -29,6 +42,7 @@ esp_err_t configureWiFi(const char* ssid, const char* pass, int retries) {
     // it does is refused, so a retry would change nothing.
     WiFi.disconnect();
     wifiJoinReason = 0;
+    if (wifiGotAddress) xSemaphoreTake(wifiGotAddress, 0);
     WiFi.begin(ssid, pass);
     logf(LOG_INFO, "connecting to WiFi SSID %s...", ssid);
 
@@ -42,7 +56,10 @@ esp_err_t configureWiFi(const char* ssid, const char* pass, int retries) {
                  WiFi.disconnectReasonName((wifi_err_reason_t)reason));
             return ESP_ERR_TIMEOUT;
         }
-        delay(100);
+        if (wifiGotAddress)
+            xSemaphoreTake(wifiGotAddress, pdMS_TO_TICKS(kJoinCheckMs));
+        else
+            delay(kJoinCheckMs);
     }
     logf(LOG_INFO, "wifi connected in %lu ms: %s", (unsigned long)(millis() - startMs),
          WiFi.localIP().toString().c_str());

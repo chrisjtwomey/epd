@@ -31,8 +31,8 @@ struct ServerResponse {
   local buffer.
 
   Each call starts a fresh join, ending any the framework still runs from the
-  last one. A wait that ends without a connection logs the reason the join
-  last failed.
+  last one, and returns as soon as the board has an address. A wait that ends
+  without a connection logs the reason the join last failed.
 
   @param ssid the network SSID.
   @param pass the network password.
