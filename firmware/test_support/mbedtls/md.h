@@ -1,5 +1,5 @@
-// mbedtls/md.h stub for native host builds: SHA-256 and HMAC-SHA256 only,
-// the part board_key.cpp calls. The board uses the ESP32 framework's own.
+// mbedtls/md.h stub for native host builds: SHA-256 and HMAC-SHA256, whole
+// and streamed, the part board_key.cpp calls. The board uses the ESP32 framework's own.
 // test_board_key checks this one against FIPS 180-4's and RFC 4231's
 // examples before it checks anything built on it.
 #ifndef __STUB_MBEDTLS_MD_H__
@@ -25,6 +25,7 @@ typedef struct {
 typedef struct {
     const mbedtls_md_info_t* info;
     stub_sha256_t sha;
+    uint8_t hmacKey[64];
 } mbedtls_md_context_t;
 
 static inline uint32_t stub_ror(uint32_t x, int n) { return (x >> n) | (x << (32 - n)); }
@@ -166,6 +167,39 @@ static inline int mbedtls_md_hmac(const mbedtls_md_info_t* info, const unsigned 
     stub_sha256_update(&s, pad, 64);
     stub_sha256_update(&s, inner, 32);
     stub_sha256_finish(&s, output);
+    return 0;
+}
+
+static inline int mbedtls_md_hmac_starts(mbedtls_md_context_t* ctx, const unsigned char* key,
+                                         size_t keylen) {
+    if (!ctx->info) return -1;
+    memset(ctx->hmacKey, 0, sizeof(ctx->hmacKey));
+    if (keylen > 64) {
+        mbedtls_md(ctx->info, key, keylen, ctx->hmacKey);
+    } else {
+        memcpy(ctx->hmacKey, key, keylen);
+    }
+    uint8_t pad[64];
+    for (int i = 0; i < 64; ++i) pad[i] = ctx->hmacKey[i] ^ 0x36;
+    stub_sha256_start(&ctx->sha);
+    stub_sha256_update(&ctx->sha, pad, 64);
+    return 0;
+}
+
+static inline int mbedtls_md_hmac_update(mbedtls_md_context_t* ctx, const unsigned char* input,
+                                         size_t ilen) {
+    stub_sha256_update(&ctx->sha, input, ilen);
+    return 0;
+}
+
+static inline int mbedtls_md_hmac_finish(mbedtls_md_context_t* ctx, unsigned char* output) {
+    uint8_t inner[32], pad[64];
+    stub_sha256_finish(&ctx->sha, inner);
+    for (int i = 0; i < 64; ++i) pad[i] = ctx->hmacKey[i] ^ 0x5c;
+    stub_sha256_start(&ctx->sha);
+    stub_sha256_update(&ctx->sha, pad, 64);
+    stub_sha256_update(&ctx->sha, inner, 32);
+    stub_sha256_finish(&ctx->sha, output);
     return 0;
 }
 

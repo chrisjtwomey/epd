@@ -342,11 +342,11 @@ static esp_err_t pairNow(const char* url, const char* userAgent) {
             break;
         }
         if (mbedtls_ecdh_compute_shared(&grp, &z, &theirs, &d, fillRandom, nullptr) != 0 ||
-            mbedtls_mpi_write_binary(&z, shared, sizeof(shared)) != 0) {
+            mbedtls_mpi_write_binary(&z, shared, sizeof(shared)) != 0 ||
+            !deriveBoardKey(shared, sizeof(shared), CLIENT_NAME, key)) {
             failed = "cannot work out the key";
             break;
         }
-        deriveBoardKey(shared, sizeof(shared), CLIENT_NAME, key);
         if (!storeBoardKey(key)) {
             failed = "cannot keep the key in the settings store";
             break;

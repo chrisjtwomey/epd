@@ -111,9 +111,10 @@ bool answerHolds(const BoardKey& key, int status, const uint8_t sha256[32], cons
 
 /**
   The board key from an ECDH shared secret: HKDF-SHA256 with no salt, and
-  "epd board key <device>" as the info.
+  "epd board key <device>" as the info, for a device name of any length.
+  False when mbedTLS has no memory for the HMAC.
 */
-void deriveBoardKey(const uint8_t* shared, size_t sharedLen, const char* device,
+bool deriveBoardKey(const uint8_t* shared, size_t sharedLen, const char* device,
                     uint8_t out[BOARD_KEY_LEN]);
 
 /**

@@ -13,7 +13,7 @@ firmware/                 EpdClient — PlatformIO library (hardware-agnostic cl
   boards/inkplate/        EpdBoardInkplate — the Inkplate IBoard, a separate library
   test/                   host-only tests, in four environments
   test_support/           stub headers a consumer needs to test its own sequence,
-                          and stand-ins for mbedTLS's hashes and base64, for the board key's test
+                          and stand-ins for mbedTLS's hashes, HMAC and base64, for the board key's test
   platformio.ini          test project only; excluded from the published library
   LICENSE                 a copy of the root LICENSE, as in boards/inkplate/ and
                           server/: each package ships its own (Publishing)

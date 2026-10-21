@@ -377,6 +377,8 @@ def test_the_vectors_the_board_tests_too():
     assert bk.key_id(VECTOR_KEY) == "630dcd2966c43366"
     assert bk.derive_key(bytes(range(32)), "my-dock").hex() == (
         "e47ed665f16bc6dc1675534103c15039bd8588690c021f2eea011e50b3e7c907")
+    assert bk.derive_key(bytes(range(32)), "canary-dock-" + "x" * 88).hex() == (
+        "c1eb63f602a0493723e63ac50df306396ede66e8d99136e8db52319fd3df81af")
     assert bk.content_digest(BODY) == "sha-256=:2NQ1bwkVtGU1JEHr9Gie5wOYMIWti2B1/0NqC+N2pU0=:"
     request = bk.request_signature(VECTOR_KEY, "POST", "/sensor-readings", "",
                                    bk.content_digest(BODY), 1760000000)

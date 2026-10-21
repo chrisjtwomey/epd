@@ -112,6 +112,19 @@ void test_the_key_id_and_the_derived_key_are_the_servers(void) {
                              text);
 }
 
+void test_a_long_device_name_derives_the_servers_key(void) {
+    char device[101];
+    snprintf(device, sizeof(device), "canary-dock-%088d", 0);
+    memset(device + 12, 'x', 88);
+    uint8_t shared[32], key[BOARD_KEY_LEN];
+    char text[65];
+    for (int i = 0; i < 32; ++i) shared[i] = (uint8_t)i;
+    TEST_ASSERT_TRUE(deriveBoardKey(shared, sizeof(shared), device, key));
+    hex(key, sizeof(key), text);
+    TEST_ASSERT_EQUAL_STRING("c1eb63f602a0493723e63ac50df306396ede66e8d99136e8db52319fd3df81af",
+                             text);
+}
+
 void test_a_post_is_signed_as_the_server_checks_it(void) {
     SignedRequest out;
     TEST_ASSERT_TRUE(signRequest(vectorKey(), "POST", "http://192.168.1.20:8080/sensor-readings",
@@ -297,6 +310,7 @@ int main(int argc, char** argv) {
     RUN_TEST(test_the_rfc_9421_hmac_example_signs_as_the_rfc_says);
     RUN_TEST(test_content_digest_is_rfc_9530s);
     RUN_TEST(test_the_key_id_and_the_derived_key_are_the_servers);
+    RUN_TEST(test_a_long_device_name_derives_the_servers_key);
     RUN_TEST(test_a_post_is_signed_as_the_server_checks_it);
     RUN_TEST(test_an_answer_signed_by_the_server_holds);
     RUN_TEST(test_an_answer_changed_on_the_way_does_not_hold);

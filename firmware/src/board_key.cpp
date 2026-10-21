@@ -242,18 +242,25 @@ bool answerHolds(const BoardKey& key, int status, const uint8_t sha256[32], cons
     return true;
 }
 
-void deriveBoardKey(const uint8_t* shared, size_t sharedLen, const char* device,
+bool deriveBoardKey(const uint8_t* shared, size_t sharedLen, const char* device,
                     uint8_t out[BOARD_KEY_LEN]) {
     static const uint8_t noSalt[32] = {0};
+    static const char infoPrefix[] = "epd board key ";
+    static const uint8_t firstBlock = 0x01;
     uint8_t prk[32];
     mbedtls_md_hmac(sha256Info(), noSalt, sizeof(noSalt), shared, sharedLen, prk);
-    char info[96];
-    const int n = snprintf(info, sizeof(info), "epd board key %s", device);
-    uint8_t message[97];
-    memcpy(message, info, (size_t)n);
-    message[n] = 0x01;
-    mbedtls_md_hmac(sha256Info(), prk, sizeof(prk), message, (size_t)n + 1, out);
+    mbedtls_md_context_t ctx;
+    mbedtls_md_init(&ctx);
+    const bool ok =
+        mbedtls_md_setup(&ctx, sha256Info(), 1) == 0 &&
+        mbedtls_md_hmac_starts(&ctx, prk, sizeof(prk)) == 0 &&
+        mbedtls_md_hmac_update(&ctx, (const uint8_t*)infoPrefix, sizeof(infoPrefix) - 1) == 0 &&
+        mbedtls_md_hmac_update(&ctx, (const uint8_t*)device, strlen(device)) == 0 &&
+        mbedtls_md_hmac_update(&ctx, &firstBlock, 1) == 0 &&
+        mbedtls_md_hmac_finish(&ctx, out) == 0;
+    mbedtls_md_free(&ctx);
     memset(prk, 0, sizeof(prk));
+    return ok;
 }
 
 bool keyInPairAnswer(const char* json, char* out, size_t size) {
