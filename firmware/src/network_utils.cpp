@@ -11,6 +11,7 @@
 #include "body_read.h"
 #include "current_board_key.h"
 #include "epd_headers.h"
+#include "http_body.h"
 #include "log_utils.h"
 #include "mem_utils.h"
 #include "refresh_header.h"
@@ -140,24 +141,6 @@ static bool refusalHolds(HTTPClient& http, const char* url, const char* postDige
 // The wait for the next byte of a body: the wait HTTPClient gives the
 // connection and the headers.
 static const uint32_t kBodyStallMs = HTTPCLIENT_DEFAULT_TCP_TIMEOUT;
-
-// A response body as HTTPClient receives it.
-class HttpBody : public IBodySource {
-public:
-    explicit HttpBody(HTTPClient& http) : http_(http), stream_(*http.getStreamPtr()) {}
-    size_t available() override { return stream_.available(); }
-    size_t read(uint8_t* out, size_t len) override {
-        const int n = stream_.read(out, len);
-        return n > 0 ? (size_t)n : 0;
-    }
-    bool connected() override { return http_.connected(); }
-    uint32_t nowMs() override { return millis(); }
-    void wait() override { delay(1); }
-
-private:
-    HTTPClient& http_;
-    WiFiClient& stream_;
-};
 
 static uint8_t* fetch(const char* url, const char* userAgent, int32_t* size,
                       ServerResponse* rsp, bool signedAnswer) {
