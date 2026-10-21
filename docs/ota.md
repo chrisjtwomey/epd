@@ -56,6 +56,12 @@ the image to the idle slot and hashes it with SHA-256 as it arrives, and
 only then makes it the image to boot. `Update` checks it against `x-MD5`, as
 before.
 
+The image is read with the same reader as a page, so it fails the same way:
+the server must send a `Content-Length`, and a body that stops for 20 s, ends
+early, or cannot be written to flash ends the update. The panel logs how many
+bytes arrived and why it stopped, and carries on with its wake; the idle slot
+keeps the part written, which is never booted.
+
 Once a panel has a board key ([The HTTP contract](protocol.md#board-keys)),
 it also checks the server's signature over that hash, under its own key.
 An image without a good signature is written but never booted, and the

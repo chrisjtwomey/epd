@@ -10,8 +10,10 @@
 #include <Preferences.h>
 
 #include "board_key.h"
+#include "body_read.h"
 #include "current_board_key.h"
 #include "epd_headers.h"
+#include "http_body.h"
 #include "log_utils.h"
 #include "network_utils.h"
 #include "version.h"
@@ -41,44 +43,31 @@ static void logProgress(int done, int total) {
 }
 
 // The image as it arrives: written to the idle slot and hashed together.
-struct Download {
-    int done;
-    int total;
-    uint8_t sha256[32];
-};
-
-static bool receive(HTTPClient& http, Download* d) {
-    mbedtls_md_context_t sha;
-    mbedtls_md_init(&sha);
-    mbedtls_md_setup(&sha, mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), 0);
-    mbedtls_md_starts(&sha);
-    WiFiClient* stream = http.getStreamPtr();
-    static uint8_t buf[2048];
-    uint32_t lastDataMs = millis();
-    bool written = true;
-    while (d->done < d->total) {
-        const size_t ready = stream->available();
-        if (!ready) {
-            if (!http.connected() || millis() - lastDataMs > OTA_HTTP_TIMEOUT_MS) break;
-            delay(1);
-            continue;
-        }
-        const size_t want = ready < sizeof(buf) ? ready : sizeof(buf);
-        const int got = stream->readBytes(buf, want);
-        if (got <= 0) continue;
-        lastDataMs = millis();
-        if (Update.write(buf, (size_t)got) != (size_t)got) {
-            written = false;
-            break;
-        }
-        mbedtls_md_update(&sha, buf, (size_t)got);
-        d->done += got;
-        logProgress(d->done, d->total);
+class FlashSink : public IBodySink {
+public:
+    explicit FlashSink(int total) : total_(total) {
+        mbedtls_md_init(&sha_);
+        mbedtls_md_setup(&sha_, mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), 0);
+        mbedtls_md_starts(&sha_);
     }
-    mbedtls_md_finish(&sha, d->sha256);
-    mbedtls_md_free(&sha);
-    return written && d->done == d->total;
-}
+    ~FlashSink() { mbedtls_md_free(&sha_); }
+    FlashSink(const FlashSink&) = delete;
+    FlashSink& operator=(const FlashSink&) = delete;
+
+    bool write(const uint8_t* data, size_t len) override {
+        if (Update.write(const_cast<uint8_t*>(data), len) != len) return false;
+        mbedtls_md_update(&sha_, data, len);
+        done_ += (int)len;
+        logProgress(done_, total_);
+        return true;
+    }
+    void finish(uint8_t sha256[32]) { mbedtls_md_finish(&sha_, sha256); }
+
+private:
+    mbedtls_md_context_t sha_;
+    int total_;
+    int done_ = 0;
+};
 
 esp_err_t applyFirmwareUpdate(const char* url, const char* offeredVersion,
                               const char* userAgent, OtaProgress onProgress) {
@@ -109,13 +98,13 @@ esp_err_t applyFirmwareUpdate(const char* url, const char* offeredVersion,
         log(LOG_WARNING, "server has nothing newer after all; keeping this image");
         return ESP_FAIL;
     }
-    Download d = {0, http.getSize(), {0}};
-    if (code != HTTP_CODE_OK || d.total <= 0) {
-        logf(LOG_ERROR, "firmware update failed: %s answered %d, length %d", url, code, d.total);
+    const int total = http.getSize();
+    if (code != HTTP_CODE_OK || total <= 0) {
+        logf(LOG_ERROR, "firmware update failed: %s answered %d, length %d", url, code, total);
         http.end();
         return ESP_FAIL;
     }
-    if (!Update.begin((size_t)d.total, U_FLASH)) {
+    if (!Update.begin((size_t)total, U_FLASH)) {
         logf(LOG_ERROR, "firmware update failed: %s", Update.errorString());
         http.end();
         return ESP_FAIL;
@@ -125,17 +114,25 @@ esp_err_t applyFirmwareUpdate(const char* url, const char* offeredVersion,
     const String digest = http.header(CONTENT_DIGEST_HEADER);
     const String input = http.header(SIGNATURE_INPUT_HEADER);
     const String signature = http.header(SIGNATURE_HEADER);
-    const bool whole = receive(http, &d);
+    static uint8_t buf[2048];
+    FlashSink flash(total);
+    HttpBody body(http);
+    size_t got = 0;
+    const BodyRead read =
+        streamBody(body, (size_t)total, flash, buf, sizeof(buf), OTA_HTTP_TIMEOUT_MS, &got);
     http.end();
-    if (!whole) {
+    uint8_t sha256[32];
+    flash.finish(sha256);
+    if (read != BodyRead::Complete) {
         Update.abort();
-        logf(LOG_ERROR, "firmware update failed after %d of %d bytes", d.done, d.total);
+        logf(LOG_ERROR, "firmware update failed after %u of %d bytes: %s", (unsigned)got, total,
+             bodyReadName(read));
         return ESP_FAIL;
     }
 
     const BoardKey& key = currentBoardKey();
     char why[ANSWER_WHY_SIZE];
-    if (key.present && !answerHolds(key, code, d.sha256, "GET", url, digest.c_str(),
+    if (key.present && !answerHolds(key, code, sha256, "GET", url, digest.c_str(),
                                     input.c_str(), signature.c_str(), (uint32_t)time(nullptr),
                                     why, sizeof(why))) {
         Update.abort();
