@@ -145,6 +145,20 @@ BodyRead readChunkedBody(IBodySource& src, uint8_t* buf, size_t capacity, uint32
     return BodyRead::Complete;
 }
 
+BodyRead streamBody(IBodySource& src, size_t expectedLen, IBodySink& sink, uint8_t* buf,
+                    size_t bufSize, uint32_t stallMs, size_t* got) {
+    *got = 0;
+    Reader in(src, stallMs);
+    while (*got < expectedLen) {
+        const size_t left = expectedLen - *got;
+        size_t n = 0;
+        if (!in.readSome(buf, left < bufSize ? left : bufSize, &n)) return in.failure();
+        if (!sink.write(buf, n)) return BodyRead::WriteFailed;
+        *got += n;
+    }
+    return BodyRead::Complete;
+}
+
 const char* bodyReadName(BodyRead result) {
     switch (result) {
         case BodyRead::Complete: return "complete";
@@ -152,6 +166,7 @@ const char* bodyReadName(BodyRead result) {
         case BodyRead::CutShort: return "connection closed early";
         case BodyRead::Stalled: return "server stopped sending";
         case BodyRead::Malformed: return "chunk sizes cannot be read";
+        case BodyRead::WriteFailed: return "could not be written";
     }
     return "unknown";
 }

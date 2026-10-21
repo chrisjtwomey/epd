@@ -67,6 +67,24 @@ private:
     uint32_t now_ = 0;
 };
 
+// Keeps what it is given, and refuses every write after the first ``okWrites``.
+class FakeSink : public IBodySink {
+public:
+    explicit FakeSink(int okWrites = 1000) : okWrites_(okWrites) {}
+    bool write(const uint8_t* data, size_t len) override {
+        if (writes_++ >= okWrites_) return false;
+        memcpy(kept + size, data, len);
+        size += len;
+        return true;
+    }
+    uint8_t kept[64] = {};
+    size_t size = 0;
+
+private:
+    int okWrites_;
+    int writes_ = 0;
+};
+
 static const uint32_t kStallMs = 5000;
 static const uint32_t kNeverCloses = UINT32_MAX;
 
@@ -281,6 +299,67 @@ void test_a_chunked_body_that_stops_stalls() {
     TEST_ASSERT_EQUAL(BodyRead::Stalled, readChunked(pieces, 1, buf, sizeof(buf), &got));
 }
 
+void test_a_streamed_body_reaches_the_sink_in_buffer_sized_pieces() {
+    const FakeSource::Piece pieces[] = {{0, "hello"}, {10, " world"}};
+    FakeSource src(pieces, 2, kNeverCloses);
+    FakeSink sink;
+    uint8_t buf[4];
+    size_t got = 0;
+    TEST_ASSERT_EQUAL(BodyRead::Complete,
+                      streamBody(src, 11, sink, buf, sizeof(buf), kStallMs, &got));
+    TEST_ASSERT_EQUAL(11, got);
+    TEST_ASSERT_EQUAL(11, sink.size);
+    TEST_ASSERT_EQUAL_MEMORY("hello world", sink.kept, 11);
+}
+
+void test_a_streamed_body_leaves_bytes_past_its_length_unread() {
+    const FakeSource::Piece pieces[] = {{0, "hello, and more"}};
+    FakeSource src(pieces, 1, kNeverCloses);
+    FakeSink sink;
+    uint8_t buf[16];
+    size_t got = 0;
+    TEST_ASSERT_EQUAL(BodyRead::Complete,
+                      streamBody(src, 5, sink, buf, sizeof(buf), kStallMs, &got));
+    TEST_ASSERT_EQUAL(5, sink.size);
+}
+
+void test_a_streamed_body_cut_short_or_stalled_fails() {
+    const FakeSource::Piece pieces[] = {{0, "hel"}};
+    uint8_t buf[16];
+    size_t got = 0;
+    FakeSource closes(pieces, 1, 20);
+    FakeSink first;
+    TEST_ASSERT_EQUAL(BodyRead::CutShort,
+                      streamBody(closes, 5, first, buf, sizeof(buf), kStallMs, &got));
+    TEST_ASSERT_EQUAL(3, got);
+    FakeSource stops(pieces, 1, kNeverCloses);
+    FakeSink second;
+    TEST_ASSERT_EQUAL(BodyRead::Stalled,
+                      streamBody(stops, 5, second, buf, sizeof(buf), kStallMs, &got));
+    TEST_ASSERT_EQUAL(3, got);
+}
+
+void test_a_sink_that_refuses_a_write_stops_the_body() {
+    const FakeSource::Piece pieces[] = {{0, "hello"}, {10, "world"}};
+    FakeSource src(pieces, 2, kNeverCloses);
+    FakeSink sink(1);
+    uint8_t buf[8];
+    size_t got = 0;
+    TEST_ASSERT_EQUAL(BodyRead::WriteFailed,
+                      streamBody(src, 10, sink, buf, sizeof(buf), kStallMs, &got));
+    TEST_ASSERT_EQUAL(5, got);
+}
+
+void test_a_streamed_read_that_gives_nothing_stalls() {
+    ReadFailsSource src;
+    FakeSink sink;
+    uint8_t buf[8];
+    size_t got = 0;
+    TEST_ASSERT_EQUAL(BodyRead::Stalled,
+                      streamBody(src, 5, sink, buf, sizeof(buf), kStallMs, &got));
+    TEST_ASSERT_EQUAL(0, got);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_a_known_length_arrives_in_pieces);
@@ -306,5 +385,10 @@ int main(int, char**) {
     RUN_TEST(test_a_chunked_body_closed_mid_chunk_is_cut_short);
     RUN_TEST(test_a_chunked_body_with_no_last_chunk_is_cut_short);
     RUN_TEST(test_a_chunked_body_that_stops_stalls);
+    RUN_TEST(test_a_streamed_body_reaches_the_sink_in_buffer_sized_pieces);
+    RUN_TEST(test_a_streamed_body_leaves_bytes_past_its_length_unread);
+    RUN_TEST(test_a_streamed_body_cut_short_or_stalled_fails);
+    RUN_TEST(test_a_sink_that_refuses_a_write_stops_the_body);
+    RUN_TEST(test_a_streamed_read_that_gives_nothing_stalls);
     return UNITY_END();
 }

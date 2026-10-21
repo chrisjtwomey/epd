@@ -19,7 +19,15 @@ public:
     virtual void wait() = 0;
 };
 
-enum class BodyRead { Complete, TooLong, CutShort, Stalled, Malformed };
+/** Where streamBody puts a body as it arrives. */
+class IBodySink {
+public:
+    virtual ~IBodySink() {}
+    /** Take len bytes; false stops the read. */
+    virtual bool write(const uint8_t* data, size_t len) = 0;
+};
+
+enum class BodyRead { Complete, TooLong, CutShort, Stalled, Malformed, WriteFailed };
 
 /**
   Read a response body into buf.
@@ -47,6 +55,17 @@ BodyRead readBody(IBodySource& src, int32_t expectedLen, uint8_t* buf, size_t ca
 */
 BodyRead readChunkedBody(IBodySource& src, uint8_t* buf, size_t capacity, uint32_t stallMs,
                          size_t* got);
+
+/**
+  Read a body of expectedLen bytes into sink, through buf, for a body too
+  large to hold at once. Fails as readBody does for a known length, and with
+  WriteFailed when the sink refuses a write. Leaves bytes past expectedLen
+  unread.
+
+  @returns the result; *got is the number of bytes the sink took.
+*/
+BodyRead streamBody(IBodySource& src, size_t expectedLen, IBodySink& sink, uint8_t* buf,
+                    size_t bufSize, uint32_t stallMs, size_t* got);
 
 /** A short name for a result, for a log line. */
 const char* bodyReadName(BodyRead result);
