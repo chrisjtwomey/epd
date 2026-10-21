@@ -305,7 +305,8 @@ static esp_err_t pairNow(const char* url, const char* userAgent) {
     esp_err_t result = ESP_FAIL;
     uint8_t half[kP256PointBytes], theirHalf[kP256PointBytes], shared[32], key[BOARD_KEY_LEN];
     size_t halfLen = 0, theirLen = 0, written = 0;
-    char half64[kP256PointBase64Size], answer64[kP256PointBase64Size], body[192];
+    char half64[kP256PointBase64Size], answer64[kP256PointBase64Size];
+    char body[sizeof("{\"device\":\"\",\"key\":\"\"}") + sizeof(CLIENT_NAME) + sizeof(half64)];
     const char* failed = nullptr;
     do {
         if (mbedtls_ecp_group_load(&grp, MBEDTLS_ECP_DP_SECP256R1) != 0 ||
