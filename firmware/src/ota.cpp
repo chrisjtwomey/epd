@@ -80,16 +80,13 @@ esp_err_t applyFirmwareUpdate(const char* url, const char* offeredVersion,
                              SIGNATURE_HEADER};
     http.collectHeaders(headers, sizeof(headers) / sizeof(headers[0]));
     http.setTimeout(OTA_HTTP_TIMEOUT_MS);
-    if (userAgent && userAgent[0]) http.setUserAgent(userAgent);
-    if (!http.begin(url)) {
+    if (!beginRequest(http, url, userAgent)) {
         logf(LOG_ERROR, "firmware update failed: %s is not a URL", url);
         return ESP_FAIL;
     }
     // The device and the key id name the key the server signs the image
     // with. The server answers 304, not the image, when x-ESP32-version is
     // the version it would send.
-    http.addHeader(EPD_H_DEVICE, CLIENT_NAME);
-    http.addHeader(EPD_H_DEVICE_VERSION, CLIENT_VERSION);
     if (currentBoardKey().present) http.addHeader(EPD_H_KEY_ID, currentBoardKey().id);
     http.addHeader("x-ESP32-version", CLIENT_VERSION);
     const int code = http.GET();

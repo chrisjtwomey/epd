@@ -4,6 +4,23 @@
 #include <HTTPClient.h>
 
 #include "body_read.h"
+#include "epd_headers.h"
+#include "version.h"
+
+/**
+  Start a request with the headers every request carries. The board names
+  itself in these, not in the User-Agent, so neither end has to parse an
+  identity back out of a formatted string.
+
+  @returns false when url cannot be read.
+*/
+inline bool beginRequest(HTTPClient& http, const char* url, const char* userAgent) {
+    if (userAgent && userAgent[0]) http.setUserAgent(userAgent);
+    if (!http.begin(url)) return false;
+    http.addHeader(EPD_H_DEVICE, CLIENT_NAME);
+    http.addHeader(EPD_H_DEVICE_VERSION, CLIENT_VERSION);
+    return true;
+}
 
 /** A response body as HTTPClient receives it, for readBody and its kin. */
 class HttpBody : public IBodySource {

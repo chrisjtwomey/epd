@@ -73,16 +73,6 @@ static void readServerHeaders(HTTPClient& http, ServerResponse* rsp) {
     EPD_H_SERVER_EPOCH, EPD_H_SERVER_TIMEZONE, EPD_H_NEXT_SENSOR_POLL,   \
     CONTENT_DIGEST_HEADER, SIGNATURE_INPUT_HEADER, SIGNATURE_HEADER
 
-// Start a request with the headers every request carries. The board names
-// itself in these, not in the User-Agent, so neither end has to parse an
-// identity back out of a formatted string.
-static void beginRequest(HTTPClient& http, const char* url, const char* userAgent) {
-    if (userAgent && userAgent[0]) http.setUserAgent(userAgent);
-    http.begin(url);
-    http.addHeader(EPD_H_DEVICE, CLIENT_NAME);
-    http.addHeader(EPD_H_DEVICE_VERSION, CLIENT_VERSION);
-}
-
 // The stack of the task that pairs: mbedTLS's P-256 maths takes several KB.
 static const uint32_t kPairStackBytes = 16384;
 
