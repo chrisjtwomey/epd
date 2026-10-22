@@ -73,7 +73,7 @@ public:
     int         clearDisplayCount;
 
     // drawBitmap tracking (used to verify battery icon selection)
-    uint8_t*    drawBitmapBuf;
+    const uint8_t* drawBitmapBuf;
     int         drawBitmapX;
     int         drawBitmapY;
     int         drawBitmapW;
@@ -99,10 +99,10 @@ public:
     void clearDisplay() override { ++clearDisplayCount; }
     void display()      override { ++displayCount; }
 
-    bool drawPngFromBuffer(uint8_t*, int32_t, int, int, bool, bool) override {
+    bool drawPngFromBuffer(const uint8_t*, int32_t, int, int, bool, bool) override {
         return drawPngReturn;
     }
-    bool drawBitmap(uint8_t* buf, int x, int y, int w, int h,
+    bool drawBitmap(const uint8_t* buf, int x, int y, int w, int h,
                     uint16_t, uint16_t) override {
         drawBitmapBuf    = buf;
         drawBitmapX      = x;

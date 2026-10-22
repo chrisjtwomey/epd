@@ -84,13 +84,15 @@ static bool pngDither(Inkplate& inkplate, bool dither) {
     return dither || inkplate.getDisplayMode() == INKPLATE_1BIT;
 }
 
-bool InkplateBoard::drawPngFromBuffer(uint8_t* buf, int32_t len,
+bool InkplateBoard::drawPngFromBuffer(const uint8_t* buf, int32_t len,
                                       int x, int y,
                                       bool dither, bool invert) {
-    return _inkplate.image.drawPngFromBuffer(buf, len, x, y, pngDither(_inkplate, dither), invert);
+    // The library only reads the buffer, but takes it as non-const.
+    return _inkplate.image.drawPngFromBuffer(const_cast<uint8_t*>(buf), len, x, y,
+                                             pngDither(_inkplate, dither), invert);
 }
 
-bool InkplateBoard::drawBitmap(uint8_t* buf,
+bool InkplateBoard::drawBitmap(const uint8_t* buf,
                                int x, int y, int w, int h,
                                uint16_t fg, uint16_t bg) {
     return _inkplate.image.draw(buf, x, y, w, h, fg, bg);

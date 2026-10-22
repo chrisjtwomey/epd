@@ -80,7 +80,7 @@ public:
      * @param invert  invert colours.
      * @returns true on success.
      */
-    virtual bool drawPngFromBuffer(uint8_t* buf, int32_t len,
+    virtual bool drawPngFromBuffer(const uint8_t* buf, int32_t len,
                                    int x, int y,
                                    bool dither, bool invert) = 0;
 
@@ -96,7 +96,7 @@ public:
      * @param bg   background colour.
      * @returns true on success.
      */
-    virtual bool drawBitmap(uint8_t* buf,
+    virtual bool drawBitmap(const uint8_t* buf,
                             int x, int y, int w, int h,
                             uint16_t fg, uint16_t bg) = 0;
 

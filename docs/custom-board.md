@@ -134,10 +134,10 @@ public:
     void display()      override;
 
     // Image drawing
-    bool drawPngFromBuffer(uint8_t* buf, int32_t len,
+    bool drawPngFromBuffer(const uint8_t* buf, int32_t len,
                            int x, int y,
                            bool dither, bool invert) override;
-    bool drawBitmap(uint8_t* buf,
+    bool drawBitmap(const uint8_t* buf,
                     int x, int y, int w, int h,
                     uint16_t fg, uint16_t bg) override;
 
