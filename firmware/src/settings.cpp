@@ -6,7 +6,7 @@
 #include "settings_choice.h"
 #include "settings_store.h"
 
-#define BOARD_KEY_SETTING "boardKey"
+static const char kBoardKeySetting[] = "boardKey";
 
 // Resolve one setting and keep this build's value when it is a real one, so a
 // board flashed over USB provisions itself for every later image.
@@ -93,9 +93,9 @@ BoardKey loadBoardKey() {
     if (!prefs.begin(SETTINGS_NAMESPACE, true)) return none;
     uint8_t key[BOARD_KEY_LEN];
     // isKey() first: getBytesLength() on an absent key logs an error of its own.
-    const bool whole = prefs.isKey(BOARD_KEY_SETTING) &&
-                       prefs.getBytesLength(BOARD_KEY_SETTING) == BOARD_KEY_LEN &&
-                       prefs.getBytes(BOARD_KEY_SETTING, key, BOARD_KEY_LEN) == BOARD_KEY_LEN;
+    const bool whole = prefs.isKey(kBoardKeySetting) &&
+                       prefs.getBytesLength(kBoardKeySetting) == BOARD_KEY_LEN &&
+                       prefs.getBytes(kBoardKeySetting, key, BOARD_KEY_LEN) == BOARD_KEY_LEN;
     prefs.end();
     return whole ? boardKeyFrom(key) : none;
 }
@@ -103,7 +103,7 @@ BoardKey loadBoardKey() {
 bool storeBoardKey(const uint8_t key[BOARD_KEY_LEN]) {
     Preferences prefs;
     if (!prefs.begin(SETTINGS_NAMESPACE, false)) return false;
-    const bool kept = prefs.putBytes(BOARD_KEY_SETTING, key, BOARD_KEY_LEN) == BOARD_KEY_LEN;
+    const bool kept = prefs.putBytes(kBoardKeySetting, key, BOARD_KEY_LEN) == BOARD_KEY_LEN;
     prefs.end();
     return kept;
 }

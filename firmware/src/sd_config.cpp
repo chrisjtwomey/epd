@@ -11,7 +11,7 @@
 
 // Upper bound on config.yaml. The parsed document grows on the heap as it
 // needs, so this buffer is the only bound on the card's config.
-#define CONFIG_BUFFER_SIZE 1536
+static const size_t kConfigBufferBytes = 1536;
 
 
 // Read the card and apply what it says. Every problem is a warning, and
@@ -19,7 +19,7 @@
 static void readCard(ClientConfig* cfg) {
     // Read the config file through IBoard so this code stays independent of
     // any particular SD library.
-    uint8_t configBuf[CONFIG_BUFFER_SIZE];
+    uint8_t configBuf[kConfigBufferBytes];
     if (epdBoard().sdReadFile(CONFIG_FILE_PATH, configBuf, sizeof(configBuf)) == 0) {
         log(LOG_WARNING, "cannot read the config file on the card");
         return;
