@@ -9,8 +9,8 @@
 #include "file_utils.h"
 #include "log_utils.h"
 
-// Upper bound on config.yaml. The parsed document is a StaticJsonDocument<768>,
-// so a config large enough to overflow this would not fit the document either.
+// Upper bound on config.yaml. The parsed document grows on the heap as it
+// needs, so this buffer is the only bound on the card's config.
 #define CONFIG_BUFFER_SIZE 1536
 
 
@@ -25,7 +25,7 @@ static void readCard(ClientConfig* cfg) {
         return;
     }
 
-    StaticJsonDocument<768> doc;
+    JsonDocument doc;
     DeserializationError parsed = deserializeYml(doc, (const char*)configBuf);
     if (parsed) {
         logf(LOG_WARNING, "failed to deserialize YAML: %s", parsed.c_str());
