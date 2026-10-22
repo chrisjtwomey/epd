@@ -24,6 +24,11 @@ esp_err_t configureMQTT(const char* broker, int port, const char* topic,
     log(LOG_INFO, "configuring remote MQTT logging...");
 
     client.setServer(broker, port);
+    // A whole line in one packet, with the header and the topic: PubSubClient's
+    // 256 bytes would refuse a long line's pieces and pass on only its tail.
+    const size_t packetBytes = MQTT_MAX_HEADER_SIZE + 2 + strlen(topic) + LOG_LINE_MAX;
+    if (!client.setBufferSize((uint16_t)packetBytes))
+        log(LOG_WARNING, "no memory for whole MQTT log lines; long lines arrive cut");
     mqttLogger.setTopic(topic);
     mqttClientID = clientID;
     // Attempt to connect to MQTT broker.
@@ -93,6 +98,10 @@ void logf(uint16_t pri, const char* fmt, ...) {
 }
 
 void writeLog(char* logMsg) {
+    // MqttLogger sends, and prints, whatever fills its buffer as a line of its
+    // own; one of LOG_LINE_MAX keeps every line whole, its line ending too.
+    static bool lineBufferSized = false;
+    if (!lineBufferSized) lineBufferSized = mqttLogger.setBufferSize(LOG_LINE_MAX);
     if (!client.connected()) {
         // Stage the line: push copies a whole record out of whatever it is
         // given, so a shorter buffer would be read past its end, and a longer

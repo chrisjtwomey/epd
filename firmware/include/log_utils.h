@@ -31,6 +31,9 @@
   topic, and a reconnect uses clientID. Both must outlive the logger, so
   pass a literal or static storage, never a local buffer.
 
+  Takes about LOG_LINE_MAX bytes of heap for a packet that holds a whole line,
+  so every line up to LOG_LINE_MAX reaches the broker as it is printed.
+
   @param broker the hostname of the MQTT broker.
   @param port the port of the MQTT broker.
   @param topic the topic to publish logs to; see boardLogTopic().
