@@ -95,15 +95,20 @@ The file can be up to 1536 bytes. A longer file is ignored with a warning:
 YAML cut short still parses, and a value cut part way, such as the Wi-Fi
 password, would pass as the whole value.
 
-The SD path needs two more libraries, which are not dependencies of
-EpdClient because only a build with the flag uses them:
+The SD path needs one more library, YAMLDuino, which is not a dependency of
+EpdClient because only a build with the flag uses it. It also needs
+`-DHAS_ARDUINOJSON`: YAMLDuino compiles its ArduinoJson parser only with that
+flag, and its own check for ArduinoJson fails under PlatformIO, so without the
+flag the build does not link.
 
 ```ini
 lib_deps =
 	chrisjtwomey/EpdClient @ ^0.13.0
 	chrisjtwomey/EpdBoardInkplate @ ^0.13.0
-	tobozo/YAMLDuino
-	bblanchon/ArduinoStreamUtils
+	tobozo/YAMLDuino @ ^1.5.0
+build_flags =
+	-DUSE_SDCARD
+	-DHAS_ARDUINOJSON
 ```
 
 A missing card, or a card with no `config.yaml`, is not an error: the panel
