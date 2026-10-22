@@ -5,6 +5,10 @@
 
 #include "board_key.h"
 
+// The NVS namespace that holds everything this client keeps between boots.
+// The server's install route writes the same one (epd_server/network.py).
+#define SETTINGS_NAMESPACE "epd"
+
 /**
   The key this board shares with its server, from the settings store; not
   present before the board pairs. A USB install writes the store anew, and

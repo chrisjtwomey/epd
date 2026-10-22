@@ -16,6 +16,8 @@ MQTT = MqttSettings(enabled=True, host="mosquitto", port=1884, prefix="mqtt/epd"
 
 SETTINGS_CPP = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "src",
                             "settings.cpp")
+SETTINGS_STORE_H = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "include",
+                                "settings_store.h")
 
 
 def made_by_the_tool(tmp_path, rows) -> bytes:
@@ -66,8 +68,10 @@ def test_a_missing_key_makes_no_file():
 def test_the_firmware_reads_the_namespace_and_keys_the_file_holds():
     with open(SETTINGS_CPP) as f:
         source = f.read()
+    with open(SETTINGS_STORE_H) as f:
+        store_header = f.read()
 
-    assert re.search(r'#define SETTINGS_NAMESPACE "epd"', source)
+    assert re.search(r'#define SETTINGS_NAMESPACE "epd"', store_header)
     for key in ("serverURL", "wifiSSID", "wifiPass", "mqttEnabled", "mqttBroker", "mqttPort",
                 "mqttClientID", "mqttPrefix"):
         assert f'"{key}"' in source, key

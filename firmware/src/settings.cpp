@@ -6,8 +6,6 @@
 #include "settings_choice.h"
 #include "settings_store.h"
 
-// One namespace for everything this client keeps between boots.
-#define SETTINGS_NAMESPACE "epd"
 #define BOARD_KEY_SETTING "boardKey"
 
 // Resolve one setting and keep this build's value when it is a real one, so a

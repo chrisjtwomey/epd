@@ -18,6 +18,7 @@
 #include "epd_headers.h"
 #include "http_request.h"
 #include "log_utils.h"
+#include "settings_store.h"
 #include "network_utils.h"
 #include "version.h"
 
@@ -26,8 +27,7 @@ static const uint32_t kUpdateStallMs = 20000;
 // The most of the image read from the network and written to flash at once.
 static const size_t kReadBufBytes = 2048;
 
-// Where the client keeps what it learned about images, beside its settings.
-static const char kUpdateNamespace[] = "epd";
+// What the client learned about images, kept beside its settings.
 static const char kRejectedKey[] = "ota_rejected";
 
 // The Arduino core confirms a pending image in initArduino(), before setup()
@@ -175,7 +175,7 @@ void otaConfirm() {
 const char* otaRejectedVersion() {
     static String rejected;
     Preferences prefs;
-    if (!prefs.begin(kUpdateNamespace, true)) return "";
+    if (!prefs.begin(SETTINGS_NAMESPACE, true)) return "";
     // isKey() first: getString() on an absent key logs an error of its own.
     rejected = prefs.isKey(kRejectedKey) ? prefs.getString(kRejectedKey, "") : String("");
     prefs.end();
@@ -184,7 +184,7 @@ const char* otaRejectedVersion() {
 
 static void rememberRejected(const char* version) {
     Preferences prefs;
-    if (!prefs.begin(kUpdateNamespace, false)) return;
+    if (!prefs.begin(SETTINGS_NAMESPACE, false)) return;
     prefs.putString(kRejectedKey, version);
     prefs.end();
 }

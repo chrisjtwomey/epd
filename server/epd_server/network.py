@@ -1,8 +1,8 @@
 """The network settings a USB flash writes to a board, as a file.
 
 The file is the board's whole settings store, the ESP32's NVS partition,
-holding the namespace and keys that ``loadConfig()`` in the firmware's
-``settings.cpp`` reads. Written at :data:`STORE_OFFSET`, it replaces
+holding the namespace (the firmware's ``settings_store.h``) and keys that
+``loadConfig()`` in its ``settings.cpp`` reads. Written at :data:`STORE_OFFSET`, it replaces
 everything the board kept there.
 """
 from __future__ import annotations
