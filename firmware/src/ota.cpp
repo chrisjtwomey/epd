@@ -9,6 +9,9 @@
 
 #include <Preferences.h>
 
+#include <memory>
+#include <new>
+
 #include "board_key.h"
 #include "body_read.h"
 #include "current_board_key.h"
@@ -20,6 +23,8 @@
 
 // A slow link must not abort a megabyte mid-image; HTTPClient's default is 5 s.
 static const uint32_t kUpdateStallMs = 20000;
+// The most of the image read from the network and written to flash at once.
+static const size_t kReadBufBytes = 2048;
 
 // Where the client keeps what it learned about images, beside its settings.
 static const char kUpdateNamespace[] = "epd";
@@ -99,6 +104,14 @@ esp_err_t applyFirmwareUpdate(const char* url, const char* offeredVersion,
         http.end();
         return ESP_FAIL;
     }
+    // From the heap for this update only: a static buffer would hold 2 KB on
+    // every board that links the update, for the whole run.
+    std::unique_ptr<uint8_t[]> buf(new (std::nothrow) uint8_t[kReadBufBytes]);
+    if (!buf) {
+        log(LOG_ERROR, "firmware update failed: no memory for its read buffer");
+        http.end();
+        return ESP_FAIL;
+    }
     if (!Update.begin((size_t)total, U_FLASH)) {
         logf(LOG_ERROR, "firmware update failed: %s", Update.errorString());
         http.end();
@@ -109,12 +122,11 @@ esp_err_t applyFirmwareUpdate(const char* url, const char* offeredVersion,
     const String digest = http.header(CONTENT_DIGEST_HEADER);
     const String input = http.header(SIGNATURE_INPUT_HEADER);
     const String signature = http.header(SIGNATURE_HEADER);
-    static uint8_t buf[2048];
     FlashSink flash(total, onProgress);
     HttpBody body(http);
     size_t got = 0;
     const BodyRead read =
-        streamBody(body, (size_t)total, flash, buf, sizeof(buf), kUpdateStallMs, &got);
+        streamBody(body, (size_t)total, flash, buf.get(), kReadBufBytes, kUpdateStallMs, &got);
     http.end();
     uint8_t sha256[32];
     flash.finish(sha256);
