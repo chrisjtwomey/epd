@@ -16,14 +16,6 @@
 #define LOG_LEVEL LOG_DEBUG
 #endif
 
-// log message entry history size
-#define LOG_QUEUE_MAX_ENTRIES 10
-// Bytes per queued entry. The queue copies exactly this many, so a line is
-// staged through a buffer of this size and truncated to fit. 200 holds the
-// prefix and a line of about 150 characters, such as the Wi-Fi reconnect line
-// with its reason, which is always logged before MQTT is back.
-#define LOG_QUEUE_ITEM_MAX 200
-
 /**
   Connect to a MQTT broker for remote logging.
 
@@ -82,23 +74,4 @@ void log(uint16_t pri, const char* msg);
 */
 void logf(uint16_t pri, const char* fmt, ...);
 
-/**
-  Write a line's prefix, the local time and the level's name, into out.
-
-  @param pri the log level / priority of the message, see LOG_LEVEL.
-  @param size out's size; LOG_PREFIX_MAX holds any prefix whole.
-  @returns out.
-*/
-const char* msgPrefix(uint16_t pri, char* out, size_t size);
-
-/**
-  Write one log line out, to the serial port and to the broker.
-
-  While the broker is unreachable the line is also queued, and the backlog
-  goes out ahead of the next line once it reconnects. A queued line is
-  truncated to LOG_QUEUE_ITEM_MAX; one written straight out is not.
-
-  @param msg the log message
-*/
-void writeLog(char* msg);
 #endif

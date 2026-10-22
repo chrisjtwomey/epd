@@ -6,13 +6,21 @@
 #include <PubSubClient.h>
 #include <MqttLogger.h>
 
+// The lines kept while the broker is unreachable.
+static const int kQueueEntries = 10;
+// Bytes per queued line. The queue copies exactly this many, so a line is
+// staged through a buffer of this size and cut to fit. 200 holds the prefix
+// and a line of about 150 characters, such as the Wi-Fi reconnect line with
+// its reason, which is always logged before MQTT is back.
+static const int kQueueItemBytes = 200;
+
 // The remote logger. static: a product's own global of the same name, such
 // as WiFiClient client, must not clash with these at link time.
 static WiFiClient espClient;
 static PubSubClient client(espClient);
 static MqttLogger mqttLogger(client, "", MqttLoggerMode::SerialOnly);
 // Lines kept while the broker is unreachable, sent once it is back.
-static cppQueue logQ(LOG_QUEUE_ITEM_MAX, LOG_QUEUE_MAX_ENTRIES, FIFO, true);
+static cppQueue logQ(kQueueItemBytes, kQueueEntries, FIFO, true);
 // The client ID configureMQTT was given, for keepMQTTConnected() to reconnect with.
 static const char* mqttClientID = nullptr;
 static uint32_t lastConnectAttemptMs = 0;
@@ -74,7 +82,10 @@ static const char* levelName(uint16_t pri) {
     }
 }
 
-const char* msgPrefix(uint16_t pri, char* out, size_t size) {
+static void writeLog(char* logMsg);
+
+// A line's prefix, the local time and the level's name, written into out.
+static const char* msgPrefix(uint16_t pri, char* out, size_t size) {
     formatPrefix(out, size, nowTzFmt().c_str(), levelName(pri));
     return out;
 }
@@ -97,7 +108,10 @@ void logf(uint16_t pri, const char* fmt, ...) {
     writeLog(line);
 }
 
-void writeLog(char* logMsg) {
+// Write one line to the serial port and to the broker. While the broker is
+// unreachable the line is also queued, cut to kQueueItemBytes, and the backlog
+// goes out ahead of the next line once it reconnects.
+static void writeLog(char* logMsg) {
     // MqttLogger sends, and prints, whatever fills its buffer as a line of its
     // own; one of LOG_LINE_MAX keeps every line whole, its line ending too.
     static bool lineBufferSized = false;
@@ -106,14 +120,14 @@ void writeLog(char* logMsg) {
         // Stage the line: push copies a whole record out of whatever it is
         // given, so a shorter buffer would be read past its end, and a longer
         // one would be stored without a terminator.
-        char slot[LOG_QUEUE_ITEM_MAX];
+        char slot[kQueueItemBytes];
         strlcpy(slot, logMsg, sizeof(slot));
         logQ.push(slot);
     } else {
         // Pop into a buffer of its own: pop copies into whatever pointer it
         // is given, and logMsg is still the line about to be written.
         if (logQ.getCount() > 0) {
-            char queuedMsg[LOG_QUEUE_ITEM_MAX];
+            char queuedMsg[kQueueItemBytes];
             mqttLogger.setMode(MqttLoggerMode::MqttOnly);
             while (!logQ.isEmpty()) {
                 logQ.pop(queuedMsg);
