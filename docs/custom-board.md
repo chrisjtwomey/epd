@@ -86,12 +86,6 @@ from the server's clock with each page.
 | `rtcSetAlarmEpoch(epoch)` | Program the RTC alarm to fire at `epoch`. All alarm-match mode details are encapsulated inside the implementation. |
 | `enableWakeOnRtcAlarm()` | Arm the deep-sleep wake source the RTC alarm drives. The alarm reaches the SoC on a board-specific pin, so the pin and wake mode belong here. Arm it as EXT0: `logWakeReason()` takes an EXT0 wake as the alarm, logs it so, and clears the flag. `InkplateBoard` calls `esp_sleep_enable_ext0_wakeup(GPIO_NUM_39, 0)`. |
 
-### GPIO expander
-
-| Method | Notes |
-|---|---|
-| `writeExpanderPin(pin, high)` | Optional; the base class returns `false`, meaning the board wrote nothing. Implement it when the board has an IO expander whose free pins a project needs — `InkplateBoard` drives the PCAL6416A. A `true` return says the write was issued, not that the pin moved. |
-
 ### SD card (`USE_SDCARD` only)
 
 These methods are compiled only when the `USE_SDCARD` build flag is set.
@@ -106,9 +100,8 @@ These methods are compiled only when the `USE_SDCARD` build flag is set.
 
 > **Why file I/O is on `IBoard`:** storage is reached only through
 > `sdWriteFile` / `sdReadFile`, so the client library never names a concrete SD
-> type and never depends on a specific board driver. `InkplateBoard` still
-> exposes `getSdFat()` for direct `SdFat` access, but nothing in `EpdClient`
-> uses it — your driver is free to back these two methods with any filesystem.
+> type and never depends on a specific board driver. Your driver is free to
+> back these two methods with any filesystem.
 >
 > `sdReadFile` should null-terminate the buffer when the data fits, so callers
 > can treat a text file such as `config.yaml` as a C string.

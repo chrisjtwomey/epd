@@ -63,9 +63,6 @@ public:
     // Panel
     int readPanelTemperature() override;
 
-    // GPIO expander
-    bool writeExpanderPin(uint8_t pin, bool high) override;
-
     // RTC
     void rtcGetData() override;
     time_t rtcGetEpoch() override;
@@ -83,9 +80,6 @@ public:
                        bool dither, bool invert) override;
     bool sdWriteFile(const char* path, const uint8_t* buf, size_t len) override;
     size_t sdReadFile(const char* path, uint8_t* buf, size_t maxLen) override;
-    // getSdFat() is not part of IBoard: SdFat is InkplateLibrary-specific.
-    // Call sites that need it must include this header and downcast to InkplateBoard&.
-    SdFat& getSdFat();
 #endif
 
 private:

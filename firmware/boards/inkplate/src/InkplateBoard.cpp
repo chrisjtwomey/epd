@@ -187,19 +187,6 @@ void InkplateBoard::enableWakeOnRtcAlarm() {
 }
 
 // -----------------------------------------------------------------------------
-// GPIO expander
-// -----------------------------------------------------------------------------
-
-bool InkplateBoard::writeExpanderPin(uint8_t pin, bool high) {
-    // Inkplate::begin() runs gpioInit(), which drives the free expander pins
-    // to output low, so the direction is set here on every call rather than
-    // once: a wake would otherwise silently drop the pin.
-    _inkplate.expander1.pinMode(pin, OUTPUT);
-    _inkplate.expander1.digitalWrite(pin, high ? HIGH : LOW);
-    return true;
-}
-
-// -----------------------------------------------------------------------------
 // SD card
 // -----------------------------------------------------------------------------
 
@@ -216,10 +203,6 @@ bool InkplateBoard::drawPngFromSd(const char* path,
                                   int x, int y,
                                   bool dither, bool invert) {
     return _inkplate.image.drawPngFromSd(path, x, y, pngDither(_inkplate, dither), invert);
-}
-
-SdFat& InkplateBoard::getSdFat() {
-    return _inkplate.getSdFat();
 }
 
 bool InkplateBoard::sdWriteFile(const char* path, const uint8_t* buf, size_t len) {

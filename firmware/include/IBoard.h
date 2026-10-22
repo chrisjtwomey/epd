@@ -137,27 +137,6 @@ public:
     virtual int readPanelTemperature() = 0;
 
     // -------------------------------------------------------------------------
-    // GPIO expander
-    // -------------------------------------------------------------------------
-
-    /**
-     * Drive a pin on the board's IO expander high or low.
-     *
-     * Optional: a board with no expander returns false, which says the pin
-     * was not written rather than that it was. A true return means the write
-     * was issued, not that the pin moved.
-     *
-     * @param pin   the expander's own pin number.
-     * @param high  true to drive the pin high, false to drive it low.
-     * @returns true when the board wrote the pin.
-     */
-    virtual bool writeExpanderPin(uint8_t pin, bool high) {
-        (void)pin;
-        (void)high;
-        return false;
-    }
-
-    // -------------------------------------------------------------------------
     // RTC
     // -------------------------------------------------------------------------
 
@@ -245,9 +224,8 @@ public:
      */
     virtual size_t sdReadFile(const char* path, uint8_t* buf, size_t maxLen) = 0;
 
-    // Note: no getSdFat() here by design. Storage access goes through
-    // sdWriteFile and sdReadFile so the client library never needs a concrete
-    // SD type, and therefore never depends on a specific board driver.
+    // Storage goes through sdWriteFile and sdReadFile, never a concrete SD
+    // type, so the client library never depends on a specific board driver.
 #endif
 };
 
