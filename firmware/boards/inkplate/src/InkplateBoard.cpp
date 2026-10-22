@@ -80,16 +80,16 @@ void InkplateBoard::partialDisplay() {
 // 3-bit grey as its colour, which draws black as white and every other grey
 // as black. Dithering maps each pixel to black or white, and leaves an image
 // that is already black and white as it is.
-static bool pngDither(Inkplate& inkplate, bool dither) {
-    return dither || inkplate.getDisplayMode() == INKPLATE_1BIT;
+static bool pngDither(Inkplate& inkplate, PngDraw options) {
+    return pngDrawHas(options, PngDraw::Dither) || inkplate.getDisplayMode() == INKPLATE_1BIT;
 }
 
 bool InkplateBoard::drawPngFromBuffer(const uint8_t* buf, int32_t len,
-                                      int x, int y,
-                                      bool dither, bool invert) {
+                                      int x, int y, PngDraw options) {
     // The library only reads the buffer, but takes it as non-const.
     return _inkplate.image.drawPngFromBuffer(const_cast<uint8_t*>(buf), len, x, y,
-                                             pngDither(_inkplate, dither), invert);
+                                             pngDither(_inkplate, options),
+                                             pngDrawHas(options, PngDraw::Invert));
 }
 
 bool InkplateBoard::drawBitmap(const uint8_t* buf,
@@ -198,9 +198,9 @@ void InkplateBoard::sdCardSleep() {
 }
 
 bool InkplateBoard::drawPngFromSd(const char* path,
-                                  int x, int y,
-                                  bool dither, bool invert) {
-    return _inkplate.image.drawPngFromSd(path, x, y, pngDither(_inkplate, dither), invert);
+                                  int x, int y, PngDraw options) {
+    return _inkplate.image.drawPngFromSd(path, x, y, pngDither(_inkplate, options),
+                                         pngDrawHas(options, PngDraw::Invert));
 }
 
 bool InkplateBoard::sdWriteFile(const char* path, const uint8_t* buf, size_t len) {

@@ -99,7 +99,7 @@ public:
     void clearDisplay() override { ++clearDisplayCount; }
     void display()      override { ++displayCount; }
 
-    bool drawPngFromBuffer(const uint8_t*, int32_t, int, int, bool, bool) override {
+    bool drawPngFromBuffer(const uint8_t*, int32_t, int, int, PngDraw) override {
         return drawPngReturn;
     }
     bool drawBitmap(const uint8_t* buf, int x, int y, int w, int h,
@@ -158,7 +158,7 @@ public:
 #if defined(USE_SDCARD)
     bool sdCardInit()  override { return sdCardInitReturn; }
     void sdCardSleep() override {}
-    bool drawPngFromSd(const char*, int, int, bool, bool) override {
+    bool drawPngFromSd(const char*, int, int, PngDraw) override {
         return drawPngReturn;
     }
 

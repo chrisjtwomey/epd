@@ -35,8 +35,7 @@ public:
 
     // Image drawing
     bool drawPngFromBuffer(const uint8_t* buf, int32_t len,
-                           int x, int y,
-                           bool dither, bool invert) override;
+                           int x, int y, PngDraw options) override;
     bool drawBitmap(const uint8_t* buf,
                     int x, int y, int w, int h,
                     uint16_t fg, uint16_t bg) override;
@@ -75,8 +74,7 @@ public:
     bool sdCardInit() override;
     void sdCardSleep() override;
     bool drawPngFromSd(const char* path,
-                       int x, int y,
-                       bool dither, bool invert) override;
+                       int x, int y, PngDraw options) override;
     bool sdWriteFile(const char* path, const uint8_t* buf, size_t len) override;
     size_t sdReadFile(const char* path, uint8_t* buf, size_t maxLen) override;
 #endif

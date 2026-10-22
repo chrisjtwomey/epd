@@ -9,6 +9,22 @@
 // pointer keeps IBoard free of any library-specific header dependencies.
 typedef const void* FontHandle;
 
+// How a PNG is drawn: PngDraw::Plain, or Dither and Invert combined with |.
+enum class PngDraw : uint8_t {
+    Plain  = 0,
+    Dither = 1 << 0,  // dither to the panel's colours
+    Invert = 1 << 1,  // invert the colours
+};
+
+inline PngDraw operator|(PngDraw a, PngDraw b) {
+    return static_cast<PngDraw>(static_cast<uint8_t>(a) | static_cast<uint8_t>(b));
+}
+
+// True when options include flag.
+inline bool pngDrawHas(PngDraw options, PngDraw flag) {
+    return (static_cast<uint8_t>(options) & static_cast<uint8_t>(flag)) != 0;
+}
+
 /**
  * Abstract board interface.
  *
@@ -76,13 +92,11 @@ public:
      * @param len     byte count.
      * @param x       top-left x coordinate.
      * @param y       top-left y coordinate.
-     * @param dither  enable dithering.
-     * @param invert  invert colours.
+     * @param options how to draw it.
      * @returns true on success.
      */
     virtual bool drawPngFromBuffer(const uint8_t* buf, int32_t len,
-                                   int x, int y,
-                                   bool dither, bool invert) = 0;
+                                   int x, int y, PngDraw options) = 0;
 
     /**
      * Draw a raw 1-bit bitmap at (x, y).
@@ -190,13 +204,11 @@ public:
      * @param path    absolute path on the SD card.
      * @param x       top-left x coordinate.
      * @param y       top-left y coordinate.
-     * @param dither  enable dithering.
-     * @param invert  invert colours.
+     * @param options how to draw it.
      * @returns true on success.
      */
     virtual bool drawPngFromSd(const char* path,
-                               int x, int y,
-                               bool dither, bool invert) = 0;
+                               int x, int y, PngDraw options) = 0;
 
     /**
      * Write `len` bytes to `path`, replacing any existing file.
