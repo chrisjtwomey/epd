@@ -5,6 +5,7 @@
 #include <Preferences.h>
 #include "log_utils.h"
 #include "settings.h"
+#include "settings_store.h"
 
 void log(uint16_t, const char*) {}
 void logf(uint16_t, const char*, ...) {}

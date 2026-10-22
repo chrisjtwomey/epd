@@ -3,8 +3,6 @@
 
 #include <stdint.h>
 
-#include "board_key.h"
-
 /**
   Everything a wake needs that is not code: where the server is, how to reach
   the network, and where to send logs.
@@ -66,15 +64,5 @@ const char* chooseSetting(const char* builtIn, const char* stored);
   project's business.
 */
 ClientConfig loadConfig(const ClientConfig& builtIn);
-
-/**
-  The key this board shares with its server, from the settings store; not
-  present before the board pairs. A USB install writes the store anew, and
-  so leaves the board without a key until it pairs again.
-*/
-BoardKey loadBoardKey();
-
-/** Keep ``key`` in the settings store, in place of any key before it. */
-bool storeBoardKey(const uint8_t key[BOARD_KEY_LEN]);
 
 #endif  // EPD_SETTINGS_H

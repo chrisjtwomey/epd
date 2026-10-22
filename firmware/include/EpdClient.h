@@ -14,7 +14,8 @@
   - IBoard.h arrives with epd.h, which every project needs anyway.
   - MockBoard.h is for a project's host tests, not for the image it ships.
   - body_read.h, current_board_key.h, http_request.h, log_format.h,
-    mem_utils.h, ota_offer.h and refresh_header.h are how the library is built rather than what it offers. Include one
+    mem_utils.h, ota_offer.h, refresh_header.h and settings_store.h are how
+    the library is built rather than what it offers. Include one
     directly if you need it, and expect it to change without ceremony.
 */
 

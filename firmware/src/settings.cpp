@@ -3,6 +3,7 @@
 #include <Preferences.h>
 
 #include "log_utils.h"
+#include "settings_store.h"
 
 // One namespace for everything this client keeps between boots.
 #define SETTINGS_NAMESPACE "epd"

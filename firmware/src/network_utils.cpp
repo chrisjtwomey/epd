@@ -16,6 +16,7 @@
 #include "mem_utils.h"
 #include "refresh_header.h"
 #include "settings.h"
+#include "settings_store.h"
 #include "time_utils.h"
 #include "version.h"
 
