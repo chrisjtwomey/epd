@@ -31,8 +31,13 @@ bool loadImageCache() {
     int32_t len = (int32_t)f.size();
     uint8_t* buf = (uint8_t*)boardMalloc(len);
     if (!buf) { f.close(); return false; }
-    f.read(buf, len);
+    size_t got = f.read(buf, (size_t)len);
     f.close();
+    if ((int32_t)got != len) {
+        logf(LOG_WARNING, "cached page read short: %u of %ld bytes", (unsigned)got, (long)len);
+        free(buf);
+        return false;
+    }
     bool ok = epdBoard().drawPngFromBuffer(buf, len, 0, 0, PngDraw::Invert);
     free(buf);
     return ok;
