@@ -30,9 +30,6 @@ struct ClientConfig {
     int mqttRetries;
 };
 
-/** True for a value left as it came from defaults.example.cpp. */
-bool isPlaceholder(const char* value);
-
 /**
   Whether this image carries real MQTT settings, judged by the broker host.
 
@@ -42,12 +39,6 @@ bool isPlaceholder(const char* value);
   the one field nobody leaves as a placeholder by accident.
 */
 bool mqttSettingsAreSet(const char* broker);
-
-/**
-  Which of the two values to use: this build's when it is real, else the
-  stored one, else this build's anyway so the failure names itself.
-*/
-const char* chooseSetting(const char* builtIn, const char* stored);
 
 /**
   Resolve ``builtIn`` against the settings the board keeps for itself.

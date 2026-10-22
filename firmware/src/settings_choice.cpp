@@ -1,4 +1,5 @@
 #include "settings.h"
+#include "settings_choice.h"
 
 #include <string.h>
 

@@ -2,6 +2,7 @@
 
 #include <unity.h>
 #include "settings.h"
+#include "settings_choice.h"
 
 void setUp(void) {}
 void tearDown(void) {}
