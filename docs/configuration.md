@@ -85,8 +85,10 @@ mqtt_logger:
 ```
 
 The three values `server.url`, `wifi.ssid` and `wifi.pass` are required; the
-file is ignored with a warning if any is missing. The rest fall back to the
-compiled value one key at a time.
+file is ignored with a warning if any is missing. `mqtt_logger`'s `broker`,
+`clientId` and `prefix` name one broker, so they come together: a card that
+gives some but not all keeps the board's own three, and logs a warning. The
+rest fall back to the compiled value one key at a time.
 
 The SD path needs two more libraries, which are not dependencies of
 EpdClient because only a build with the flag uses them:

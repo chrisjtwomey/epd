@@ -75,6 +75,8 @@ static void readCard(ClientConfig* cfg) {
         cfg->mqttBroker = sdMqttBroker.c_str();
         cfg->mqttClientID = sdMqttClientID.c_str();
         cfg->mqttPrefix = sdMqttPrefix.c_str();
+    } else if (mqttCfg["broker"] || mqttCfg["clientId"] || mqttCfg["prefix"]) {
+        log(LOG_WARNING, "card mqtt_logger ignored: it needs broker, clientId and prefix");
     }
     cfg->mqttPort = mqttCfg["port"] | cfg->mqttPort;
     cfg->mqttRetries = mqttCfg["retries"] | cfg->mqttRetries;
