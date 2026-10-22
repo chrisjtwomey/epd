@@ -1,7 +1,7 @@
 #include "InkplateBoard.h"
 
-// The pin the Inkplate RTC alarm interrupt is wired to.
-#define RTC_ALARM_WAKE_PIN GPIO_NUM_39
+// Where the Inkplate's PCF85063A RTC drives its interrupt line.
+static const gpio_num_t kRtcAlarmWakePin = GPIO_NUM_39;
 
 InkplateBoard::InkplateBoard() : _inkplate(INKPLATE_3BIT) {}
 
@@ -178,10 +178,9 @@ void InkplateBoard::rtcSetAlarmEpoch(time_t epoch) {
 }
 
 void InkplateBoard::enableWakeOnRtcAlarm() {
-    // GPIO 39 is where the Inkplate's PCF85063A RTC drives its interrupt line.
     // Kept here rather than in sleep_utils so other boards can use their own
     // pin and wake source.
-    esp_sleep_enable_ext0_wakeup(RTC_ALARM_WAKE_PIN, 0);
+    esp_sleep_enable_ext0_wakeup(kRtcAlarmWakePin, 0);
 }
 
 // -----------------------------------------------------------------------------
