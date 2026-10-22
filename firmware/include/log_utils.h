@@ -63,7 +63,8 @@ void keepMQTTConnected();
 void setLogLevel(uint16_t level);
 
 /**
-  Log a message.
+  Log a message. With its prefix, a line longer than LOG_LINE_MAX is cut, as
+  logf() cuts it.
 
   @param pri the log level / priority of the message, see LOG_LEVEL.
   @param msg the message to log.

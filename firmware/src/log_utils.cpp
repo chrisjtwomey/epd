@@ -78,18 +78,7 @@ static uint16_t levelNow = LOG_LEVEL;
 
 void setLogLevel(uint16_t level) { levelNow = level > LOG_LEVEL ? LOG_LEVEL : level; }
 
-void log(uint16_t pri, const char* msg) {
-    if (pri > levelNow) return;
-
-    char prefix[LOG_PREFIX_MAX];
-    msgPrefix(pri, prefix, sizeof(prefix));
-    size_t prefixLen = strlen(prefix);
-    size_t msgLen = strlen(msg);
-    char buf[prefixLen + msgLen + 1];
-    strcpy(buf, prefix);
-    strcat(buf, msg);
-    writeLog(buf);
-}
+void log(uint16_t pri, const char* msg) { logf(pri, "%s", msg); }
 
 void logf(uint16_t pri, const char* fmt, ...) {
     if (pri > levelNow) return;
