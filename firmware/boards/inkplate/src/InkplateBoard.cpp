@@ -205,10 +205,6 @@ bool InkplateBoard::drawPngFromSd(const char* path,
 bool InkplateBoard::sdWriteFile(const char* path, const uint8_t* buf, size_t len) {
     SdFat& sd = _inkplate.getSdFat();
 
-    if (sd.exists(path)) {
-        sd.remove(path);
-    }
-
     // Use SdFile with raw SdFat open flags rather than FILE_WRITE: FS.h
     // redefines FILE_WRITE to "w" (const char*), which SdFile won't accept.
     SdFile file;
