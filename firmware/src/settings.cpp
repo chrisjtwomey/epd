@@ -29,18 +29,6 @@ static String resolve(Preferences& prefs, const char* key, const char* builtIn,
     return chosen;
 }
 
-// Whether the store holds this image's MQTT block already. isKey() before
-// each string: getString() on an absent key logs an error of its own.
-static bool mqttBlockStored(Preferences& prefs, const ClientConfig& builtIn) {
-    return prefs.isKey("mqttBroker") && prefs.isKey("mqttClientID") &&
-           prefs.isKey("mqttPrefix") &&
-           prefs.getBool("mqttEnabled", !builtIn.mqttEnabled) == builtIn.mqttEnabled &&
-           prefs.getString("mqttBroker", "") == builtIn.mqttBroker &&
-           prefs.getInt("mqttPort", builtIn.mqttPort + 1) == builtIn.mqttPort &&
-           prefs.getString("mqttClientID", "") == builtIn.mqttClientID &&
-           prefs.getString("mqttPrefix", "") == builtIn.mqttPrefix;
-}
-
 // Resolve the MQTT block, which travels as a unit: see mqttSettingsAreSet.
 // The strings outlive this call because the config points into them.
 static void resolveMqtt(Preferences& prefs, const ClientConfig& builtIn,
@@ -50,14 +38,12 @@ static void resolveMqtt(Preferences& prefs, const ClientConfig& builtIn,
     static String prefix;
 
     if (mqttSettingsAreSet(builtIn.mqttBroker)) {
-        if (mqttBlockStored(prefs, builtIn)) return;  // cfg already holds them
         prefs.putBool("mqttEnabled", builtIn.mqttEnabled);
         prefs.putString("mqttBroker", builtIn.mqttBroker);
         prefs.putInt("mqttPort", builtIn.mqttPort);
         prefs.putString("mqttClientID", builtIn.mqttClientID);
         prefs.putString("mqttPrefix", builtIn.mqttPrefix);
-        log(LOG_INFO, "MQTT settings stored from this image");
-        return;  // cfg already holds them
+        return;  // cfg already holds them; NVS skips a value it holds already
     }
     if (!prefs.isKey("mqttBroker")) {
         log(LOG_INFO, "no MQTT settings in this image or the store");

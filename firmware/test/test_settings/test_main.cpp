@@ -3,26 +3,12 @@
 
 #include <unity.h>
 #include <Preferences.h>
-
-#include <string.h>
-
-#include <string>
-#include <vector>
-
 #include "log_utils.h"
 #include "settings.h"
 #include "settings_store.h"
 
-// Each line logged since the last clear, by its format.
-static std::vector<std::string> logged;
-void log(uint16_t, const char* msg) { logged.push_back(msg); }
-void logf(uint16_t, const char* fmt, ...) { logged.push_back(fmt); }
-
-static bool loggedLine(const char* text) {
-    for (const std::string& line : logged)
-        if (strstr(line.c_str(), text)) return true;
-    return false;
-}
+void log(uint16_t, const char*) {}
+void logf(uint16_t, const char*, ...) {}
 
 // An image built by a release pipeline: no broker, but its product's prefix.
 static ClientConfig pipelineImage() {
@@ -44,10 +30,7 @@ static void storeMqttBlock() {
     prefs.putString("mqttClientID", "canary-head");
 }
 
-void setUp(void) {
-    Preferences().clear();
-    logged.clear();
-}
+void setUp(void) { Preferences().clear(); }
 void tearDown(void) {}
 
 void test_a_pipeline_image_logs_to_the_broker_the_board_stored(void) {
@@ -90,18 +73,9 @@ static ClientConfig brokerImage(const char* broker) {
     return image;
 }
 
-void test_an_image_whose_block_is_stored_already_logs_no_store(void) {
+void test_an_image_with_a_new_broker_stores_it(void) {
     loadConfig(brokerImage("192.168.1.10"));
-    logged.clear();
-    loadConfig(brokerImage("192.168.1.10"));
-    TEST_ASSERT_FALSE(loggedLine("MQTT settings stored"));
-}
-
-void test_an_image_with_a_new_broker_stores_it_and_says_so(void) {
-    loadConfig(brokerImage("192.168.1.10"));
-    logged.clear();
     loadConfig(brokerImage("192.168.1.11"));
-    TEST_ASSERT_TRUE(loggedLine("MQTT settings stored"));
     TEST_ASSERT_EQUAL_STRING("192.168.1.11", Preferences().getString("mqttBroker", "").c_str());
 }
 
@@ -135,7 +109,6 @@ int main(int argc, char** argv) {
     RUN_TEST(test_a_pipeline_image_logs_to_the_broker_the_board_stored);
     RUN_TEST(test_a_store_with_no_prefix_takes_the_images);
     RUN_TEST(test_an_image_with_a_broker_stores_its_whole_block);
-    RUN_TEST(test_an_image_whose_block_is_stored_already_logs_no_store);
-    RUN_TEST(test_an_image_with_a_new_broker_stores_it_and_says_so);
+    RUN_TEST(test_an_image_with_a_new_broker_stores_it);
     return UNITY_END();
 }
