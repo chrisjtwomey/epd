@@ -1,5 +1,5 @@
-#ifndef EPD_HTTP_BODY_H
-#define EPD_HTTP_BODY_H
+#ifndef EPD_HTTP_REQUEST_H
+#define EPD_HTTP_REQUEST_H
 
 #include <HTTPClient.h>
 

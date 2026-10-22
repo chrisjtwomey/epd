@@ -11,7 +11,7 @@
 #include "body_read.h"
 #include "current_board_key.h"
 #include "epd_headers.h"
-#include "http_body.h"
+#include "http_request.h"
 #include "log_utils.h"
 #include "mem_utils.h"
 #include "refresh_header.h"
