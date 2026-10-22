@@ -34,7 +34,6 @@ public:
           rtcSetAlarmEpochCalled(false),
           enableWakeOnRtcAlarmCalled(false),
           rtcClearAlarmFlagCalled(false),
-          rtcGetDataCalled(false),
           displayCount(0),
           clearDisplayCount(0),
           drawBitmapBuf(nullptr),
@@ -70,7 +69,6 @@ public:
     bool        rtcSetAlarmEpochCalled;
     bool        enableWakeOnRtcAlarmCalled;
     bool        rtcClearAlarmFlagCalled;
-    bool        rtcGetDataCalled;
     int         displayCount;
     int         clearDisplayCount;
 
@@ -145,7 +143,6 @@ public:
     double readBattery() override { return batteryReturn; }
     int readPanelTemperature() override { return panelTempReturn; }
 
-    void   rtcGetData()          override { rtcGetDataCalled = true; }
     time_t rtcGetEpoch()         override { return epochReturn; }
     void   rtcClearAlarmFlag()   override { rtcClearAlarmFlagCalled = true; }
     void   rtcSetAlarmEpoch(time_t epoch) override {

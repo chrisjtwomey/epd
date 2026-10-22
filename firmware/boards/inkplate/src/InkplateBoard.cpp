@@ -157,10 +157,6 @@ int InkplateBoard::readPanelTemperature() {
 // RTC
 // -----------------------------------------------------------------------------
 
-void InkplateBoard::rtcGetData() {
-    _inkplate.rtc.getRtcData();
-}
-
 time_t InkplateBoard::rtcGetEpoch() {
     return _inkplate.rtc.getEpoch();
 }

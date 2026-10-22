@@ -79,7 +79,6 @@ from the server's clock with each page.
 
 | Method | Notes |
 |---|---|
-| `rtcGetData()` | Read hardware RTC registers into memory. Called once at startup. |
 | `rtcGetEpoch()` | Return the current Unix timestamp held in the RTC. |
 | `rtcSetEpoch(epoch)` | Write `epoch` to the RTC. Called with the server's clock, from `keepServerTime()`, so the RTC stays accurate across deep sleep. |
 | `rtcClearAlarmFlag()` | Clear any pending alarm interrupt flag (called on `ESP_SLEEP_WAKEUP_EXT0`). |
@@ -165,7 +164,6 @@ public:
     int    readPanelTemperature() override;
 
     // RTC
-    void   rtcGetData()                    override;
     time_t rtcGetEpoch()                   override;
     void   rtcSetEpoch(time_t epoch)       override;
     void   rtcClearAlarmFlag()             override;

@@ -140,9 +140,6 @@ public:
     // RTC
     // -------------------------------------------------------------------------
 
-    /** Refresh the in-memory RTC state from hardware registers. */
-    virtual void rtcGetData() = 0;
-
     /** Return the current epoch time as held by the RTC. */
     virtual time_t rtcGetEpoch() = 0;
 

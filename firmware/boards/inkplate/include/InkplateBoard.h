@@ -64,7 +64,6 @@ public:
     int readPanelTemperature() override;
 
     // RTC
-    void rtcGetData() override;
     time_t rtcGetEpoch() override;
     void rtcSetEpoch(time_t epoch) override;
     void rtcClearAlarmFlag() override;

@@ -16,7 +16,6 @@ void startBoard(uint8_t rotation) {
     Serial.begin(115200);
     epdBoard().begin();
     epdBoard().setRotation(rotation);
-    epdBoard().rtcGetData();
     restoreTimezone();
     setClock(epdBoard().rtcGetEpoch());
 }
