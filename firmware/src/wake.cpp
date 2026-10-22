@@ -47,7 +47,7 @@ void logWakeReason() {
 
 int readBatteryPercent() {
     double volts = epdBoard().readBattery();
-    logf(LOG_INFO, "battery voltage: %sv", String(volts, 2).c_str());
+    logf(LOG_INFO, "battery voltage: %.2fv", volts);
     int percent = getBatteryCapacity(volts);
     logf(LOG_INFO, "approx battery capacity: %d%%", percent);
     return percent;
