@@ -24,23 +24,23 @@ void startBoard(uint8_t rotation) {
 void logWakeReason() {
     switch (esp_sleep_get_wakeup_cause()) {
         case ESP_SLEEP_WAKEUP_EXT0:
-            log(LOG_DEBUG, "wakeup caused by external signal using RTC_IO.");
+            log(LOG_DEBUG, "woke by the RTC alarm");
             epdBoard().rtcClearAlarmFlag();
             break;
         case ESP_SLEEP_WAKEUP_EXT1:
-            log(LOG_DEBUG, "wakeup caused by external signal using RTC_CNTL.");
+            log(LOG_DEBUG, "woke by a wake pin");
             break;
         case ESP_SLEEP_WAKEUP_TIMER:
-            log(LOG_DEBUG, "wakeup caused by timer.");
+            log(LOG_DEBUG, "woke by the sleep timer");
             break;
         case ESP_SLEEP_WAKEUP_TOUCHPAD:
-            log(LOG_DEBUG, "wakeup caused by touchpad.");
+            log(LOG_DEBUG, "woke by a touch pad");
             break;
         case ESP_SLEEP_WAKEUP_ULP:
-            log(LOG_DEBUG, "wakeup caused by ULP program.");
+            log(LOG_DEBUG, "woke by the low-power coprocessor");
             break;
         default:
-            log(LOG_DEBUG, "wakeup caused by RST pin or power button");
+            log(LOG_DEBUG, "woke by a reset or power-on");
             break;
     }
 }
