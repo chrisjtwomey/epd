@@ -3,7 +3,7 @@
 examples/minimal is the README's quickstart file for file: a reader may copy
 either, so nothing may differ between them, and nothing else keeps them in
 step. The example's platformio.ini alone holds more: a dev environment that
-builds against this checkout. The others must at least construct, and
+builds against this checkout, and the SD card's sd and sd-dev. The others must at least construct, and
 examples/live-data's data source is exercised against a recorded response, so
 none of this needs a network.
 """

@@ -66,6 +66,11 @@ jobs:
       - name: Build the example
         run: pio run -e dev
 
+      # The only build that sets USE_SDCARD, with the card's own libraries.
+      - name: Build the example with the SD card
+        if: matrix.example == 'minimal'
+        run: pio run -e sd-dev
+
   server-tests:
     name: Server tests
     runs-on: ubuntu-latest

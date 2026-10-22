@@ -11,6 +11,7 @@ void setup() {
 
     // Your settings, with the ones the panel keeps for itself resolved.
     ClientConfig cfg = loadConfig(builtInSettings());
+    applySdConfig(&cfg);            // with -DUSE_SDCARD, the card's config.yaml wins
 
     uint32_t sleepSeconds = cfg.defaultRefreshSeconds;
     if (connectNetwork(cfg) == ESP_OK) {

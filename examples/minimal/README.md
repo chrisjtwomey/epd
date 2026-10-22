@@ -24,6 +24,11 @@ pip install "epd-server~=0.13.0" && python3 server.py    # the page, at :8080/cl
 pio run -t upload                                       # the panel
 ```
 
+For a panel with an SD card, `pio run -e sd` reads the settings from
+`config.yaml` on the card, and `pio run -e sd-dev` does the same against this
+checkout. See [configuration.md](../../docs/configuration.md) for the file.
+Without `USE_SDCARD`, the `applySdConfig` call in `main.cpp` does nothing.
+
 The picture on the right is `clock.png` as the server renders it: 825 × 1200,
 the Inkplate 10 in portrait, in four greys. Four is the kit's default; the panel
 can show eight.

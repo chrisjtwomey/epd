@@ -58,6 +58,7 @@ pio test -e native_settings     # loadConfig and the board key's store against a
 pio test -e native_board_key    # the board key's signatures, against the RFCs and the server's vectors; the /pair answer; the step after a 401
 cd ../examples/minimal
 pio run -e dev                  # an ESP32 build of this checkout; the host tests never see the framework
+pio run -e sd-dev               # the same with USE_SDCARD: the only build of the card's code
 ```
 
 `examples/minimal` is the README's quickstart, file for file, and
