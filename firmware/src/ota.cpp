@@ -86,8 +86,8 @@ esp_err_t applyFirmwareUpdate(const char* url, const char* offeredVersion,
         return ESP_FAIL;
     }
     // The device and the key id name the key the server signs the image
-    // with. The running version lets a server with nothing newer answer 304
-    // instead of sending the image again.
+    // with. The server answers 304, not the image, when x-ESP32-version is
+    // the version it would send.
     http.addHeader(EPD_H_DEVICE, CLIENT_NAME);
     http.addHeader(EPD_H_DEVICE_VERSION, CLIENT_VERSION);
     if (currentBoardKey().present) http.addHeader(EPD_H_KEY_ID, currentBoardKey().id);

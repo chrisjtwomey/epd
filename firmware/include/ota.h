@@ -13,6 +13,10 @@ typedef void (*OtaProgress)(int done, int total);
   Once the board has a key, the image must carry the server's signature
   under it; one without it is written but never booted.
 
+  Blocks for the whole download; a 1.2 MB image took 21 s on a bench board.
+  The server must send a Content-Length. A chunked image fails, and so does
+  one that sends no byte for 20 s or ends early.
+
   Returns only when the update did not happen, so the caller carries on with
   the wake it was in the middle of and tries again at the next one.
 

@@ -87,7 +87,7 @@ bool drawPage(const PageFetch& page, const char* filePath, int retries,
               const std::function<void()>& overlay, const char** errMsg);
 
 /**
-  Take the update the page response offered, when there is one to take.
+  Take the update a response offered, when there is one to take.
 
   Says why it did not, when it did not. Returns only when nothing was
   flashed, since a flashed image restarts the board.
