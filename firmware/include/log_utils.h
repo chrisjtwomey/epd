@@ -26,6 +26,11 @@
   Takes about LOG_LINE_MAX bytes of heap for a packet that holds a whole line,
   so every line up to LOG_LINE_MAX reaches the broker as it is printed.
 
+  Blocks until it connects or has made max_retries + 1 attempts, 250 ms
+  apart. An attempt on a host that does not answer waits out the TCP connect
+  timeout, about 3 s, so 3 retries can hold a wake for about 13 s; a host that
+  answers with no broker reply holds one attempt for 15 s.
+
   @param broker the hostname of the MQTT broker.
   @param port the port of the MQTT broker.
   @param topic the topic to publish logs to; see boardLogTopic().
@@ -44,7 +49,8 @@ esp_err_t configureMQTT(const char* broker, int port, const char* topic,
 
   A board that stays awake calls it on every pass of its loop: the broker
   closes a connection that sends nothing for 1.5 keepalives, 22 s. A board
-  that sleeps after each wake does not need it.
+  that sleeps after each wake does not need it. A reconnect, tried at most
+  every 30 s, can block for about 3 s when the broker's host does not answer.
 */
 void keepMQTTConnected();
 
@@ -60,6 +66,10 @@ void setLogLevel(uint16_t level);
 /**
   Log a message. With its prefix, a line longer than LOG_LINE_MAX is cut, as
   logf() cuts it.
+
+  Call log() and logf() from one task at a time, and never from an interrupt:
+  the serial port, the MQTT client and the queue of unsent lines are shared,
+  and nothing locks them.
 
   @param pri the log level / priority of the message, see LOG_LEVEL.
   @param msg the message to log.

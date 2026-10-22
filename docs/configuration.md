@@ -46,7 +46,7 @@ release pipeline build from that.
 | `defaultRefreshSeconds` | How long to sleep when the server has not said: a cold boot, or every attempt failed. |
 | `wifiSSID`, `wifiPass` | Your network. |
 | `wifiRetries` | How long to wait for WiFi on this wake, in seconds: this value plus one. A wait that ends logs why the join failed. |
-| `mqttEnabled`, `mqttBroker`, `mqttPort`, `mqttClientID`, `mqttPrefix`, `mqttRetries` | Optional: publish the panel's log to an MQTT broker, so you can read it without a cable. `mqttEnabled = false` turns all of it off. |
+| `mqttEnabled`, `mqttBroker`, `mqttPort`, `mqttClientID`, `mqttPrefix`, `mqttRetries` | Optional: publish the panel's log to an MQTT broker, so you can read it without a cable. `mqttEnabled = false` turns all of it off. `mqttRetries` is how many more times to try the broker: while its host is down, each try holds the wake about 3 s, so keep it low on a battery. |
 
 `serverURL`, `wifiSSID`, `wifiPass` and the whole MQTT block are also
 kept in the panel's own storage, so that an image built by CI can still
