@@ -6,12 +6,13 @@
 #include <PubSubClient.h>
 #include <MqttLogger.h>
 
-// remote mqtt logger
-WiFiClient espClient;
-PubSubClient client(espClient);
-MqttLogger mqttLogger(client, "", MqttLoggerMode::SerialOnly);
-// queue to store messages to publish once mqtt connection is established.
-cppQueue logQ(LOG_QUEUE_ITEM_MAX, LOG_QUEUE_MAX_ENTRIES, FIFO, true);
+// The remote logger. static: a product's own global of the same name, such
+// as WiFiClient client, must not clash with these at link time.
+static WiFiClient espClient;
+static PubSubClient client(espClient);
+static MqttLogger mqttLogger(client, "", MqttLoggerMode::SerialOnly);
+// Lines kept while the broker is unreachable, sent once it is back.
+static cppQueue logQ(LOG_QUEUE_ITEM_MAX, LOG_QUEUE_MAX_ENTRIES, FIFO, true);
 // The client ID configureMQTT was given, for keepMQTTConnected() to reconnect with.
 static const char* mqttClientID = nullptr;
 static uint32_t lastConnectAttemptMs = 0;
