@@ -33,11 +33,6 @@
       "owner": "bblanchon",
       "name": "ArduinoJson",
       "version": "^7.4.0"
-    },
-    {
-      "owner": "smfsw",
-      "name": "Queue",
-      "version": "^1.11"
     }
   ],
   "export": {

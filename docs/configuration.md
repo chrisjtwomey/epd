@@ -24,6 +24,7 @@ These go in `build_flags` in `platformio.ini`.
 | `-DCLIENT_NAME='"my-display"'` | The name the panel introduces itself with. The server matches firmware images against it. Defaults to `EpdClient`. |
 | `-DCLIENT_VERSION='"v1.0.0"'` | The version it reports. Defaults to `dev`, which is never offered an update. Normally derived from `git describe` by a script. |
 | `-DLOG_LEVEL=4` | 5 is verbose and for development; 4 is normal. The most the build logs, and the level it starts at; `setLogLevel()` lowers it while the board runs. |
+| `-DEPD_LOG_QUEUE_LINES=30` | How many log lines to keep while the MQTT broker is unreachable, sent once it is back; the oldest go first. 30 is the default: a cold boot's lines before MQTT is up, and about 8 minutes of a board that logs 3-4 a minute. Each line takes 200 bytes of heap, which a board with PSRAM keeps there; 0 keeps none. |
 | `-DUSE_SDCARD` | Read settings from `config.yaml` on the SD card. See below. |
 | `-DEPD_HEADER_PREFIX='"MyDisplay"'` | The prefix of every header name. Defaults to `EPD`. It must match the server's `header_prefix` ([the HTTP contract](protocol.md#the-names)). |
 

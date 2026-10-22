@@ -2,25 +2,36 @@
 #include "log_utils.h"
 #include <Arduino.h>
 #include <WiFi.h>
-#include <cppQueue.h>
 #include <PubSubClient.h>
 #include <MqttLogger.h>
 
-// The lines kept while the broker is unreachable.
-static const int kQueueEntries = 10;
-// Bytes per queued line. The queue copies exactly this many, so a line is
-// staged through a buffer of this size and cut to fit. 200 holds the prefix
-// and a line of about 150 characters, such as the Wi-Fi reconnect line with
-// its reason, which is always logged before MQTT is back.
-static const int kQueueItemBytes = 200;
+#include "log_backlog.h"
+
+// The lines kept while the broker is unreachable: 30 hold a cold boot's lines
+// before MQTT is up, and about 8 minutes of a board that logs 3-4 a minute.
+// A product changes it with -DEPD_LOG_QUEUE_LINES=n; 0 keeps none.
+#ifndef EPD_LOG_QUEUE_LINES
+#define EPD_LOG_QUEUE_LINES 30
+#endif
+// Bytes per kept line: the prefix and about 150 characters, such as the
+// Wi-Fi reconnect line with its reason, which is logged before MQTT is back.
+static const size_t kQueueItemBytes = 200;
 
 // The remote logger. static: a product's own global of the same name, such
 // as WiFiClient client, must not clash with these at link time.
 static WiFiClient espClient;
 static PubSubClient client(espClient);
 static MqttLogger mqttLogger(client, "", MqttLoggerMode::SerialOnly);
-// Lines kept while the broker is unreachable, sent once it is back.
-static cppQueue logQ(kQueueItemBytes, kQueueEntries, FIFO, true);
+// Lines kept while the broker is unreachable, sent once it is back. The slots
+// come from the heap on the first line: above 4 KB, a board with PSRAM puts
+// them there.
+static LogBacklog& backlog() {
+    static char* slots =
+        EPD_LOG_QUEUE_LINES ? (char*)malloc((size_t)EPD_LOG_QUEUE_LINES * kQueueItemBytes)
+                            : nullptr;
+    static LogBacklog kept(slots, EPD_LOG_QUEUE_LINES, kQueueItemBytes);
+    return kept;
+}
 // The client ID configureMQTT was given, for keepMQTTConnected() to reconnect with.
 static const char* mqttClientID = nullptr;
 static uint32_t lastConnectAttemptMs = 0;
@@ -117,25 +128,12 @@ static void writeLog(char* logMsg) {
     static bool lineBufferSized = false;
     if (!lineBufferSized) lineBufferSized = mqttLogger.setBufferSize(LOG_LINE_MAX);
     if (!client.connected()) {
-        // Stage the line: push copies a whole record out of whatever it is
-        // given, so a shorter buffer would be read past its end, and a longer
-        // one would be stored without a terminator.
-        char slot[kQueueItemBytes];
-        strlcpy(slot, logMsg, sizeof(slot));
-        logQ.push(slot);
-    } else {
-        // Pop into a buffer of its own: pop copies into whatever pointer it
-        // is given, and logMsg is still the line about to be written.
-        if (logQ.getCount() > 0) {
-            char queuedMsg[kQueueItemBytes];
-            mqttLogger.setMode(MqttLoggerMode::MqttOnly);
-            while (!logQ.isEmpty()) {
-                logQ.pop(queuedMsg);
-                mqttLogger.println(queuedMsg);
-            }
-            mqttLogger.setMode(MqttLoggerMode::MqttAndSerial);
-        }
+        backlog().push(logMsg);
+    } else if (backlog().count() > 0) {
+        char kept[kQueueItemBytes];
+        mqttLogger.setMode(MqttLoggerMode::MqttOnly);
+        while (backlog().pop(kept, sizeof(kept))) mqttLogger.println(kept);
+        mqttLogger.setMode(MqttLoggerMode::MqttAndSerial);
     }
-    // print/send the current log (logMsg is unaffected by the flush above)
     mqttLogger.println(logMsg);
 }
