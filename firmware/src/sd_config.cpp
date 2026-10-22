@@ -9,9 +9,9 @@
 #include "file_utils.h"
 #include "log_utils.h"
 
-// Upper bound on config.yaml. The parsed document grows on the heap as it
-// needs, so this buffer is the only bound on the card's config.
-static const size_t kConfigBufferBytes = 1536;
+// The longest config.yaml the board reads. The parsed document grows on the
+// heap as it needs, so this is the only bound on the card's config.
+static const size_t kMaxConfigBytes = 1536;
 
 
 // Read the card and apply what it says. Every problem is a warning, and
@@ -19,11 +19,22 @@ static const size_t kConfigBufferBytes = 1536;
 static void readCard(ClientConfig* cfg) {
     // Read the config file through IBoard so this code stays independent of
     // any particular SD library.
-    uint8_t configBuf[kConfigBufferBytes];
-    if (epdBoard().sdReadFile(CONFIG_FILE_PATH, configBuf, sizeof(configBuf)) == 0) {
+    // Room for one byte past the longest file, and the terminator: a read that
+    // fills it is a file too long to read whole.
+    uint8_t configBuf[kMaxConfigBytes + 2];
+    size_t configLen = epdBoard().sdReadFile(CONFIG_FILE_PATH, configBuf, sizeof(configBuf));
+    if (configLen == 0) {
         log(LOG_WARNING, "cannot read the config file on the card");
         return;
     }
+    // YAML cut short still parses, and a value cut part way would pass as a
+    // whole one, such as the Wi-Fi password.
+    if (configLen > kMaxConfigBytes) {
+        logf(LOG_WARNING, "config file is too long: the most is %u bytes",
+             (unsigned)kMaxConfigBytes);
+        return;
+    }
+    configBuf[configLen] = '\0';
 
     JsonDocument doc;
     DeserializationError parsed = deserializeYml(doc, (const char*)configBuf);

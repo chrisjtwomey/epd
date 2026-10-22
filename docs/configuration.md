@@ -91,6 +91,10 @@ file is ignored with a warning if any is missing. `mqtt_logger`'s `broker`,
 gives some but not all keeps the board's own three, and logs a warning. The
 rest fall back to the compiled value one key at a time.
 
+The file can be up to 1536 bytes. A longer file is ignored with a warning:
+YAML cut short still parses, and a value cut part way, such as the Wi-Fi
+password, would pass as the whole value.
+
 The SD path needs two more libraries, which are not dependencies of
 EpdClient because only a build with the flag uses them:
 
