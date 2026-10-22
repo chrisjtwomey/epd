@@ -56,8 +56,10 @@ const char* chooseSetting(const char* builtIn, const char* stored);
 
   Any real value the image carries is written to the store on the way past,
   so a build flashed over USB provisions the board for every image that
-  arrives later; a placeholder is answered from the store instead. The
-  returned pointers stay valid for the life of the program.
+  arrives later; a placeholder is answered from the store instead.
+
+  Call it once. The returned strings stay valid until the next call, which
+  replaces them, and configureWiFi() keeps the SSID and password it is given.
 
   ``builtIn`` is what this build carries. The library declares no settings
   symbols of its own, so what a project hard-codes, and where, is the
