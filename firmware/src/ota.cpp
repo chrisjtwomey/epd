@@ -30,22 +30,11 @@ static const char kRejectedKey[] = "ota_rejected";
 // asks through this weak symbol, so the trial lasts until otaConfirm().
 extern "C" bool verifyRollbackLater() { return true; }
 
-static OtaProgress progressHook = nullptr;
-
-static void logProgress(int done, int total) {
-    static int lastTenth = -1;
-    if (progressHook) progressHook(done, total);
-    if (total <= 0) return;
-    int tenth = (int)((int64_t)done * 10 / total);
-    if (tenth == lastTenth) return;
-    lastTenth = tenth;
-    logf(LOG_INFO, "firmware update %d%% (%d/%d bytes)", tenth * 10, done, total);
-}
-
-// The image as it arrives: written to the idle slot and hashed together.
+// The image as it arrives: written to the idle slot and hashed together,
+// with its progress reported and logged at each tenth.
 class FlashSink : public IBodySink {
 public:
-    explicit FlashSink(int total) : total_(total) {
+    FlashSink(int total, OtaProgress onProgress) : total_(total), onProgress_(onProgress) {
         mbedtls_md_init(&sha_);
         mbedtls_md_setup(&sha_, mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), 0);
         mbedtls_md_starts(&sha_);
@@ -58,20 +47,29 @@ public:
         if (Update.write(const_cast<uint8_t*>(data), len) != len) return false;
         mbedtls_md_update(&sha_, data, len);
         done_ += (int)len;
-        logProgress(done_, total_);
+        report();
         return true;
     }
     void finish(uint8_t sha256[32]) { mbedtls_md_finish(&sha_, sha256); }
 
 private:
+    void report() {
+        if (onProgress_) onProgress_(done_, total_);
+        const int tenth = (int)((int64_t)done_ * 10 / total_);
+        if (tenth == lastTenth_) return;
+        lastTenth_ = tenth;
+        logf(LOG_INFO, "firmware update %d%% (%d/%d bytes)", tenth * 10, done_, total_);
+    }
+
     mbedtls_md_context_t sha_;
     int total_;
+    OtaProgress onProgress_;
     int done_ = 0;
+    int lastTenth_ = -1;
 };
 
 esp_err_t applyFirmwareUpdate(const char* url, const char* offeredVersion,
                               const char* userAgent, OtaProgress onProgress) {
-    progressHook = onProgress;
     logf(LOG_NOTICE, "firmware update offered: %s -> %s from %s", CLIENT_VERSION,
          offeredVersion, url);
 
@@ -112,7 +110,7 @@ esp_err_t applyFirmwareUpdate(const char* url, const char* offeredVersion,
     const String input = http.header(SIGNATURE_INPUT_HEADER);
     const String signature = http.header(SIGNATURE_HEADER);
     static uint8_t buf[2048];
-    FlashSink flash(total);
+    FlashSink flash(total, onProgress);
     HttpBody body(http);
     size_t got = 0;
     const BodyRead read =
