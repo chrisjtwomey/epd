@@ -19,11 +19,11 @@
 #include "version.h"
 
 // A slow link must not abort a megabyte mid-image; HTTPClient's default is 5 s.
-#define OTA_HTTP_TIMEOUT_MS 20000
+static const uint32_t kUpdateStallMs = 20000;
 
 // Where the client keeps what it learned about images, beside its settings.
-#define OTA_NAMESPACE "epd"
-#define OTA_REJECTED_KEY "ota_rejected"
+static const char kUpdateNamespace[] = "epd";
+static const char kRejectedKey[] = "ota_rejected";
 
 // The Arduino core confirms a pending image in initArduino(), before setup()
 // ever runs, unless the application says it will judge the image itself. It
@@ -79,7 +79,7 @@ esp_err_t applyFirmwareUpdate(const char* url, const char* offeredVersion,
     const char* headers[] = {"x-MD5", CONTENT_DIGEST_HEADER, SIGNATURE_INPUT_HEADER,
                              SIGNATURE_HEADER};
     http.collectHeaders(headers, sizeof(headers) / sizeof(headers[0]));
-    http.setTimeout(OTA_HTTP_TIMEOUT_MS);
+    http.setTimeout(kUpdateStallMs);
     if (!beginRequest(http, url, userAgent)) {
         logf(LOG_ERROR, "firmware update failed: %s is not a URL", url);
         return ESP_FAIL;
@@ -116,7 +116,7 @@ esp_err_t applyFirmwareUpdate(const char* url, const char* offeredVersion,
     HttpBody body(http);
     size_t got = 0;
     const BodyRead read =
-        streamBody(body, (size_t)total, flash, buf, sizeof(buf), OTA_HTTP_TIMEOUT_MS, &got);
+        streamBody(body, (size_t)total, flash, buf, sizeof(buf), kUpdateStallMs, &got);
     http.end();
     uint8_t sha256[32];
     flash.finish(sha256);
@@ -165,17 +165,17 @@ void otaConfirm() {
 const char* otaRejectedVersion() {
     static String rejected;
     Preferences prefs;
-    if (!prefs.begin(OTA_NAMESPACE, true)) return "";
+    if (!prefs.begin(kUpdateNamespace, true)) return "";
     // isKey() first: getString() on an absent key logs an error of its own.
-    rejected = prefs.isKey(OTA_REJECTED_KEY) ? prefs.getString(OTA_REJECTED_KEY, "") : String("");
+    rejected = prefs.isKey(kRejectedKey) ? prefs.getString(kRejectedKey, "") : String("");
     prefs.end();
     return rejected.c_str();
 }
 
 static void rememberRejected(const char* version) {
     Preferences prefs;
-    if (!prefs.begin(OTA_NAMESPACE, false)) return;
-    prefs.putString(OTA_REJECTED_KEY, version);
+    if (!prefs.begin(kUpdateNamespace, false)) return;
+    prefs.putString(kRejectedKey, version);
     prefs.end();
 }
 
