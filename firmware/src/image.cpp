@@ -68,7 +68,7 @@ esp_err_t loadImage(const char* filePath) {
 }
 #endif
 
-esp_err_t loadImage(uint8_t* buf, int32_t len) {
+esp_err_t loadImage(const uint8_t* buf, int32_t len) {
     log(LOG_INFO, "drawing image from buffer");
 
     if (!epdBoard().drawPngFromBuffer(buf, len, 0, 0, PngDraw::Invert)) {

@@ -22,7 +22,7 @@ esp_err_t loadImage(const char* filePath);
   - ESP_OK if successful.
   - ESP_ERR_EDRAW if the image cannot be decoded.
 */
-esp_err_t loadImage(uint8_t* buf, int32_t len);
+esp_err_t loadImage(const uint8_t* buf, int32_t len);
 
 
 /**
