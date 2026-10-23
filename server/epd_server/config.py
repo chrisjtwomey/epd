@@ -13,8 +13,18 @@ from __future__ import annotations
 import operator
 import os
 import re
+from dataclasses import dataclass
+from datetime import datetime as _datetime
+from datetime import tzinfo as _tzinfo
 from functools import reduce
 from typing import Any, Callable
+from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+import yaml
+
+from .scheduling import Pools, TimeRangesSchedule, TimesSchedule, WakeSchedule
+from .timeranges import Week
 
 
 def get_by_path(root, items):
@@ -87,17 +97,6 @@ def get_prop(config, prop, default=None, required=True) -> Any:
 # and calls load_core_config() for the rest. Every check raises ConfigError
 # with a message meant for the person editing config.yaml; the caller
 # decides whether that means "log and exit".
-
-from dataclasses import dataclass
-from datetime import datetime as _datetime
-from datetime import tzinfo as _tzinfo
-from urllib.parse import urlsplit
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-
-import yaml
-
-from .scheduling import Pools, TimeRangesSchedule, TimesSchedule, WakeSchedule
-from .timeranges import Week
 
 
 class ConfigError(ValueError):

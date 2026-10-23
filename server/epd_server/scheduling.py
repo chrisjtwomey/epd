@@ -12,7 +12,12 @@ tzinfo, silently dropping the one-hour shift across a DST transition.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, tzinfo as _tzinfo
+import random
+from datetime import date, datetime, time, timedelta
+from datetime import tzinfo as _tzinfo
+from typing import Mapping, Sequence
+
+from .timeranges import Week
 
 Schedule = list[tuple[str, str]]
 
@@ -84,12 +89,6 @@ def next_regen(schedule: Schedule, tz: _tzinfo, lead_seconds: int = 120,
 # DisplayServer asks a schedule two things: when the client wakes next and
 # for which page, and when to regenerate ahead of that. What shows is a
 # pool of images read in turn; when it shows is the schedule's type.
-
-import random
-from datetime import date, time
-from typing import Mapping, Sequence
-
-from .timeranges import Week
 
 
 class Pools:
