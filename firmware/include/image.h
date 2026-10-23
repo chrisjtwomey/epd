@@ -60,8 +60,8 @@ bool saveImageCache(const uint8_t* buf, int32_t len);
   Load the cached image PNG from LittleFS into the display buffer.
 
   @returns true if the file existed and decoded successfully; false on any
-  failure (first boot, LittleFS not mounted, etc.) — the caller gracefully
-  falls back to a white background.
+  failure (first boot, LittleFS not mounted, etc.). After a decode that fails
+  part way, the frame buffer holds part of the page.
 */
 bool loadImageCache();
 #endif
