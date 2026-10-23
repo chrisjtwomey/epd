@@ -1,5 +1,12 @@
 # epd — a library for showing web pages on an e-paper display
 
+[![PlatformIO CI](https://github.com/chrisjtwomey/epd/actions/workflows/build.yaml/badge.svg)](https://github.com/chrisjtwomey/epd/actions/workflows/build.yaml)
+[![PlatformIO registry](https://badges.registry.platformio.org/packages/chrisjtwomey/library/EpdClient.svg)](https://registry.platformio.org/libraries/chrisjtwomey/EpdClient)
+[![Server coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/chrisjtwomey/3c210a371fde90aa65369080ad509e39/raw/epd-server-coverage.json)](CONTRIBUTING.md#coverage)
+[![Firmware coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/chrisjtwomey/3c210a371fde90aa65369080ad509e39/raw/epd-firmware-coverage.json)](CONTRIBUTING.md#coverage)
+[![PyPI](https://img.shields.io/pypi/v/epd-server)](https://pypi.org/project/epd-server/)
+[![License](https://img.shields.io/github/license/chrisjtwomey/epd)](LICENSE)
+
 <p align="center">
   <img src="docs/assets/panel-on-shelf.jpg"
        alt="A framed e-paper panel on a shelf, showing the date, a map and a five-day forecast"

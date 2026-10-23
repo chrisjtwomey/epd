@@ -10,8 +10,10 @@ compiler is clang. gcovr runs under the Python that runs this script.
     python3 scripts/coverage_report.py               # both
     python3 scripts/coverage_report.py --server      # one of them
     python3 scripts/coverage_report.py --firmware
+    python3 scripts/coverage_report.py --badges out  # also write shields.io badges
 """
 import argparse
+import json
 import os
 import platform
 import re
@@ -31,21 +33,37 @@ env.Append(CCFLAGS=["--coverage", "-O0"], LINKFLAGS=["--coverage"])
 """
 
 
-def server(python):
+def write_badge(badges, name, percent):
+    """A shields.io endpoint file, badges/<name>-coverage.json, with the line
+    percentage rounded down."""
+    color = ("brightgreen" if percent >= 90 else "green" if percent >= 80
+             else "yellow" if percent >= 60 else "red")
+    with open(os.path.join(badges, f"{name}-coverage.json"), "w") as f:
+        json.dump({"schemaVersion": 1, "label": f"{name} coverage",
+                   "message": f"{int(percent)}%", "color": color}, f)
+
+
+def server(python, work, badges):
     if not os.path.exists(python):
         print(f"no Python at {python}: make the server's venv (CONTRIBUTING.md) or pass --python")
         return 1
-    return subprocess.call(
+    summary = os.path.join(work, "server.json")
+    failed = subprocess.call(
         [python, "-m", "pytest", "-q", "--cov=epd_server", "--cov-branch",
-         "--cov-report=term-missing:skip-covered"],
+         "--cov-report=term-missing:skip-covered", f"--cov-report=json:{summary}"],
         cwd=SERVER)
+    if badges and not failed:
+        with open(summary) as f:
+            totals = json.load(f)["totals"]
+        write_badge(badges, "server", 100 * totals["covered_lines"] / totals["num_statements"])
+    return failed
 
 
 def host_environments(ini_text):
     return re.findall(r"^\[env:(native[^\]]*)\]", ini_text, re.M)
 
 
-def firmware(work):
+def firmware(work, badges):
     with open(os.path.join(FIRMWARE, "platformio.ini")) as f:
         ini = f.read()
     flags = os.path.join(work, "coverage_flags.py")
@@ -69,8 +87,12 @@ def firmware(work):
     gcov = "xcrun llvm-cov gcov" if platform.system() == "Darwin" else "gcov"
     report = [sys.executable, "-m", "gcovr", "--root", FIRMWARE, "--filter", "src/",
               "--gcov-executable", gcov, "--merge-mode-functions=separate", build]
+    summary = os.path.join(work, "firmware.json")
     # gcovr reads --filter from the folder it runs in.
-    failed |= subprocess.call(report + ["--txt-summary"], cwd=FIRMWARE)
+    failed |= subprocess.call(report + ["--txt-summary", "--json-summary", summary], cwd=FIRMWARE)
+    if badges and not failed:
+        with open(summary) as f:
+            write_badge(badges, "firmware", json.load(f)["line_percent"])
     return failed
 
 
@@ -80,15 +102,20 @@ def main():
     parser.add_argument("--firmware", action="store_true")
     parser.add_argument("--python", default=os.path.join(SERVER, ".venv", "bin", "python"),
                         help="the Python that runs the server's tests")
+    parser.add_argument("--badges", metavar="DIR",
+                        help="also write a shields.io badge file for each figure into DIR")
     args = parser.parse_args()
     both = not (args.server or args.firmware)
+    if args.badges:
+        args.badges = os.path.abspath(args.badges)
+        os.makedirs(args.badges, exist_ok=True)
 
     failed = 0
-    if args.server or both:
-        failed |= server(args.python)
-    if args.firmware or both:
-        with tempfile.TemporaryDirectory() as work:
-            failed |= firmware(work)
+    with tempfile.TemporaryDirectory() as work:
+        if args.server or both:
+            failed |= server(args.python, work, args.badges)
+        if args.firmware or both:
+            failed |= firmware(work, args.badges)
     return 1 if failed else 0
 
 
