@@ -7,6 +7,8 @@
 
 
 #define IMAGE_CACHE_PATH "/image.png"
+// A page is written here, and becomes the cache only once it is whole.
+#define IMAGE_CACHE_WRITE_PATH "/image.tmp"
 
 bool startImageCache() {
     if (SPIFFS.begin(true)) return true;
@@ -15,14 +17,21 @@ bool startImageCache() {
 }
 
 bool saveImageCache(const uint8_t* buf, int32_t len) {
-    File f = SPIFFS.open(IMAGE_CACHE_PATH, FILE_WRITE);
+    File f = SPIFFS.open(IMAGE_CACHE_WRITE_PATH, FILE_WRITE);
     if (!f) {
         log(LOG_WARNING, "saveImageCache: failed to open file");
         return false;
     }
     size_t written = f.write(buf, (size_t)len);
     f.close();
-    return (int32_t)written == len;
+    // The decoder draws a cut PNG as if it were whole, so a short write must
+    // not replace the last good page. SPIFFS will not rename over a file.
+    if ((int32_t)written != len) {
+        SPIFFS.remove(IMAGE_CACHE_WRITE_PATH);
+        return false;
+    }
+    SPIFFS.remove(IMAGE_CACHE_PATH);
+    return SPIFFS.rename(IMAGE_CACHE_WRITE_PATH, IMAGE_CACHE_PATH);
 }
 
 bool loadImageCache() {

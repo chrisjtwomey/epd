@@ -39,6 +39,10 @@ bool startImageCache();
   Save the raw PNG image bytes to SPIFFS, so the next boot can restore the
   image and draw over it rather than starting from a blank panel.
 
+  The page replaces the cache only when it was written whole: the decoder
+  draws a cut PNG as if it were whole, so a failed save keeps the last good
+  page.
+
   @param buf  pointer to the PNG bytes.
   @param len  byte count.
   @returns true on success.

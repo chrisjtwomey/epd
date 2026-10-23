@@ -1,7 +1,7 @@
 // SPIFFS.h stub for native host builds.
-// image.cpp calls SPIFFS.open() for image cache. On the host the
-// cache is always a miss (open returns a falsy File), which is fine for the
-// tests we care about (battery icon selection, sleep alarm arithmetic).
+// image.cpp's page cache, on the host: every SPIFFS call fails, so the cache
+// is always a miss, which is fine for the tests we care about (battery icon
+// selection, sleep alarm arithmetic).
 #ifndef __STUB_SPIFFS_H__
 #define __STUB_SPIFFS_H__
 
@@ -30,6 +30,8 @@ class SPIFFSClass {
 public:
     bool begin(bool = false) { return true; }
     File open(const char*, const char* = FILE_READ) { return File(); }
+    bool remove(const char*) { return false; }
+    bool rename(const char*, const char*) { return false; }
 };
 
 extern SPIFFSClass SPIFFS;
