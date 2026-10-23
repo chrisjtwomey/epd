@@ -8,9 +8,9 @@ struct BatteryCapacity {
 /**
  * The discharge profile of a 3.7v 2000mAh Lithium-Polymer battery.
  * 
- * Capacity tables are only ever a rough approximation based on recording 
- * voltages over time from fully charged to discharged. Profiles are 
- * 
+ * Capacity tables are only ever a rough approximation based on recording
+ * voltages over time from fully charged to discharged.
+ *
  * The best way to improve accuracy is to record the discharge 
  * profile of your own battery and plug the data in here. I recorded this 
  * table by running this project until the voltage cut-off of 3.1v was reached
