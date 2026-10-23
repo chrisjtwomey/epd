@@ -14,7 +14,7 @@
 #include "http_request.h"
 #include "log_utils.h"
 #include "mem_utils.h"
-#include "refresh_header.h"
+#include "header_value.h"
 #include "settings.h"
 #include "settings_store.h"
 #include "time_utils.h"
@@ -47,7 +47,7 @@ static void numberHeader(HTTPClient& http, const char* name, uint32_t* out) {
     if (!out || !http.hasHeader(name)) return;
     String value = http.header(name);
     uint32_t parsed = 0;
-    if (parseRefreshTime(value.c_str(), &parsed)) {
+    if (parseWholeNumber(value.c_str(), &parsed)) {
         *out = parsed;
         logf(LOG_INFO, "received header %s: %lu", name, (unsigned long)parsed);
     } else {

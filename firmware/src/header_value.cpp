@@ -1,8 +1,8 @@
-#include "refresh_header.h"
+#include "header_value.h"
 
 #include <string.h>
 
-bool parseRefreshTime(const char* headerVal, uint32_t* out) {
+bool parseWholeNumber(const char* headerVal, uint32_t* out) {
     if (!headerVal || !out || *headerVal == '\0') return false;
 
     uint64_t acc = 0;

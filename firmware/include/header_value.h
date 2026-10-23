@@ -1,5 +1,5 @@
-#ifndef EPD_REFRESH_HEADER_H
-#define EPD_REFRESH_HEADER_H
+#ifndef EPD_HEADER_VALUE_H
+#define EPD_HEADER_VALUE_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -13,7 +13,7 @@
  * success; returns false and leaves `*out` unchanged on parse failure (null
  * pointer, empty string, any non-digit character, or value > UINT32_MAX).
  */
-bool parseRefreshTime(const char* headerVal, uint32_t* out);
+bool parseWholeNumber(const char* headerVal, uint32_t* out);
 
 /**
  * Copy a response header value into a fixed field of `size` bytes.
