@@ -1,16 +1,8 @@
 #ifndef EPD_BATTERY_H
 #define EPD_BATTERY_H
-// Define a battery capacity lookup table as an array of structs
-struct BatteryCapacity {
-    double voltage;
-    int percentage;
-};
-
 /**
-  Look up battery capacity percentage based on voltage.
-
-  @param voltage the current voltage of the battery.
-  @returns the capacity remaining as a percentage integer.
+  The charge left in the battery, in percent, at ``voltage``: read from the
+  discharge table of a 3.7 V 2000 mAh LiPo cell.
 */
-int getBatteryCapacity(double voltage);
+int batteryPercent(double voltage);
 #endif

@@ -1,5 +1,10 @@
 #include "battery.h"
 
+struct BatteryCapacity {
+    double voltage;
+    int percentage;
+};
+
 /**
  * The discharge profile of a 3.7v 2000mAh Lithium-Polymer battery.
  * 
@@ -12,7 +17,7 @@
  * and calculated percentage capacity based on the number of days it ran for.
  * 
  */
-BatteryCapacity capacityTable[] = {
+static const BatteryCapacity capacityTable[] = {
     {4.25, 100}, {4.22, 99}, {4.19, 98}, {4.17, 97}, {4.15, 96}, {4.14, 95},
     {4.12, 94},  {4.11, 93}, {4.10, 91}, {4.09, 90}, {4.08, 89}, {4.08, 88},
     {4.08, 87},  {4.08, 86}, {4.07, 85}, {4.07, 84}, {4.07, 83}, {4.07, 82},
@@ -31,9 +36,9 @@ BatteryCapacity capacityTable[] = {
     {3.26, 4},   {3.24, 3},  {3.21, 2},  {3.16, 1},  {3.10, 0},
 };
 
-const int numCapacityEntries = sizeof(capacityTable) / sizeof(BatteryCapacity);
+static const int numCapacityEntries = sizeof(capacityTable) / sizeof(BatteryCapacity);
 
-int getBatteryCapacity(double voltage) {
+int batteryPercent(double voltage) {
     for (int i = 0; i < numCapacityEntries; i++) {
         if (voltage >= capacityTable[i].voltage) {
             return capacityTable[i].percentage;
