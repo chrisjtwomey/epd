@@ -3,7 +3,7 @@
 #include "error_utils.h"
 
 /**
-  Load an image to the display buffer.
+  Draw a PNG from a file on the SD card into the frame buffer.
 
   @param filePath the path of the file on the SD card.
   @returns the esp_err_t code:
@@ -11,10 +11,10 @@
   - ESP_ERR_EDRAW if the image cannot be decoded.
   - ESP_ERR_NOT_SUPPORTED in a build without USE_SDCARD.
 */
-esp_err_t loadImage(const char* filePath);
+esp_err_t drawImage(const char* filePath);
 
 /**
-  Load a PNG image to the display buffer from a data buffer.
+  Draw a PNG from memory into the frame buffer.
 
   @param buf the data buffer of png.
   @param len the size of buffer.
@@ -22,11 +22,11 @@ esp_err_t loadImage(const char* filePath);
   - ESP_OK if successful.
   - ESP_ERR_EDRAW if the image cannot be decoded.
 */
-esp_err_t loadImage(const uint8_t* buf, int32_t len);
+esp_err_t drawImage(const uint8_t* buf, int32_t len);
 
 
 /**
-  Mount the filesystem the image cache lives on.
+  Mount the filesystem the page cache lives on.
 
   Only worth calling on a board that redraws the last page — to put a banner
   over it, say. Nothing in this library needs it otherwise.
@@ -40,11 +40,11 @@ esp_err_t loadImage(const uint8_t* buf, int32_t len);
 
   @returns true when the cache is usable.
 */
-bool startImageCache();
+bool startPageCache();
 
 /**
-  Save the raw PNG image bytes to LittleFS, so the next boot can restore the
-  image and draw over it rather than starting from a blank panel.
+  Save the page's PNG bytes to LittleFS, so a later boot can draw the page
+  again, with a banner over it, rather than start from a blank panel.
 
   The page replaces the cache only when it was written whole: the decoder
   draws a cut PNG as if it were whole, so a failed save keeps the last good
@@ -54,14 +54,14 @@ bool startImageCache();
   @param len  byte count.
   @returns true on success.
 */
-bool saveImageCache(const uint8_t* buf, int32_t len);
+bool savePageCache(const uint8_t* buf, int32_t len);
 
 /**
-  Load the cached image PNG from LittleFS into the display buffer.
+  Draw the cached page from LittleFS into the frame buffer.
 
   @returns true if the file existed and decoded successfully; false on any
   failure (first boot, LittleFS not mounted, etc.). After a decode that fails
   part way, the frame buffer holds part of the page.
 */
-bool loadImageCache();
+bool drawCachedPage();
 #endif

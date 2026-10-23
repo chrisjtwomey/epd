@@ -95,7 +95,7 @@ bool drawPage(const PageFetch& page, const char* filePath, int retries,
         logf(LOG_DEBUG, "image draw attempt #%d", attempt + 1);
 
         epdBoard().clearDisplay();
-        if ((filePath ? loadImage(filePath) : loadImage(page.data, page.length)) != ESP_OK)
+        if ((filePath ? drawImage(filePath) : drawImage(page.data, page.length)) != ESP_OK)
             continue;
 
         if (overlay) overlay();

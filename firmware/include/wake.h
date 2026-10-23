@@ -23,7 +23,7 @@
   Bring the board up: serial, panel, rotation, and the clock from the RTC,
   in the time zone the server last sent.
 
-  The banner is left to the caller, which knows what to say. So is the image
+  The banner is left to the caller, which knows what to say. So is the page
   cache, which costs a filesystem and only earns it on a board that draws
   banners over the last page.
 */

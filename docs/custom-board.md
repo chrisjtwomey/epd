@@ -94,7 +94,7 @@ These methods are compiled only when the `USE_SDCARD` build flag is set.
 | `sdCardInit()` | Initialise the SD card. Returns `true` on success. |
 | `sdCardSleep()` | Put the SD card into low-power sleep before deep sleep. |
 | `drawPngFromSd(path, x, y, options)` | Decode a PNG from an SD-card file and render it at `(x, y)`, with `options` as for `drawPngFromBuffer`. Returns `true` on success. It is here, not with the other image methods, because a virtual method always links: outside this block it would put an SD library into every image, card or no card. |
-| `sdWriteFile(path, buf, len)` | Write `len` bytes to `path`, replacing any existing file. Returns `true` on success. Used to cache the downloaded image. |
+| `sdWriteFile(path, buf, len)` | Write `len` bytes to `path`, replacing any existing file. Returns `true` on success. Used to write a downloaded page to the card, for `drawImage(path)`. |
 | `sdReadFile(path, buf, maxLen)` | Read up to `maxLen` bytes from `path`. Returns the byte count, or `0` if the file is missing or empty. Used to load `config.yaml`. |
 
 > **Why file I/O is on `IBoard`:** storage is reached only through

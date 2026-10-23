@@ -6,20 +6,20 @@
 #include "mem_utils.h"
 
 
-#define IMAGE_CACHE_PATH "/image.png"
+#define PAGE_CACHE_PATH "/image.png"
 // A page is written here, and becomes the cache only once it is whole.
-#define IMAGE_CACHE_WRITE_PATH "/image.tmp"
+#define PAGE_CACHE_WRITE_PATH "/image.tmp"
 
-bool startImageCache() {
+bool startPageCache() {
     if (LittleFS.begin(true)) return true;
-    log(LOG_WARNING, "LittleFS mount failed - image cache unavailable");
+    log(LOG_WARNING, "LittleFS mount failed - page cache unavailable");
     return false;
 }
 
-bool saveImageCache(const uint8_t* buf, int32_t len) {
-    File f = LittleFS.open(IMAGE_CACHE_WRITE_PATH, FILE_WRITE);
+bool savePageCache(const uint8_t* buf, int32_t len) {
+    File f = LittleFS.open(PAGE_CACHE_WRITE_PATH, FILE_WRITE);
     if (!f) {
-        log(LOG_WARNING, "saveImageCache: failed to open file");
+        log(LOG_WARNING, "savePageCache: failed to open file");
         return false;
     }
     size_t written = f.write(buf, (size_t)len);
@@ -27,14 +27,14 @@ bool saveImageCache(const uint8_t* buf, int32_t len) {
     // The decoder draws a cut PNG as if it were whole, so a short write must
     // not replace the last good page.
     if ((int32_t)written != len) {
-        LittleFS.remove(IMAGE_CACHE_WRITE_PATH);
+        LittleFS.remove(PAGE_CACHE_WRITE_PATH);
         return false;
     }
-    return LittleFS.rename(IMAGE_CACHE_WRITE_PATH, IMAGE_CACHE_PATH);
+    return LittleFS.rename(PAGE_CACHE_WRITE_PATH, PAGE_CACHE_PATH);
 }
 
-bool loadImageCache() {
-    File f = LittleFS.open(IMAGE_CACHE_PATH, FILE_READ);
+bool drawCachedPage() {
+    File f = LittleFS.open(PAGE_CACHE_PATH, FILE_READ);
     if (!f || f.size() == 0) return false;
     int32_t len = (int32_t)f.size();
     uint8_t* buf = (uint8_t*)boardMalloc(len);
@@ -52,7 +52,7 @@ bool loadImageCache() {
 }
 
 #if defined(USE_SDCARD)
-esp_err_t loadImage(const char* filePath) {
+esp_err_t drawImage(const char* filePath) {
     logf(LOG_INFO, "drawing image from path: %s", filePath);
 
     if (!epdBoard().drawPngFromSd(filePath, 0, 0, PngDraw::Invert)) {
@@ -62,13 +62,13 @@ esp_err_t loadImage(const char* filePath) {
     return ESP_OK;
 }
 #else
-esp_err_t loadImage(const char* filePath) {
+esp_err_t drawImage(const char* filePath) {
     logf(LOG_ERROR, "cannot draw %s: this build has no SD card support", filePath);
     return ESP_ERR_NOT_SUPPORTED;
 }
 #endif
 
-esp_err_t loadImage(const uint8_t* buf, int32_t len) {
+esp_err_t drawImage(const uint8_t* buf, int32_t len) {
     log(LOG_INFO, "drawing image from buffer");
 
     if (!epdBoard().drawPngFromBuffer(buf, len, 0, 0, PngDraw::Invert)) {
