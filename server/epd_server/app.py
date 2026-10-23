@@ -5,7 +5,11 @@ A project builds its pages and a :class:`~epd_server.source.DataSource`,
 hands them to :class:`DisplayServer` with the validated settings, and calls
 :meth:`DisplayServer.run`. Everything else — HTTP routes, an optional HTTPS
 port for a browser, the schedule and identity headers, the regeneration
-loop, the client log relay, signal handling — lives here.
+loop, the client log relay, signal handling — lives here, except three parts
+that each have a module of their own: the firmware offered to the boards
+(:mod:`epd_server.offers`), the install routes
+(:mod:`epd_server.install_routes`), and the board keys on the wire
+(:mod:`epd_server.key_routes`).
 
 The wire contract with the client is small. Every name below is written with
 the default prefix; a project sets its own, and :mod:`epd_server.headers`
@@ -50,7 +54,8 @@ builds the names from it::
     GET /install/<name> its two scripts
     GET /install-firmware.sh  the same install from a terminal, with this
                         server's address filled in; text/plain, no-store
-    (the three /install routes exist only with install_boards)
+    (the three /install routes exist only with install_boards; see
+    epd_server.install_routes)
 
     POST /<name>        a project's ingest route: a JSON object, or an array
                         of them, in; 204 out, or 200 with the handler's JSON;
@@ -67,8 +72,6 @@ The server is the single source of truth for *when* the client wakes and
 """
 from __future__ import annotations
 
-import base64
-import io
 import logging
 import os
 import signal
@@ -76,27 +79,27 @@ import threading
 import time
 from datetime import datetime
 from typing import Callable, Iterable, Mapping
-from urllib.parse import urlencode
 
-from flask import Flask, abort, jsonify, make_response, request, send_file, send_from_directory
+from flask import Flask, abort, jsonify, make_response, request
 from werkzeug.serving import WSGIRequestHandler, make_server
 
-from .board_keys import REFUSED, BoardKeys, Verdict, content_digest
+from .board_keys import BoardKeys
 from .certificate import certificate_names, ensure_certificate
-from .compat import compatible, version_order
+from .compat import compatible
 from .config import FirmwareSettings, MqttSettings, NetworkSettings
 from ._version import __version__
 from .headers import Wire
-from .install import (INSTALLER, SCRIPTS, STATIC_DIR, InstallBoard, install_page,
-                      installer_script, server_name)
-from .firmware import (FirmwareImage, FirmwareStore, ReleaseWatcher, client_from_headers,
-                       update_applies)
+from .install import INSTALLER, InstallBoard
+from .install_routes import InstallRoutes
+from .firmware import ReleaseWatcher
+from .key_routes import KeyRoutes
 from .logs import LogStore
 from .mqtt import client_log_subscriber
-from .network import STORE_OFFSET, network_settings_file
+from .offers import FirmwareOffers
 from .page import Page
 from .pipeline import regenerate as _regenerate
 from .posix_tz import posix_tz
+from .responses import download
 from .scheduling import Pools, Schedule, TimesSchedule, WakeSchedule, seconds_until
 from .source import DataSource
 
@@ -124,29 +127,6 @@ FIRST_RENDER_RETRY_AFTER_S = 30
 
 
 CONNECTION_TIMEOUT_S = 30
-
-
-def _image_response(image: FirmwareImage, download_name: str):
-    """A firmware image as a download, with the md5 an ESP32 checks it by."""
-    with open(image.path, "rb") as f:
-        data = f.read()
-    rsp = make_response(send_file(
-        io.BytesIO(data),
-        mimetype="application/octet-stream",
-        as_attachment=True,
-        download_name=download_name,
-    ))
-    rsp.headers["Content-Length"] = str(image.size)
-    rsp.headers["x-MD5"] = image.md5
-    rsp.headers["Content-Digest"] = content_digest(data)
-    return rsp
-
-
-def _text(status: int, message: str):
-    """A plain-text answer, for a person reading it in a terminal or a page."""
-    rsp = make_response(message + "\n", status)
-    rsp.mimetype = "text/plain"
-    return rsp
 
 
 class ServerThread(threading.Thread):
@@ -335,10 +315,10 @@ class DisplayServer:
         self.signed_queries = tuple(signed_queries)
         self.choose_page = choose_page
         self.made_for: dict[str, str] = {}
-        self.firmware_stores = ({p: FirmwareStore(firmware.dir_for(p)) for p in firmware.names()}
-                                if firmware and firmware.enabled else {})
-        # The default product's: what the release watcher fills and / reports.
-        self.firmware_store = self.firmware_stores.get(firmware.product) if firmware else None
+        self.offers = FirmwareOffers(firmware, version_gate=version_gate,
+                                     server_version=self.server_version, wire=self.wire)
+        self.firmware_stores = self.offers.stores
+        self.firmware_store = self.offers.store
         self.release_watcher: ReleaseWatcher | None = None
 
         if not self.pages:
@@ -374,6 +354,15 @@ class DisplayServer:
             unknown = sorted({b.product for b in self.install_boards} - set(firmware.names()))
             if unknown:
                 raise ValueError(f"install boards {unknown} are not in client.firmware")
+
+        self.keys = (KeyRoutes(board_keys, require_signatures=require_signatures,
+                               signed_queries=self.signed_queries, wire=self.wire)
+                     if board_keys is not None else None)
+        self.installs = InstallRoutes(
+            firmware=firmware, network=lambda: self.network, mqtt=mqtt, offers=self.offers,
+            boards=self.install_boards, https_port=https_port,
+            first_page=self.pages[0].png_filename, settings_url=settings_url,
+            install_url=install_url, login_url=login_url)
 
         # Serialises regenerations; a page's PNG is replaced atomically, so
         # readers never wait on it.
@@ -419,7 +408,7 @@ class DisplayServer:
         @app.route("/")
         def index():
             seconds, path = self.next_wake()
-            image = self._offer_image(self.firmware.product) if self.firmware else None
+            image = self.offers.offer(self.firmware.product) if self.firmware else None
             return jsonify(
                 pages=[p.png_filename for p in self.pages],
                 schedule=self.schedule.describe(),
@@ -431,22 +420,10 @@ class DisplayServer:
                 },
             )
 
-        if self.firmware_store is not None:
-            app.add_url_rule("/firmware.bin", endpoint="firmware",
-                             view_func=self._serve_firmware)
-            app.add_url_rule("/firmware.merged.bin", endpoint="firmware_merged",
-                             view_func=self._serve_merged)
-        if self.network is not None and self.firmware is not None:
-            app.add_url_rule("/network.bin", endpoint="network",
-                             view_func=self._serve_network)
-        if self.board_keys is not None and self.require_signatures:
-            app.add_url_rule("/pair", endpoint="pair", view_func=self._pair, methods=["POST"])
-        if self.install_boards:
-            app.add_url_rule("/install", endpoint="install", view_func=self._serve_install)
-            app.add_url_rule("/install/<name>", endpoint="install_script",
-                             view_func=self._serve_install_script)
-            app.add_url_rule("/" + INSTALLER, endpoint="installer",
-                             view_func=self._serve_installer)
+        self.offers.register(app)
+        self.installs.register(app)
+        if self.keys is not None:
+            self.keys.register(app)
 
         for page in self.pages:
             app.add_url_rule(
@@ -475,69 +452,7 @@ class DisplayServer:
         ``root`` away from this server's root: "" for ``/install``, "../" for a
         page one directory down, as a project draws it in its own layout.
         ``network_here`` says the page holds the network settings itself."""
-        assert self.network is not None   # checked in __init__
-        return {
-            "root": root,
-            "boards": [{
-                "product": b.product,
-                "name": b.name,
-                "chip": b.chip,
-                "usbVendorIds": list(b.usb_vendor_ids),
-                "version": self._installable_version(b.product),
-            } for b in self.install_boards],
-            "missing": self.network.missing(self.mqtt),
-            "ssid": self.network.wifi_ssid,
-            "serverUrl": self.network.server_url,
-            "mqttHost": self.network.mqtt_host if self.mqtt and self.mqtt.enabled else None,
-            "httpsPort": self.https_port,
-            "serverName": server_name(self.network.server_url),
-            "settingsUrl": root + self.settings_url if self.settings_url else None,
-            "networkUrl": root + self.install_url if self.install_url else None,
-            "networkHere": network_here,
-            "storeOffset": STORE_OFFSET,
-        }
-
-    def _serve_install(self):
-        rsp = make_response(install_page(self.install_config()))
-        rsp.headers["Cache-Control"] = "no-store"
-        return rsp
-
-    def _serve_installer(self):
-        """install-firmware.sh, which downloads from this server as the person
-        reached it."""
-        assert self.network is not None   # checked in __init__
-        script = installer_script(
-            server=request.host_url.rstrip("/"),
-            settings_path=self.settings_url or "",
-            network_path=self.install_url or "",
-            login_path=self.login_url or "",
-            wifi_ssid=self.network.wifi_ssid,
-            board_server_url=self.network.server_url,
-            mqtt_host=self.network.mqtt_host if self.mqtt and self.mqtt.enabled else "",
-            boards=self.install_boards,
-        )
-        rsp = make_response(script)
-        rsp.mimetype = "text/plain"
-        rsp.headers["Cache-Control"] = "no-store"
-        return rsp
-
-    def _serve_install_script(self, name: str):
-        if name not in SCRIPTS:
-            abort(404)
-        return send_from_directory(STATIC_DIR, name, mimetype="text/javascript")
-
-    def _installable_version(self, product: str) -> str | None:
-        """The version ``/firmware.merged.bin`` would serve ``product``, if any."""
-        _, merged = self._merged_offer(product)
-        return merged.version if merged is not None else None
-
-    def _merged_offer(self, product: str) -> tuple[FirmwareImage | None, FirmwareImage | None]:
-        """The image a product is offered over the air, and its merged image."""
-        store = self.firmware_stores.get(product)
-        image = self._offer_image(product) if store is not None else None
-        if store is None or image is None:
-            return image, None
-        return image, store.merged(image.version)
+        return self.installs.config(root, network_here)
 
     def _make_query(self, name: str, handler: Callable[[dict], object]):
         def answer():
@@ -553,7 +468,7 @@ class DisplayServer:
 
     def _make_ingest(self, name: str, handler: Callable[[list[dict]], dict | None]):
         def accept():
-            refusal = self._version_refusal() or self._signature_refusal()
+            refusal = self._version_refusal() or (self.keys.refusal() if self.keys else None)
             if refusal is not None:
                 return refusal
             body = request.get_json(silent=True)
@@ -590,162 +505,6 @@ class DisplayServer:
             self.on_refused(device or "", version or "")
         return jsonify(error="version", device=version, server=self.server_version), 409
 
-    def _signature_refusal(self):
-        """A 401 for a post without a good signature from an approved key, while
-        ``require_signatures`` is on. Its ``<prefix>-Key`` header says what the
-        board should do: pair, wait for the approval, take the server's clock,
-        or try again later."""
-        if self.board_keys is None or not self.require_signatures:
-            return None
-        verdict = self.board_keys.check_request(
-            request.method, request.path, request.query_string.decode("ascii", "replace"),
-            request.headers, request.get_data(cache=True))
-        stated = (request.headers.get(self.wire.device) or "").strip()
-        if not verdict.state and stated and stated != verdict.device:
-            verdict = Verdict(REFUSED, verdict.device,
-                              f"Signed by the key of {verdict.device}, not {stated}.")
-        if not verdict.state:
-            return None
-        log.warning("refused %s from %s: %s", request.path,
-                    verdict.device or stated or "an unnamed client", verdict.words)
-        rsp = jsonify(problem=verdict.words)
-        rsp.status_code = 401
-        rsp.headers[self.wire.key] = verdict.state
-        # Signed with the post's own key, so that the board can trust a
-        # "pair" that would replace the key it holds.
-        rsp.headers.update(self.board_keys.sign_refusal(
-            verdict, 401, content_digest(rsp.get_data()), request.method, request.path,
-            request.query_string.decode("ascii", "replace"),
-            content_digest(request.get_data(cache=True))))
-        return rsp
-
-    def _pair(self):
-        """The server's half of a board's key exchange: ``{"device": name,
-        "key": base64 point}`` in, ``{"key": base64 point}`` out."""
-        assert self.board_keys is not None   # the route exists only when it does
-        body = request.get_json(silent=True)
-        if not isinstance(body, dict):
-            abort(400, "expected {device, key}")
-        try:
-            ours = self.board_keys.pair(str(body.get("device", "")),
-                                        base64.b64decode(str(body.get("key", "")), validate=True))
-        except ValueError as exc:
-            abort(400, str(exc))
-        return jsonify(key=base64.b64encode(ours).decode())
-
-    def _sign_answer(self, rsp) -> None:
-        """Sign the image, and each answer in ``signed_queries``, for a board
-        whose key the server holds: the one it names in ``<prefix>-Key-Id``,
-        else its approved one."""
-        if self.board_keys is None or rsp.status_code != 200:
-            return
-        if request.endpoint != "firmware" and request.endpoint not in {
-                f"query_{name}" for name in self.signed_queries}:
-            return
-        device = (request.headers.get(self.wire.device) or "").strip()
-        digest = rsp.headers.get("Content-Digest") or content_digest(rsp.get_data())
-        rsp.headers.update(self.board_keys.sign_answer(
-            device, rsp.status_code, digest, request.method, request.path,
-            request.query_string.decode("ascii", "replace"),
-            (request.headers.get(self.wire.key_id) or "").strip()))
-
-    def _offer_image(self, product: str) -> FirmwareImage | None:
-        """The image a board of ``product`` should run, before asking whether
-        it runs it already."""
-        store = self.firmware_stores.get(product)
-        if store is None:
-            return None
-        return store.newest_compatible(self.server_version) if self.version_gate else store.current()
-
-    def _firmware_url(self, image: FirmwareImage, product: str) -> str:
-        url = request.host_url.rstrip("/") + "/firmware.bin"
-        if self.firmware is not None and self.firmware.products:
-            url += "?" + urlencode({"product": product, "version": image.version})
-        return url
-
-    def _serve_firmware(self):
-        """The image itself. The board asks for this after a response offered it."""
-        assert self.firmware is not None   # the route exists only when it does
-        product = request.args.get("product") or self.firmware.product
-        version = request.args.get("version")
-        store = self.firmware_stores.get(product)
-        if store is None:
-            abort(404)
-        image = store.image(version) if version else self._offer_image(product)
-        if image is None:
-            abort(404)
-        # The board sends the version it runs, so an image it already has
-        # costs one small response instead of a megabyte.
-        if request.headers.get("x-ESP32-version") == image.version:
-            log.info("%s already runs firmware %s", request.user_agent.string, image.version)
-            return "", 304
-        log.info("Serving firmware %s (%d bytes) to %s",
-                 image.version, image.size, request.user_agent.string)
-        return _image_response(image, image.version + ".bin")
-
-    def _serve_merged(self):
-        """The merged image of the version a product is offered over the air,
-        so a board flashed with it is not updated straight after."""
-        assert self.firmware is not None   # the route exists only when it does
-        product = request.args.get("product") or self.firmware.product
-        image, merged = self._merged_offer(product)
-        if merged is None:
-            if image is not None:
-                log.warning("No merged image of %s %s", product, image.version)
-            return _text(404, f"No firmware to install for {product} yet.")
-        log.info("Serving the merged image of %s %s (%d bytes) to %s",
-                 product, merged.version, merged.size, request.user_agent.string)
-        return _image_response(merged, f"{product}-{merged.version}.merged.bin")
-
-    def _serve_network(self):
-        """A product's network settings, as the board's settings store."""
-        assert self.firmware is not None and self.network is not None
-        product = request.args.get("product") or self.firmware.product
-        if product not in self.firmware.names():
-            return _text(404, f"No product named {product}.")
-        missing = self.network.missing(self.mqtt)
-        if missing:
-            log.warning("Network settings for %s asked for, but %s not set",
-                        product, ", ".join(missing))
-            return _text(409, f"Network settings not set: {', '.join(missing)}.")
-        data = network_settings_file(self.network, self.mqtt, product=product,
-                                     first_page=self.pages[0].png_filename)
-        log.info("Serving the network settings of %s to %s", product,
-                 request.user_agent.string)
-        rsp = make_response(send_file(
-            io.BytesIO(data),
-            mimetype="application/octet-stream",
-            as_attachment=True,
-            download_name=f"{product}-network.bin",
-        ))
-        rsp.headers["Content-Length"] = str(len(data))
-        rsp.headers["Cache-Control"] = "no-store"
-        return rsp
-
-    def _firmware_headers(self, rsp) -> None:
-        """Add the offer headers when the requesting board has an update."""
-        if not self.firmware_stores or request.endpoint == "firmware":
-            return
-        firmware = self.firmware
-        assert firmware is not None   # the stores exist only when it does
-        client = client_from_headers(request.headers.get(self.wire.device),
-                                     request.headers.get(self.wire.device_version))
-        image = self._offer_image(client.name) if client is not None else None
-        if not update_applies(client, image, firmware):
-            return
-        assert image is not None and client is not None   # update_applies said so
-        url = self._firmware_url(image, client.name)
-        # The version travels with the URL because the board checks it against
-        # the one it rolled back from, before it downloads anything.
-        rsp.headers[self.wire.firmware_version] = image.version
-        rsp.headers[self.wire.firmware_url] = url
-        older = version_order(image.version) or (0, 0, 0, 0)
-        if older < (version_order(client.version) or (0, 0, 0, 0)):
-            log.warning("Offering %s %s an older firmware, %s: this server is %s",
-                        client.name, client.version, image.version, self.server_version)
-        else:
-            log.info("Offering firmware %s to %s %s", image.version, client.name, client.version)
-
     def _make_view(self, page: Page):
         def serve():
             return self._serve(page)
@@ -770,12 +529,7 @@ class DisplayServer:
         seconds, next_path = self.next_wake()
         next_url = request.host_url.rstrip("/") + "/" + next_path.lstrip("/")
 
-        rsp = make_response(send_file(
-            io.BytesIO(data),
-            mimetype="image/png",
-            as_attachment=True,
-            download_name=page.png_filename,
-        ))
+        rsp = download(data, page.png_filename, mimetype="image/png")
         rsp.headers[self.wire.next_refresh] = str(seconds)
         rsp.headers[self.wire.next_url] = next_url
         return rsp
@@ -805,8 +559,9 @@ class DisplayServer:
             seconds = self.sensor_poll(now, name)
             if seconds is not None:
                 rsp.headers[self.wire.next_sensor_poll] = str(int(seconds))
-        self._firmware_headers(rsp)
-        self._sign_answer(rsp)
+        self.offers.add_headers(rsp)
+        if self.keys is not None:
+            self.keys.sign(rsp)
         return rsp
 
     # ── Lifecycle ─────────────────────────────────────────────────────────

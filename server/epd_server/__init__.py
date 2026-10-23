@@ -19,7 +19,8 @@ The pieces a project composes:
 - :mod:`epd_server.source`     DataSource protocol; Static / Composite / Ingest helpers
 - :mod:`epd_server.store`      ReadingsStore: what a board posts, in SQLite, read back by time
 - :mod:`epd_server.pipeline`   regenerate(): fetch what pages need, render, save
-- :mod:`epd_server.app`        DisplayServer: routes, wire headers, regen loop
+- :mod:`epd_server.app`        DisplayServer: routes, wire headers, regen loop; its parts
+                               offers, install_routes, key_routes and responses are its own
 - :mod:`epd_server.headers`    the header names, built from the product's prefix
 """
 

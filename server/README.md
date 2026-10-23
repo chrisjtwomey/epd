@@ -59,7 +59,7 @@ fails a test before it reaches a project.
 | `epd_server.source` | `DataSource` — named, lazily fetched datasets, each a `Fetcher`; `StaticSource` for constants; `CompositeSource` to merge; `IngestSource` — what a board posted, from a `ReadingsStore` |
 | `epd_server.store` | `ReadingsStore` — what a board posts, in SQLite, kept by its `device` and `ts` and read back by time; `key` — those two, checked |
 | `epd_server.pipeline` | `regenerate(pages, source, only=, force_refresh=)` — fetch what the selected pages need, once each; render; save |
-| `epd_server.app` | `DisplayServer(pages, source, schedule, tz, …).run()` — routes, `EPD-Next-*` headers, ingest and query routes, regen loop, client log relay, signals. `align_process_timezone()` |
+| `epd_server.app` | `DisplayServer(pages, source, schedule, tz, …).run()` — routes, `EPD-Next-*` headers, ingest and query routes, regen loop, client log relay, signals. `align_process_timezone()`. Its firmware offers, install routes and board-key routes live in `offers`, `install_routes` and `key_routes`, which are not part of the API |
 | `epd_server.headers` | `Wire` — every header name, for one product's prefix |
 | `epd_server.compat` | Whether a board's version and the server's work together, by the rule in [docs/protocol.md](../docs/protocol.md) |
 | `epd_server.posix_tz` | The server's time zone as a POSIX TZ string, for `EPD-Server-Timezone` |
