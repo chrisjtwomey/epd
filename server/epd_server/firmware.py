@@ -149,7 +149,8 @@ class FirmwareStore:
         matching = [p for p in self._usable() if compatibility_key(_version_of(p)) == key]
         if not matching:
             return None
-        return self._image(max(matching, key=lambda p: version_order(_version_of(p))))
+        newest = max(matching, key=lambda p: version_order(_version_of(p)) or (0, 0, 0, 0))
+        return self._image(newest)
 
     def image(self, version: str) -> FirmwareImage | None:
         """The image of one version, or None."""

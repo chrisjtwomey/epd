@@ -39,14 +39,21 @@ import os
 import re
 import threading
 import time
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
+from typing import Protocol
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 log = logging.getLogger(__name__)
+
+
+class HeaderLookup(Protocol):
+    """A request's headers, read by name: a dict, or the web framework's own."""
+
+    def get(self, key: str, default: str, /) -> str: ...
 
 WINDOW_S = 300
 LABEL = "sig1"
@@ -293,7 +300,7 @@ class BoardKeys:
                     return b, which, k
         return None
 
-    def check_request(self, method: str, path: str, query: str, headers: Mapping[str, str],
+    def check_request(self, method: str, path: str, query: str, headers: HeaderLookup,
                       body: bytes) -> Verdict:
         """What the server makes of a board's request: whether it carries a good
         signature from an approved key, and what the board should do if not."""
