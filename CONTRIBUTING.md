@@ -31,6 +31,8 @@ examples/                 minimal, the README's quickstart as a project; ota, th
                           same with updates on; live-data, a server with a
                           data source, a cache and two pages. The first two
                           are the only ESP32 builds
+scripts/                  version.py, which sets the version everywhere;
+                          coverage_report.py, the tests' coverage
 ```
 
 Two libraries, not one, so that a project on other hardware never pulls in
@@ -87,6 +89,20 @@ pytest
 test client, and `GreyscaleQuantiser(levels=4)` byte-for-byte against the
 algorithm it replaced. Keep it that way: a test that needs Chromium or a
 network belongs in a consumer, not here.
+
+### Coverage
+
+```sh
+pip install gcovr                       # once, into the Python that runs the script
+python3 scripts/coverage_report.py      # --server or --firmware for one
+```
+
+The goal is 80% or more of the server's code and of `firmware/src`, counted
+by line; the board driver in `firmware/boards/` is left to the bench. The
+firmware's figure counts only what the host environments compile, which is
+all of `firmware/src` since `native_io` and `native_io_sd`. A test earns its
+place by checking behaviour a reader would miss if it broke, not by lifting
+the figure.
 
 ## Consumers
 
