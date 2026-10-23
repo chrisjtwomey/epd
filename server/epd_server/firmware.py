@@ -342,4 +342,5 @@ def _fetch_url(url: str, headers: dict):
         with urllib.request.urlopen(request, timeout=30) as response:
             return response.status, dict(response.headers), response.read()
     except urllib.error.HTTPError as exc:
-        return exc.code, dict(exc.headers or {}), exc.read()
+        with exc:
+            return exc.code, dict(exc.headers or {}), exc.read()

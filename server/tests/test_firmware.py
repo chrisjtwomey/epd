@@ -1,8 +1,12 @@
 """Firmware: the applies rule, and the image store."""
+import io
 import os
+import urllib.error
+import urllib.request
 
 import pytest
 
+from epd_server import firmware as firmware_module
 from epd_server.config import FirmwareSettings
 from epd_server.firmware import (
     ClientId,
@@ -394,3 +398,18 @@ class _StopAfter(threading.Event):
     def wait(self, timeout=None):
         self.waits.append(timeout)
         return len(self.waits) >= self.n
+
+
+def test_an_error_from_github_is_read_and_closed(monkeypatch):
+    """A refused release check, such as GitHub's rate limit, still says what
+    it answered, and leaves no connection open."""
+    error = urllib.error.HTTPError("https://api.github.com/x", 403, "Forbidden",
+                                   {"X-RateLimit-Remaining": "0"}, io.BytesIO(b"limit"))
+
+    def refuse(*_args, **_kwargs):
+        raise error
+
+    monkeypatch.setattr(urllib.request, "urlopen", refuse)
+    status, headers, body = firmware_module._fetch_url("https://api.github.com/x", {})
+    assert (status, headers["X-RateLimit-Remaining"], body) == (403, "0", b"limit")
+    assert error.fp is None or error.fp.closed
