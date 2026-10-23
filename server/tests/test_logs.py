@@ -11,7 +11,9 @@ def clock():
 
 @pytest.fixture
 def store(clock):
-    return LogStore(":memory:", now=lambda: clock[0])
+    s = LogStore(":memory:", now=lambda: clock[0])
+    yield s
+    s.close()
 
 
 def test_a_line_states_its_level_with_or_without_a_stamp():
@@ -65,6 +67,7 @@ def test_old_lines_go_as_new_ones_arrive(clock, monkeypatch):
     store.add("b", "INFO - new")
     assert [line["text"] for line in store.lines()] == ["INFO - new"]
     assert store.count() == 1
+    store.close()
 
 
 def test_the_same_line_at_the_same_moment_is_one_line(store):

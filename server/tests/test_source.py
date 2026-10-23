@@ -60,8 +60,14 @@ def test_composite_rejects_colliding_names():
         CompositeSource(Counting(x=1), StaticSource(x=2)).datasets()
 
 
-def test_ingest_source_serves_the_newest_and_each_window(tmp_path):
-    store = ReadingsStore(tmp_path / "r.db")
+@pytest.fixture
+def store(tmp_path):
+    s = ReadingsStore(tmp_path / "r.db")
+    yield s
+    s.close()
+
+
+def test_ingest_source_serves_the_newest_and_each_window(store):
     now = 10 * 86400
     for ts in (now - 80 * 3600, now - 30 * 3600, now - 3600, now - 60):
         store.add({"ts": ts, "device": "a"})
@@ -72,14 +78,13 @@ def test_ingest_source_serves_the_newest_and_each_window(tmp_path):
     assert [d["ts"] for d in ds["history_72h"]()] == [now - 30 * 3600, now - 3600, now - 60]
 
 
-def test_ingest_source_before_the_first_document(tmp_path):
-    ds = IngestSource(ReadingsStore(tmp_path / "r.db")).datasets()
+def test_ingest_source_before_the_first_document(store):
+    ds = IngestSource(store).datasets()
     assert ds["latest"]() is None
     assert ds["history_24h"]() == []
 
 
-def test_ingest_source_can_follow_one_board(tmp_path):
-    store = ReadingsStore(tmp_path / "r.db")
+def test_ingest_source_can_follow_one_board(store):
     store.add({"ts": 1, "device": "a"})
     store.add({"ts": 2, "device": "b"})
     ds = IngestSource(store, device="a", now=lambda: 3).datasets()

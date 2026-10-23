@@ -6,6 +6,7 @@ import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -217,6 +218,7 @@ def test_run_answers_before_the_first_render_is_done(tmp_path, monkeypatch):
         port = srv.http.server.server_port
         with pytest.raises(urllib.error.HTTPError) as answer:
             urllib.request.urlopen(f"http://127.0.0.1:{port}/today.png", timeout=5)
+        answer.value.close()
         assert answer.value.code == 503
     finally:
         finish.set()
@@ -423,6 +425,7 @@ def test_a_store_as_the_handler_takes_a_repeat_once(tmp_path):
 
     assert rsp.status_code == 200 and rsp.get_json() == [False, True]
     assert store.count() == 2
+    store.close()
 
 
 def test_ingest_handler_value_error_is_a_400_with_its_message(tmp_path):
@@ -928,7 +931,7 @@ def test_the_page_waits_for_lines_the_firmware_logs():
     assert lines, "install.js has no LINES"
     waited_for = re.findall(r'"([^"]+)"', lines[1])
     firmware = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "src")
-    logged = "".join(open(os.path.join(firmware, name)).read() for name in os.listdir(firmware))
+    logged = "".join(Path(firmware, name).read_text() for name in os.listdir(firmware))
 
     assert len(waited_for) == 3
     for line in waited_for:
