@@ -67,7 +67,7 @@ ready to copy.
 
 ```sh
 python3 -m venv .venv && source .venv/bin/activate
-pip install "epd-server~=0.13.0"
+pip install "epd-server~=0.14.0"
 ```
 
 Save this as `server.py`. It is a whole server: one page showing the time,
@@ -153,8 +153,8 @@ framework = arduino
 board = esp32dev
 monitor_speed = 115200
 lib_deps =
-	chrisjtwomey/EpdClient @ ^0.13.0
-	chrisjtwomey/EpdBoardInkplate @ ^0.13.0
+	chrisjtwomey/EpdClient @ ^0.14.0
+	chrisjtwomey/EpdBoardInkplate @ ^0.14.0
 build_unflags = -DARDUINO_ESP32 -DARDUINO_ESP32_DEV
 build_flags =
 	-Os                            ; smallest code: espressif32 sets no optimisation
