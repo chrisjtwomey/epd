@@ -10,6 +10,7 @@
 #include <string.h>
 #include <string>
 #include <cstdio>
+#include <cctype>
 
 // PROGMEM is a no-op on the host.
 #define PROGMEM
@@ -37,6 +38,20 @@ public:
     String(long val)          : std::string(std::to_string(val)) {}
     String(unsigned long val) : std::string(std::to_string(val)) {}
     bool isEmpty() const { return empty(); }
+    int indexOf(const char* what) const {
+        const size_t at = find(what);
+        return at == npos ? -1 : (int)at;
+    }
+    int indexOf(char what) const {
+        const size_t at = find(what);
+        return at == npos ? -1 : (int)at;
+    }
+    bool equalsIgnoreCase(const String& other) const {
+        if (size() != other.size()) return false;
+        for (size_t i = 0; i < size(); ++i)
+            if (tolower((unsigned char)(*this)[i]) != tolower((unsigned char)other[i])) return false;
+        return true;
+    }
 };
 
 // GFX font types (normally from Adafruit_GFX). Defined here so font headers
@@ -58,9 +73,12 @@ typedef struct {
     uint8_t   yAdvance;
 } GFXfont;
 
-// Minimal HardwareSerial stub — enough for Serial.begin() in app.cpp.
+// Minimal HardwareSerial stub: begin(), flush(), and a printf() that
+// prints nothing.
 struct HardwareSerial {
     void begin(int) {}
+    void flush() {}
+    int printf(const char*, ...) { return 0; }
 };
 extern HardwareSerial Serial;
 

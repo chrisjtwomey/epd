@@ -11,9 +11,11 @@ firmware/                 EpdClient — PlatformIO library (hardware-agnostic cl
   include/  src/          IBoard, the steps of a wake, network / sleep / display helpers,
                           the board key's signatures
   boards/inkplate/        EpdBoardInkplate — the Inkplate IBoard, a separate library
-  test/                   host-only tests, in four environments
+  test/                   host-only tests, in five environments
+    fakes/                the network, flash and broker libraries, scripted, for native_io;
+                          not published
   test_support/           stub headers a consumer needs to test its own sequence,
-                          and stand-ins for mbedTLS's hashes, HMAC and base64, for the board key's test
+                          and stand-ins for mbedTLS's hashes, HMAC and base64
   platformio.ini          test project only; excluded from the published library
   LICENSE                 a copy of the root LICENSE, as in boards/inkplate/ and
                           server/: each package ships its own (Publishing)
@@ -56,6 +58,7 @@ pio test -e native              # pure helpers: back-off, battery, header parsin
 pio test -e native_mock         # sleep and wake sources against MockBoard
 pio test -e native_settings     # loadConfig and the board key's store against a Preferences stub
 pio test -e native_board_key    # the board key's signatures, against the RFCs and the server's vectors; the /pair answer; the step after a 401
+pio test -e native_io           # downloads, posts, pairing, updates, the wake's steps, Wi-Fi, logging and the page cache, against the fakes in test/fakes/
 cd ../examples/minimal
 pio run -e dev                  # an ESP32 build of this checkout; the host tests never see the framework
 pio run -e sd-dev               # the same with USE_SDCARD: the only build of the card's code

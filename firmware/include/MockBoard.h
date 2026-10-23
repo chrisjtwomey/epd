@@ -3,6 +3,7 @@
 
 #include "IBoard.h"
 #include <string.h>
+#include <string>
 
 /**
  * Test double for IBoard.
@@ -57,6 +58,9 @@ public:
     int16_t  heightReturn;
     bool     drawBitmapReturn;
     bool     drawPngReturn;
+    // The last PNG drawn from a buffer, and how.
+    std::string drawnPng;
+    PngDraw     drawnPngOptions = PngDraw::Plain;
     bool     sdCardInitReturn;
 
     // -------------------------------------------------------------------------
@@ -99,7 +103,9 @@ public:
     void clearDisplay() override { ++clearDisplayCount; }
     void display()      override { ++displayCount; }
 
-    bool drawPngFromBuffer(const uint8_t*, int32_t, int, int, PngDraw) override {
+    bool drawPngFromBuffer(const uint8_t* buf, int32_t len, int, int, PngDraw options) override {
+        drawnPng.assign((const char*)buf, (size_t)len);
+        drawnPngOptions = options;
         return drawPngReturn;
     }
     bool drawBitmap(const uint8_t* buf, int x, int y, int w, int h,

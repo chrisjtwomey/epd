@@ -34,6 +34,12 @@ jobs:
       - name: Run native_settings tests
         run: pio test -e native_settings
 
+      - name: Run native_board_key tests
+        run: pio test -e native_board_key
+
+      - name: Run native_io tests
+        run: pio test -e native_io
+
   example-build:
     name: Example project (ESP32)
     runs-on: ubuntu-latest
