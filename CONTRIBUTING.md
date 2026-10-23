@@ -11,7 +11,7 @@ firmware/                 EpdClient — PlatformIO library (hardware-agnostic cl
   include/  src/          IBoard, the steps of a wake, network / sleep / display helpers,
                           the board key's signatures
   boards/inkplate/        EpdBoardInkplate — the Inkplate IBoard, a separate library
-  test/                   host-only tests, in five environments
+  test/                   host-only tests, in six environments
     fakes/                the network, flash and broker libraries, scripted, for native_io;
                           not published
   test_support/           stub headers a consumer needs to test its own sequence,
@@ -59,9 +59,10 @@ pio test -e native_mock         # sleep and wake sources against MockBoard
 pio test -e native_settings     # loadConfig and the board key's store against a Preferences stub
 pio test -e native_board_key    # the board key's signatures, against the RFCs and the server's vectors; the /pair answer; the step after a 401
 pio test -e native_io           # downloads, posts, pairing, updates, the wake's steps, Wi-Fi, logging and the page cache, against the fakes in test/fakes/
+pio test -e native_io_sd        # the same with USE_SDCARD: config.yaml from the card, through the real YAMLDuino
 cd ../examples/minimal
 pio run -e dev                  # an ESP32 build of this checkout; the host tests never see the framework
-pio run -e sd-dev               # the same with USE_SDCARD: the only build of the card's code
+pio run -e sd-dev               # the same with USE_SDCARD: the card's code on the ESP32
 ```
 
 `examples/minimal` is the README's quickstart, file for file, and

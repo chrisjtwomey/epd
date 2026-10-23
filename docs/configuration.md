@@ -95,6 +95,12 @@ The file can be up to 1536 bytes. A longer file is ignored with a warning:
 YAML cut short still parses, and a value cut part way, such as the Wi-Fi
 password, would pass as the whole value.
 
+A file that is not valid YAML is ignored with a warning too. YAMLDuino
+throws an exception on one, and the board catches it: uncaught, it would
+restart the board at every boot. The ESP32 Arduino build has exceptions on;
+a product that turns them off with `-fno-exceptions` loses this, since
+YAMLDuino then crashes on such a file instead.
+
 The SD path needs one more library, YAMLDuino, which is not a dependency of
 EpdClient because only a build with the flag uses it. It also needs
 `-DHAS_ARDUINOJSON`: YAMLDuino compiles its ArduinoJson parser only with that

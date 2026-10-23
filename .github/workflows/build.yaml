@@ -40,6 +40,9 @@ jobs:
       - name: Run native_io tests
         run: pio test -e native_io
 
+      - name: Run native_io_sd tests
+        run: pio test -e native_io_sd
+
   example-build:
     name: Example project (ESP32)
     runs-on: ubuntu-latest

@@ -5,6 +5,8 @@
 #include <ArduinoJson.h>
 #include <ArduinoYaml.h>
 
+#include <exception>
+
 #include "epd.h"
 #include "file_utils.h"
 #include "log_utils.h"
@@ -13,6 +15,28 @@
 // heap as it needs, so this is the only bound on the card's config.
 static const size_t kMaxConfigBytes = 1536;
 
+
+// YAMLDuino throws on a file it cannot parse. Uncaught, that is abort() and
+// a reboot at every boot; caught, it is a warning like any other fault in
+// the file.
+static bool parseYaml(const char* text, JsonDocument& doc) {
+    DeserializationError parsed;
+#if defined(__cpp_exceptions)
+    try {
+        parsed = deserializeYml(doc, text);
+    } catch (const std::exception& e) {
+        logf(LOG_WARNING, "config file is not valid YAML: %s", e.what());
+        return false;
+    }
+#else
+    parsed = deserializeYml(doc, text);
+#endif
+    if (parsed) {
+        logf(LOG_WARNING, "failed to deserialize YAML: %s", parsed.c_str());
+        return false;
+    }
+    return true;
+}
 
 // Read the card and apply what it says. Every problem is a warning, and
 // leaves cfg untouched.
@@ -37,11 +61,7 @@ static void readCard(ClientConfig* cfg) {
     configBuf[configLen] = '\0';
 
     JsonDocument doc;
-    DeserializationError parsed = deserializeYml(doc, (const char*)configBuf);
-    if (parsed) {
-        logf(LOG_WARNING, "failed to deserialize YAML: %s", parsed.c_str());
-        return;
-    }
+    if (!parseYaml((const char*)configBuf, doc)) return;
 
     JsonObject serverCfg = doc["server"];
     JsonObject wifiCfg = doc["wifi"];
