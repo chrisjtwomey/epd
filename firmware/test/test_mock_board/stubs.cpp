@@ -25,12 +25,12 @@ void logf(uint16_t, const char*, ...) {}
 #include "time_utils.h"
 String nowTzFmt() { return ""; }
 
-// Satisfy linker for WiFiClass / SPIFFSClass globals referenced by stubs.
+// Satisfy linker for WiFiClass / LittleFSClass globals referenced by stubs.
 #include "WiFi.h"
 WiFiClass WiFi;
 
-#include "SPIFFS.h"
-SPIFFSClass SPIFFS;
+#include "LittleFS.h"
+LittleFSClass LittleFS;
 
 // Satisfy linker for globals declared extern in Arduino.h stub.
 // (Serial and g_wakeup_cause are not used by native_mock tests but the

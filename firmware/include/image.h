@@ -31,12 +31,19 @@ esp_err_t loadImage(uint8_t* buf, int32_t len);
   Only worth calling on a board that redraws the last page — to put a banner
   over it, say. Nothing in this library needs it otherwise.
 
+  The cache is LittleFS, on the partition named `spiffs`. LittleFS writes a
+  whole page every time; SPIFFS reclaims at most 40 kB per write, so most
+  page-sized writes failed once a few pages had gone through. A board that
+  has no LittleFS there yet, an old SPIFFS cache included, has its partition
+  formatted at the first mount: ESP-IDF logs the failed mount once, and the
+  cached page is gone until the next save.
+
   @returns true when the cache is usable.
 */
 bool startImageCache();
 
 /**
-  Save the raw PNG image bytes to SPIFFS, so the next boot can restore the
+  Save the raw PNG image bytes to LittleFS, so the next boot can restore the
   image and draw over it rather than starting from a blank panel.
 
   The page replaces the cache only when it was written whole: the decoder
@@ -50,10 +57,10 @@ bool startImageCache();
 bool saveImageCache(const uint8_t* buf, int32_t len);
 
 /**
-  Load the cached image PNG from SPIFFS into the display buffer.
+  Load the cached image PNG from LittleFS into the display buffer.
 
   @returns true if the file existed and decoded successfully; false on any
-  failure (first boot, SPIFFS not mounted, etc.) — the caller gracefully
+  failure (first boot, LittleFS not mounted, etc.) — the caller gracefully
   falls back to a white background.
 */
 bool loadImageCache();

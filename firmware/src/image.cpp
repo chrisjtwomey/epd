@@ -1,6 +1,6 @@
 #include "image.h"
 #include "epd.h"
-#include <SPIFFS.h>
+#include <LittleFS.h>
 
 #include "log_utils.h"
 #include "mem_utils.h"
@@ -11,13 +11,13 @@
 #define IMAGE_CACHE_WRITE_PATH "/image.tmp"
 
 bool startImageCache() {
-    if (SPIFFS.begin(true)) return true;
-    log(LOG_WARNING, "SPIFFS mount failed - image cache unavailable");
+    if (LittleFS.begin(true)) return true;
+    log(LOG_WARNING, "LittleFS mount failed - image cache unavailable");
     return false;
 }
 
 bool saveImageCache(const uint8_t* buf, int32_t len) {
-    File f = SPIFFS.open(IMAGE_CACHE_WRITE_PATH, FILE_WRITE);
+    File f = LittleFS.open(IMAGE_CACHE_WRITE_PATH, FILE_WRITE);
     if (!f) {
         log(LOG_WARNING, "saveImageCache: failed to open file");
         return false;
@@ -25,17 +25,16 @@ bool saveImageCache(const uint8_t* buf, int32_t len) {
     size_t written = f.write(buf, (size_t)len);
     f.close();
     // The decoder draws a cut PNG as if it were whole, so a short write must
-    // not replace the last good page. SPIFFS will not rename over a file.
+    // not replace the last good page.
     if ((int32_t)written != len) {
-        SPIFFS.remove(IMAGE_CACHE_WRITE_PATH);
+        LittleFS.remove(IMAGE_CACHE_WRITE_PATH);
         return false;
     }
-    SPIFFS.remove(IMAGE_CACHE_PATH);
-    return SPIFFS.rename(IMAGE_CACHE_WRITE_PATH, IMAGE_CACHE_PATH);
+    return LittleFS.rename(IMAGE_CACHE_WRITE_PATH, IMAGE_CACHE_PATH);
 }
 
 bool loadImageCache() {
-    File f = SPIFFS.open(IMAGE_CACHE_PATH, FILE_READ);
+    File f = LittleFS.open(IMAGE_CACHE_PATH, FILE_READ);
     if (!f || f.size() == 0) return false;
     int32_t len = (int32_t)f.size();
     uint8_t* buf = (uint8_t*)boardMalloc(len);
