@@ -7,14 +7,14 @@
 #include "log_utils.h"
 
 
-void sleep_for(uint32_t seconds) {
+void sleepFor(uint32_t seconds) {
     time_t targetWakeTime = epdBoard().rtcGetEpoch() + (time_t)seconds;
     logf(LOG_DEBUG, "sleeping for %u seconds (RTC alarm at epoch %ld)",
          seconds, (long)targetWakeTime);
-    sleep(targetWakeTime);
+    sleepUntil(targetWakeTime);
 }
 
-void sleep(time_t targetWakeTime) {
+void sleepUntil(time_t targetWakeTime) {
     log(LOG_DEBUG, "arming deep sleep RTC alarm wakeup");
 
     epdBoard().rtcSetAlarmEpoch(targetWakeTime);

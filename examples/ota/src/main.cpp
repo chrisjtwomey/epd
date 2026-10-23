@@ -12,7 +12,7 @@ ClientConfig builtInSettings();     // from src/defaults.cpp
 // proven otherwise, so the previous one is booted instead.
 static void endFailedWake(const char* why, bool trialBoot, uint32_t sleepSeconds) {
     if (trialBoot) otaRollback(why);    // does not return
-    sleep_for(sleepSeconds);
+    sleepFor(sleepSeconds);
 }
 
 void setup() {
@@ -48,7 +48,7 @@ void setup() {
     // Returns only when nothing was flashed. A flashed image restarts the board.
     takeOfferedUpdate(page.response, userAgent, readBatteryPercent(), BATTERY_FOR_UPDATE_PERCENT);
 
-    sleep_for(page.response.nextRefreshSeconds ? page.response.nextRefreshSeconds
+    sleepFor(page.response.nextRefreshSeconds ? page.response.nextRefreshSeconds
                                                : cfg.defaultRefreshSeconds);
 }
 

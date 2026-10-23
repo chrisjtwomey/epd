@@ -26,7 +26,7 @@
 #include "wake.h"          // the steps of one wake
 #include "network_utils.h" // configureWiFi, downloadFile, downloadSigned, postJson
 #include "image.h"         // draw a page, and cache the last one
-#include "sleep_utils.h"   // sleep_for, sleep, deepSleep
+#include "sleep_utils.h"   // sleepFor, sleepUntil, deepSleep
 #include "ota.h"           // take a firmware update, confirm it, roll it back
 #include "sd_config.h"     // settings from a card, when USE_SDCARD is set
 

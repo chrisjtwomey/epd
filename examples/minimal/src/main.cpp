@@ -25,7 +25,7 @@ void setup() {
                 sleepSeconds = page.response.nextRefreshSeconds;   // the server decides
         }
     }
-    sleep_for(sleepSeconds);
+    sleepFor(sleepSeconds);
 }
 
 void loop() {}

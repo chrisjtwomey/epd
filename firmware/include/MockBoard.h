@@ -15,7 +15,7 @@
  *   MockBoard mock;
  *   mock.epochReturn = 1000;
  *   IBoard& board = mock;
- *   sleep_for(3600);
+ *   sleepFor(3600);
  *   TEST_ASSERT_EQUAL(4600, mock.lastAlarmEpoch);
  */
 class MockBoard : public IBoard {

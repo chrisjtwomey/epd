@@ -8,19 +8,19 @@
   The server is the single source of truth for *when* — the client just
   counts down.
 */
-void sleep_for(uint32_t seconds);
+void sleepFor(uint32_t seconds);
 
 /**
   Enter deep sleep until the given RTC epoch.
 */
-void sleep(time_t targetWakeTime);
+void sleepUntil(time_t targetWakeTime);
 
 /**
   Add an ESP32 timer wake `seconds` from the moment sleep begins.
 
   Wake sources accumulate, so this stands beside the RTC alarm rather than
   replacing it, and whichever fires first ends the sleep. Call it before
-  sleep_for() or sleep(), which sleep as soon as they are called.
+  sleepFor() or sleepUntil(), which sleep as soon as they are called.
 */
 void enableWakeOnTimer(uint32_t seconds);
 
