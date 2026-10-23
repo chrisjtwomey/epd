@@ -78,7 +78,7 @@ class ReadingsStore:
         Raises:
             ValueError: a ``ts`` is not an integer, or a ``device`` is not a string.
         """
-        rows = [key(doc) + (json.dumps(doc, separators=(",", ":")),) for doc in docs]
+        rows = [(*key(doc), json.dumps(doc, separators=(",", ":"))) for doc in docs]
         with self._lock, self._db:
             return [self._db.execute(
                         "INSERT OR IGNORE INTO readings (device, ts, doc) VALUES (?, ?, ?)",
@@ -135,7 +135,7 @@ class ReadingsStore:
     def _device_filter(where: list[str], params: list, device: str | None):
         if device is None:
             return where, params
-        return where + ["device = ?"], params + [device]
+        return [*where, "device = ?"], [*params, device]
 
     @staticmethod
     def _where(clauses: list[str]) -> str:

@@ -39,8 +39,8 @@ import os
 import re
 import threading
 import time
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, replace
-from typing import Callable, Iterable, Mapping
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -53,7 +53,7 @@ LABEL = "sig1"
 REQUEST_COMPONENTS = ('"@method"', '"@path"', '"@query"', '"content-digest"')
 ANSWER_COMPONENTS = ('"@status"', '"content-digest"', '"@method";req', '"@path";req',
                      '"@query";req')
-POST_ANSWER_COMPONENTS = ANSWER_COMPONENTS + ('"content-digest";req',)
+POST_ANSWER_COMPONENTS = (*ANSWER_COMPONENTS, '"content-digest";req')
 # The keys of each board kept after it stops using them, newest first.
 RETIRED_KEPT = 4
 
@@ -105,7 +105,7 @@ def key_id(key: bytes) -> str:
 def _signed(key: bytes, components: tuple[str, ...], values: tuple[str, ...], digest: str,
             created: int) -> dict[str, str]:
     params = signature_params(components, created, key_id(key))
-    base = signature_base(zip(components, values), params)
+    base = signature_base(zip(components, values, strict=True), params)
     return {"Content-Digest": digest, "Signature-Input": f"{LABEL}={params}",
             "Signature": f"{LABEL}=:{hmac_sha256(key, base)}:"}
 
@@ -123,7 +123,7 @@ def answer_signature(key: bytes, status: int, digest: str, method: str, path: st
     path?query``; with ``request_digest``, an answer to that post alone."""
     values = (str(status), digest, method, path, query_value(query))
     if request_digest:
-        return _signed(key, POST_ANSWER_COMPONENTS, values + (request_digest,), digest, created)
+        return _signed(key, POST_ANSWER_COMPONENTS, (*values, request_digest), digest, created)
     return _signed(key, ANSWER_COMPONENTS, values, digest, created)
 
 

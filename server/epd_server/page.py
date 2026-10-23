@@ -106,9 +106,7 @@ class Page:
 
     def template(self, **kwargs):
         raise NotImplementedError(
-            "Page {} should implement function {}".format(
-                self.__class__.__name__, self.template.__name__
-            )
+            f"Page {self.__class__.__name__} should implement function {self.template.__name__}"
         )
 
     def save(self):

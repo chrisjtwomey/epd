@@ -77,21 +77,21 @@ import os
 import signal
 import threading
 import time
+from collections.abc import Callable, Iterable, Mapping
 from datetime import datetime
-from typing import Callable, Iterable, Mapping
 
 from flask import Flask, abort, jsonify, make_response, request
 from werkzeug.serving import WSGIRequestHandler, make_server
 
+from ._version import __version__
 from .board_keys import BoardKeys
 from .certificate import certificate_names, ensure_certificate
 from .compat import compatible
 from .config import FirmwareSettings, MqttSettings, NetworkSettings
-from ._version import __version__
+from .firmware import ReleaseWatcher
 from .headers import Wire
 from .install import INSTALLER, InstallBoard
 from .install_routes import InstallRoutes
-from .firmware import ReleaseWatcher
 from .key_routes import KeyRoutes
 from .logs import LogStore
 from .mqtt import client_log_subscriber

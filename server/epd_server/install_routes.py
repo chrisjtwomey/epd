@@ -8,13 +8,20 @@ registers its routes; the page itself and the script are built in
 from __future__ import annotations
 
 import logging
-from typing import Callable, Iterable
+from collections.abc import Callable, Iterable
 
 from flask import Flask, abort, make_response, request, send_from_directory
 
 from .config import FirmwareSettings, MqttSettings, NetworkSettings
-from .install import (INSTALLER, SCRIPTS, STATIC_DIR, InstallBoard, install_page,
-                      installer_script, server_name)
+from .install import (
+    INSTALLER,
+    SCRIPTS,
+    STATIC_DIR,
+    InstallBoard,
+    install_page,
+    installer_script,
+    server_name,
+)
 from .network import STORE_OFFSET, network_settings_file
 from .offers import FirmwareOffers
 from .responses import download, text

@@ -13,7 +13,7 @@ import datetime as dt
 import ipaddress
 import logging
 import os
-from typing import Sequence
+from collections.abc import Sequence
 from urllib.parse import urlsplit
 
 from cryptography import x509
@@ -41,7 +41,7 @@ def ensure_certificate(directory: str, names: Sequence[str],
                        now: dt.datetime | None = None) -> tuple[str, str]:
     """The paths of the certificate and its key in ``directory``, made anew
     unless the ones there hold exactly ``names`` and stay valid for 30 days."""
-    now = now or dt.datetime.now(dt.timezone.utc)
+    now = now or dt.datetime.now(dt.UTC)
     certificate_path = os.path.join(directory, CERTIFICATE_FILE)
     key_path = os.path.join(directory, KEY_FILE)
     if _still_good(certificate_path, key_path, names, now):

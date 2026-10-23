@@ -24,11 +24,10 @@ The pieces a project composes:
 - :mod:`epd_server.headers`    the header names, built from the product's prefix
 """
 
-from ._version import __version__  # noqa: E402
-
-from .app import DisplayServer, align_process_timezone  # noqa: E402
-from .board_keys import BoardKeys  # noqa: E402
-from .config import (  # noqa: E402
+from ._version import __version__
+from .app import DisplayServer, align_process_timezone
+from .board_keys import BoardKeys
+from .config import (
     ConfigError,
     CoreConfig,
     FirmwareSettings,
@@ -40,7 +39,7 @@ from .config import (  # noqa: E402
     load_core_config,
     load_yaml,
 )
-from .firmware import (  # noqa: E402
+from .firmware import (
     ClientId,
     FirmwareImage,
     FirmwareStore,
@@ -48,21 +47,21 @@ from .firmware import (  # noqa: E402
     is_clean_tag,
     update_applies,
 )
-from .install import InstallBoard  # noqa: E402
-from .network import network_settings_file  # noqa: E402
-from .page import Page, SkipPage  # noqa: E402
-from .pipeline import regenerate, select_pages  # noqa: E402
-from .source import CompositeSource, DataSource, IngestSource, StaticSource  # noqa: E402
-from .logs import LogStore  # noqa: E402
-from .store import ReadingsStore  # noqa: E402
-from .quantise import (  # noqa: E402
+from .install import InstallBoard
+from .logs import LogStore
+from .network import network_settings_file
+from .page import Page, SkipPage
+from .pipeline import regenerate, select_pages
+from .quantise import (
     GreyscaleQuantiser,
     IdentityQuantiser,
     PaletteQuantiser,
     Quantiser,
     grey_levels,
 )
-from .render import ChromiumRenderer, Renderer  # noqa: E402
+from .render import ChromiumRenderer, Renderer
+from .source import CompositeSource, DataSource, IngestSource, StaticSource
+from .store import ReadingsStore
 
 __all__ = [
     "__version__",

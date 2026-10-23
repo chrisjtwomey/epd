@@ -13,9 +13,9 @@ tzinfo, silently dropping the one-hour shift across a DST transition.
 from __future__ import annotations
 
 import random
+from collections.abc import Mapping, Sequence
 from datetime import date, datetime, time, timedelta
 from datetime import tzinfo as _tzinfo
-from typing import Mapping, Sequence
 
 from .timeranges import Week
 

@@ -13,11 +13,12 @@ from __future__ import annotations
 import operator
 import os
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime as _datetime
 from datetime import tzinfo as _tzinfo
 from functools import reduce
-from typing import Any, Callable
+from typing import Any
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 

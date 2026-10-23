@@ -24,7 +24,8 @@ without a special case.
 from __future__ import annotations
 
 import math
-from datetime import datetime, time as clock_time, tzinfo
+from datetime import datetime, tzinfo
+from datetime import time as clock_time
 
 # The slots fall on whole minutes, so every interval is a whole number of them.
 MINUTE = 60

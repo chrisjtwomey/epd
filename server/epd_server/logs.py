@@ -13,7 +13,7 @@ import re
 import sqlite3
 import threading
 import time
-from typing import Callable
+from collections.abc import Callable
 
 # Least to most severe, as the firmware names them.
 LEVELS = ("DEBUG", "INFO", "NOTICE", "WARNING", "ERROR", "CRITICAL")
@@ -111,7 +111,7 @@ class LogStore:
                + (" WHERE " + " AND ".join(where) if where else "")
                + f" ORDER BY id {order} LIMIT ?")
         with self._lock:
-            rows = self._db.execute(sql, params + [limit]).fetchall()
+            rows = self._db.execute(sql, [*params, limit]).fetchall()
         if order == "DESC":
             rows.reverse()
         return [{"id": i, "board": b, "received": r,

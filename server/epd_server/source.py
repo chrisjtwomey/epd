@@ -13,7 +13,8 @@ from __future__ import annotations
 
 import time
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .store import ReadingsStore

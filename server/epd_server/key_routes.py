@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import base64
 import logging
-from typing import Iterable
+from collections.abc import Iterable
 
 from flask import Flask, abort, jsonify, request
 

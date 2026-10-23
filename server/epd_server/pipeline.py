@@ -8,7 +8,7 @@ need via ``Page.requires``, the source says what it has via
 from __future__ import annotations
 
 import logging
-from typing import Iterable
+from collections.abc import Iterable
 
 from .page import Page, SkipPage
 from .source import DataSource

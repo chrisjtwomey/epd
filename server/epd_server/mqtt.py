@@ -8,10 +8,9 @@ alongside everything else, and hands it to ``on_line`` to keep.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 
 import paho.mqtt.client as mqtt
-from typing import Callable
-
 from paho.mqtt.enums import CallbackAPIVersion
 
 log = logging.getLogger(__name__)
