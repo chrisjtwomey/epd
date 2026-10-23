@@ -34,30 +34,36 @@ the pinned release back whenever the checkout declares another version.
 
 ## Modules
 
+The API is the package root, `epd_server`, and the names this table lists in
+each module. A project may import them from either place. Any other name,
+and any name that starts with `_`, may change in any release.
+`tests/test_public_api.py` holds the list, so a change to one of these names
+fails a test before it reaches a project.
+
 | Module | Provides |
 |---|---|
-| `epd_server.config` | `get_prop`, `get_prop_by_keys` — env var > YAML > default, with type coercion. `load_core_config()` validates the `server`, `image`, `mqtt`, `display` and `debug` blocks into typed settings; `load_yaml()` reads the file |
+| `epd_server.config` | `get_prop`, `get_prop_by_keys`, `get_by_path` — env var > YAML > default, with type coercion; `ConfigError` for a person editing config.yaml. `load_core_config()` validates the `server`, `image`, `mqtt`, `display` and `debug` blocks into typed settings, a `CoreConfig` with `FirmwareSettings`, `MqttSettings` and the rest; `load_yaml()` reads the file |
 | `epd_server.registry` | `Registry` — name → class, `create()` forwards only declared kwargs |
-| `epd_server.cache` | `DiskCache` — JSON file cache with per-key TTL, datetimes round-trip |
-| `epd_server.page` | `Page` — build HTML with Airium, then `save()` renders and quantises it. Both steps are pluggable. |
+| `epd_server.cache` | `DiskCache` — JSON file cache with per-key TTL, `DEFAULT_TTL` unless given, datetimes round-trip |
+| `epd_server.page` | `Page` — build HTML with Airium, then `save()` renders and quantises it. Both steps are pluggable. `SkipPage`, raised from a page's template, keeps the last image. |
 | `epd_server.render` | `Renderer` protocol; `ChromiumRenderer` (headless, via Selenium) is the default |
 | `epd_server.quantise` | `Quantiser` protocol; `GreyscaleQuantiser(levels=4)` default, `PaletteQuantiser` for colour panels, `IdentityQuantiser` for none |
-| `epd_server.scheduling` | `Pools`, `TimesSchedule`, `TimeRangesSchedule` — what shows and when; `next_wake`, `next_regen`, `seconds_until` underneath |
-| `epd_server.timeranges` | `TimeRanges` — a day of time ranges, each with an interval; `Week` — groups of days, each with its day of ranges; the slots in them, DST-correct |
-| `epd_server.firmware` | `FirmwareStore` — a directory of `<version>.bin`, each with a `<version>.merged.bin` for a USB flash when one is copied in; `ReleaseWatcher` — fill it from a repository's releases; `client_from_headers`, `parse_user_agent`, `is_clean_tag`, `update_applies` — which board an image is an update for |
+| `epd_server.scheduling` | `Pools`, `TimesSchedule`, `TimeRangesSchedule`, and `WakeSchedule`, what they have in common — what shows and when; `next_wake`, `next_regen`, `seconds_until` underneath |
+| `epd_server.timeranges` | `TimeRanges` — a day of time ranges, each with an interval; `Week` — groups of days, each with its day of ranges; the slots in them, DST-correct. `parse_hhmm`, `check_interval`, `in_window`, `DAYS` and `MAX_RANGES` for a project's own checks |
+| `epd_server.firmware` | `FirmwareStore` — a directory of `<version>.bin`, each with a `<version>.merged.bin` for a USB flash when one is copied in; `ReleaseWatcher` — fill it from a repository's releases; `client_from_headers`, `is_clean_tag`, `update_applies` — which board an image is an update for |
 | `epd_server.mqtt` | `client_log_subscriber` — relay the client's MQTT log topic into Python logging; it keeps trying while the broker cannot be reached |
 | `epd_server.certificate` | `ensure_certificate`, `certificate_names` — the self-signed certificate for the HTTPS port, kept for ten years and made anew when its names change |
 | `epd_server.board_keys` | `BoardKeys` — each board's key, agreed over the air at `POST /pair` and approved by a person, kept in a JSON file only the server reads; the RFC 9421 signatures made with it, on a board's posts and on the server's answers |
-| `epd_server.install` | `InstallBoard` — a board the install page at `/install` offers; the page writes its firmware and network settings over USB from the browser; `install-firmware.sh` does the same from a terminal |
+| `epd_server.install` | `InstallBoard` — a board the install page at `/install` offers; `config_json` — the page's config, safe in a script element; the page writes its firmware and network settings over USB from the browser; `install-firmware.sh` does the same from a terminal |
 | `epd_server.network` | `network_settings_file` — the network settings a USB flash writes to a board, as its settings store, made with Espressif's `esp-idf-nvs-partition-gen` |
-| `epd_server.source` | `DataSource` — named, lazily fetched datasets; `StaticSource` for constants; `CompositeSource` to merge; `IngestSource` — what a board posted, from a `ReadingsStore` |
-| `epd_server.store` | `ReadingsStore` — what a board posts, in SQLite, kept by its `device` and `ts` and read back by time |
+| `epd_server.source` | `DataSource` — named, lazily fetched datasets, each a `Fetcher`; `StaticSource` for constants; `CompositeSource` to merge; `IngestSource` — what a board posted, from a `ReadingsStore` |
+| `epd_server.store` | `ReadingsStore` — what a board posts, in SQLite, kept by its `device` and `ts` and read back by time; `key` — those two, checked |
 | `epd_server.pipeline` | `regenerate(pages, source, only=, force_refresh=)` — fetch what the selected pages need, once each; render; save |
 | `epd_server.app` | `DisplayServer(pages, source, schedule, tz, …).run()` — routes, `EPD-Next-*` headers, ingest and query routes, regen loop, client log relay, signals. `align_process_timezone()` |
 | `epd_server.headers` | `Wire` — every header name, for one product's prefix |
 | `epd_server.compat` | Whether a board's version and the server's work together, by the rule in [docs/protocol.md](../docs/protocol.md) |
 | `epd_server.posix_tz` | The server's time zone as a POSIX TZ string, for `EPD-Server-Timezone` |
-| `epd_server.logs` | What each board logs over MQTT, kept on disk and read back in order |
+| `epd_server.logs` | `LogStore` — what each board logs over MQTT, kept on disk and read back in order; `LEVELS`, the levels a line can carry |
 
 ## Tests
 

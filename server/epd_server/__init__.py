@@ -64,6 +64,7 @@ from .quantise import (  # noqa: E402
 from .render import ChromiumRenderer, Renderer  # noqa: E402
 
 __all__ = [
+    "__version__",
     "DisplayServer", "align_process_timezone",
     "BoardKeys",
     "ConfigError", "CoreConfig", "ServerSettings", "ImageSettings", "MqttSettings",
