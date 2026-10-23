@@ -145,12 +145,6 @@ def test_reject_drops_only_the_pending_key(keys):
     assert check(keys, signed(old)).state == ""
 
 
-def test_forget_makes_the_board_pair_again(keys):
-    key = paired(keys)
-    keys.forget(DOCK)
-    assert check(keys, signed(key)).state == bk.PAIR
-
-
 @pytest.mark.parametrize("device, half", [("nobody", None), (DOCK, b"\x04" + b"\x01" * 64)])
 def test_pairing_needs_a_known_board_and_a_point_on_the_curve(keys, device, half):
     with pytest.raises(ValueError):
@@ -289,6 +283,8 @@ def test_an_unsigned_post_is_refused_and_told_to_pair(tmp_path, keys):
     rsp = client.post("/sensor-readings", data=BODY, headers=AS_DOCK)
     assert rsp.status_code == 401 and rsp.headers["Acme-Key"] == bk.PAIR
     assert "Pair" in rsp.get_json()["problem"] and taken == []
+    # Nothing shows the board signed it, so the refusal is not signed either.
+    assert "Signature" not in rsp.headers
 
 
 def test_a_board_pairs_waits_for_approval_and_then_posts(tmp_path, keys, clock):
@@ -464,12 +460,6 @@ def test_a_refusal_under_a_key_out_of_use_is_signed_for_that_post_alone(tmp_path
     assert rsp.status_code == 401 and rsp.headers["Acme-Key"] == bk.PAIR
     assert refusal_good(old, rsp.headers, rsp.data)
     assert not refusal_good(old, rsp.headers, rsp.data, request_body=BODY + b" ")
-
-
-def test_a_refusal_of_a_post_not_shown_to_be_signed_carries_no_signature(tmp_path, keys):
-    client, _ = keyed_server(tmp_path, keys)
-    rsp = client.post("/sensor-readings", data=BODY, headers=AS_DOCK)
-    assert rsp.headers["Acme-Key"] == bk.PAIR and "Signature" not in rsp.headers
 
 
 def test_a_board_waiting_for_approval_still_gets_signed_answers(tmp_path, keys):

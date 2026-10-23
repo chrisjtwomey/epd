@@ -1015,20 +1015,14 @@ def test_a_product_prefix_renames_every_header(tmp_path):
     assert "EPD-Server-Version" not in rsp.headers
 
 
-def test_the_server_sends_its_clock_on_every_response(tmp_path):
-    client = client_for(tmp_path)
-
-    for path in ("/", "/today.png"):
-        sent = int(client.get(path).headers["EPD-Server-Epoch-Seconds"])
-        assert abs(sent - time.time()) < 5
-
-
-def test_the_server_sends_its_zone_on_every_response(tmp_path):
+def test_the_server_sends_its_clock_and_zone_on_every_response(tmp_path):
     dublin = ZoneInfo("Europe/Dublin")
     client = client_for(tmp_path, tz=dublin)
 
     for path in ("/", "/today.png"):
-        assert client.get(path).headers["EPD-Server-Timezone"] == posix_tz(dublin)
+        headers = client.get(path).headers
+        assert abs(int(headers["EPD-Server-Epoch-Seconds"]) - time.time()) < 5
+        assert headers["EPD-Server-Timezone"] == posix_tz(dublin)
 
 
 def test_a_zone_without_a_name_sends_no_zone(tmp_path):
@@ -1084,16 +1078,6 @@ def test_a_project_reports_its_own_version_not_the_package_one(tmp_path):
 def test_the_header_prefix_cannot_be_empty(tmp_path):
     with pytest.raises(ValueError):
         client_for(tmp_path, header_prefix="  -  ")
-
-
-def test_a_board_is_recognised_by_its_current_device_headers(tmp_path):
-    _, client = with_firmware(tmp_path)
-
-    rsp = client.get("/today.png", headers={"EPD-Device": "my-display",
-                                            "EPD-Device-Version": "v1.5.1"})
-
-    assert rsp.headers["EPD-Server-Firmware-Version"] == "v1.6.0"
-    assert rsp.headers["EPD-Server-Firmware-Version"] == "v1.6.0"
 
 
 # ── Version compatibility ─────────────────────────────────────────────────

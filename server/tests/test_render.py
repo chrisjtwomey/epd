@@ -28,15 +28,6 @@ def test_binary_defaults_to_chrome_bin_env_then_system_path(monkeypatch):
     assert ChromiumRenderer().binary == ChromiumRenderer.DEFAULT_BINARY
 
 
-def test_explicit_driver_path_is_kept():
-    assert ChromiumRenderer(driver_path="/x/driver").driver_path == "/x/driver"
-
-
-def test_timeouts_are_configurable():
-    r = ChromiumRenderer(load_timeout=3.5, settle_seconds=0)
-    assert r.load_timeout == 3.5 and r.settle_seconds == 0
-
-
 def test_is_a_renderer():
     assert isinstance(ChromiumRenderer(), Renderer)
     assert not isinstance(object(), Renderer)

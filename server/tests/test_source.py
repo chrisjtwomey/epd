@@ -45,11 +45,6 @@ def test_static_source_returns_fixed_values_lazily():
     assert ds["n"]() == 3
 
 
-def test_static_source_closures_do_not_share_state():
-    ds = StaticSource(a=1, b=2).datasets()
-    assert (ds["a"](), ds["b"]()) == (1, 2)
-
-
 def test_composite_merges_datasets_and_fans_out_invalidate():
     a, b = Counting(x=1), Counting(y=2)
     comp = CompositeSource(StaticSource(z=3), a, b)

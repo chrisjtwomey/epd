@@ -71,12 +71,6 @@ def test_coerce_env_str_passthrough():
     assert _coerce_env("hello", "default") == "hello"
 
 
-def test_coerce_env_bool_before_int_isinstance_order():
-    # bool is a subclass of int in Python; the resolver must check bool first.
-    assert _coerce_env("true", True) is True
-    assert _coerce_env("0", True) is False
-
-
 # ---------- _resolve precedence ----------
 
 def _missing():

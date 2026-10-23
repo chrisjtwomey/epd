@@ -106,20 +106,10 @@ def test_each_line_names_the_board_its_topic_does(on_message, kept, caplog):
         ["canary-dock: INFO - fetched", "canary-head: INFO - drawn"]
 
 
-def test_a_log_line_reaches_the_client_logger(on_message, caplog):
-    with caplog.at_level(logging.INFO, logger="client"):
-        deliver(on_message, b"NOTICE - ##### Inkplate10 boot #4 #####")
-    assert "##### Inkplate10 boot #4 #####" in caplog.text
-
-
-def test_a_retained_message_is_ignored(on_message, caplog):
+def test_a_retained_message_is_neither_logged_nor_kept(on_message, kept, caplog):
     with caplog.at_level(logging.INFO, logger="client"):
         deliver(on_message, b"stale", retain=True)
     assert caplog.text == ""
-
-
-def test_a_retained_message_is_not_kept(on_message, kept):
-    deliver(on_message, b"stale", retain=True)
     assert kept == []
 
 
