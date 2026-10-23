@@ -98,11 +98,12 @@ pip install gcovr                       # once, into the Python that runs the sc
 python3 scripts/coverage_report.py      # --server or --firmware for one
 ```
 
-On each push to main, CI's "Coverage badges" job runs the script with
-`--badges` and writes the two figures, by line and rounded down, to a public
-gist that the README's badges read. It writes with the `GIST_TOKEN` secret, a
-fine-grained token with only the Gists permission; when the token expires, the
-job fails and the badges keep their last figures.
+On each push to main, the Coverage workflow (`.github/workflows/coverage.yaml`)
+runs the script with `--badges` and writes the two figures, by line and
+rounded down, to a public gist that the README's badges read. It writes with
+the `GIST_TOKEN` secret, a fine-grained token with only the Gists permission.
+When the token expires, the workflow fails and the badges keep their last
+figures; it is apart from PlatformIO CI, so CI still passes.
 
 The goal is 80% or more of the server's code and of `firmware/src`, counted
 by line; the board driver in `firmware/boards/` is left to the bench. The
