@@ -29,7 +29,7 @@ static void noteWifiGotAddress(WiFiEvent_t, WiFiEventInfo_t) {
     if (wifiGotAddress) xSemaphoreGive(wifiGotAddress);
 }
 
-esp_err_t configureWiFi(const char* ssid, const char* pass, int retries) {
+esp_err_t configureWiFi(const char* ssid, const char* pass, int timeoutSeconds) {
     if (!wifiSSID) {
         wifiGotAddress = xSemaphoreCreateBinary();
         WiFi.onEvent(noteWifiLost, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
@@ -47,7 +47,7 @@ esp_err_t configureWiFi(const char* ssid, const char* pass, int retries) {
     logf(LOG_INFO, "connecting to WiFi SSID %s...", ssid);
 
     const uint32_t startMs = millis();
-    const uint32_t waitMs = (uint32_t)(retries + 1) * 1000;
+    const uint32_t waitMs = (uint32_t)(timeoutSeconds > 0 ? timeoutSeconds : 1) * 1000;
     while (WiFi.status() != WL_CONNECTED) {
         if (millis() - startMs >= waitMs) {
             const uint8_t reason = wifiJoinReason;

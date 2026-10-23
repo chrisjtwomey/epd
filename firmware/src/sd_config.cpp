@@ -95,7 +95,10 @@ static void readCard(ClientConfig* cfg) {
 
     cfg->wifiSSID = sdWifiSSID.c_str();
     cfg->wifiPass = sdWifiPass.c_str();
-    cfg->wifiRetries = wifiCfg["retries"] | cfg->wifiRetries;
+    cfg->wifiConnectTimeoutSeconds =
+        wifiCfg["connect_timeout_seconds"] | cfg->wifiConnectTimeoutSeconds;
+    if (!wifiCfg["retries"].isNull())
+        log(LOG_WARNING, "card wifi.retries ignored: it is wifi.connect_timeout_seconds now");
 
     JsonObject mqttCfg = doc["mqtt_logger"];
     cfg->mqttEnabled = mqttCfg["enabled"] | cfg->mqttEnabled;

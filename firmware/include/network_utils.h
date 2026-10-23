@@ -36,14 +36,14 @@ struct ServerResponse {
 
   @param ssid the network SSID.
   @param pass the network password.
-  @param retries how long to wait for the connection: one second, and one
-  more for each retry.
+  @param timeoutSeconds how long to wait for the connection; less than one
+  waits one second.
 
   @returns the esp_err_t code:
   - ESP_OK if successful.
   - ESP_ERR_TIMEOUT if the wait ends without a connection.
 */
-esp_err_t configureWiFi(const char* ssid, const char* pass, int retries);
+esp_err_t configureWiFi(const char* ssid, const char* pass, int timeoutSeconds);
 
 /**
   Reconnect to Wi-Fi once the link drops, without blocking.

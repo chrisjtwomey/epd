@@ -9,7 +9,7 @@ ClientConfig builtInSettings() {
 
     cfg.serverRetries = 3;
     cfg.defaultRefreshSeconds = 3600;
-    cfg.wifiRetries = 10;
+    cfg.wifiConnectTimeoutSeconds = 10;
 
     // Leave the broker as XXXX and this block comes from the panel's own
     // store instead, which is what an image built by CI relies on.

@@ -53,7 +53,7 @@ int readBatteryPercent() {
 }
 
 esp_err_t connectNetwork(const ClientConfig& cfg) {
-    if (configureWiFi(cfg.wifiSSID, cfg.wifiPass, cfg.wifiRetries) == ESP_ERR_TIMEOUT)
+    if (configureWiFi(cfg.wifiSSID, cfg.wifiPass, cfg.wifiConnectTimeoutSeconds) == ESP_ERR_TIMEOUT)
         return ESP_ERR_TIMEOUT;
 
     static char topic[128];

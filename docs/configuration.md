@@ -46,7 +46,7 @@ release pipeline build from that.
 | `serverRetries` | How many further attempts at downloading or drawing. |
 | `defaultRefreshSeconds` | How long to sleep when the server has not said: a cold boot, or every attempt failed. |
 | `wifiSSID`, `wifiPass` | Your network. |
-| `wifiRetries` | How long to wait for WiFi on this wake, in seconds: this value plus one. A wait that ends logs why the join failed. |
+| `wifiConnectTimeoutSeconds` | How long to wait for WiFi on this wake, in seconds. A wait that ends logs why the join failed. |
 | `mqttEnabled`, `mqttBroker`, `mqttPort`, `mqttClientID`, `mqttPrefix`, `mqttRetries` | Optional: publish the panel's log to an MQTT broker, so you can read it without a cable. `mqttEnabled = false` turns all of it off. `mqttRetries` is how many more times to try the broker: while its host is down, each try holds the wake about 3 s, so keep it low on a battery. |
 
 `serverURL`, `wifiSSID`, `wifiPass` and the whole MQTT block are also
@@ -75,7 +75,7 @@ server:
 wifi:
   ssid: your-network
   pass: your-password
-  retries: 10
+  connect_timeout_seconds: 10
 mqtt_logger:
   enabled: false
   broker: localhost
@@ -89,7 +89,9 @@ The three values `server.url`, `wifi.ssid` and `wifi.pass` are required; the
 file is ignored with a warning if any is missing. `mqtt_logger`'s `broker`,
 `clientId` and `prefix` name one broker, so they come together: a card that
 gives some but not all keeps the board's own three, and logs a warning. The
-rest fall back to the compiled value one key at a time.
+rest fall back to the compiled value one key at a time. A card that still
+names `wifi.retries`, the key's old name, keeps the compiled wait and logs a
+warning that names `wifi.connect_timeout_seconds`.
 
 The file can be up to 1536 bytes. A longer file is ignored with a warning:
 YAML cut short still parses, and a value cut part way, such as the Wi-Fi

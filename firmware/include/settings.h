@@ -19,7 +19,7 @@ struct ClientConfig {
 
     const char* wifiSSID;
     const char* wifiPass;
-    int wifiRetries;
+    int wifiConnectTimeoutSeconds;
 
     bool mqttEnabled;
     const char* mqttBroker;

@@ -39,9 +39,16 @@ void test_a_join_that_times_out_says_why_it_last_failed() {
     WiFi.joinAfterMs = -1;
     dropDuringWait = true;
     const uint32_t start = millis();
-    TEST_ASSERT_EQUAL(ESP_ERR_TIMEOUT, configureWiFi("home", "wrong", 2));
+    TEST_ASSERT_EQUAL(ESP_ERR_TIMEOUT, configureWiFi("home", "wrong", 3));
     TEST_ASSERT_EQUAL(3000u, millis() - start);
     TEST_ASSERT_TRUE(logged("wifi not joined in 3000 ms; last reason 2 (AUTH_EXPIRE)"));
+}
+
+void test_a_timeout_below_one_second_waits_one_second() {
+    WiFi.joinAfterMs = -1;
+    const uint32_t start = millis();
+    TEST_ASSERT_EQUAL(ESP_ERR_TIMEOUT, configureWiFi("home", "wrong", 0));
+    TEST_ASSERT_EQUAL(1000u, millis() - start);
 }
 
 void test_a_dropped_link_is_joined_again_every_30_s() {
@@ -71,6 +78,7 @@ int main() {
     RUN_TEST(test_before_any_join_there_is_nothing_to_keep);
     RUN_TEST(test_a_join_ends_once_the_board_has_an_address);
     RUN_TEST(test_a_join_that_times_out_says_why_it_last_failed);
+    RUN_TEST(test_a_timeout_below_one_second_waits_one_second);
     RUN_TEST(test_a_dropped_link_is_joined_again_every_30_s);
     return UNITY_END();
 }

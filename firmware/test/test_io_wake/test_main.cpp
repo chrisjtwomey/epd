@@ -21,7 +21,7 @@ static ClientConfig config(bool mqtt) {
     ClientConfig cfg = {};
     cfg.wifiSSID = "home";
     cfg.wifiPass = "secret";
-    cfg.wifiRetries = 2;
+    cfg.wifiConnectTimeoutSeconds = 3;
     cfg.mqttEnabled = mqtt;
     cfg.mqttBroker = "broker.local";
     cfg.mqttPort = 1883;
