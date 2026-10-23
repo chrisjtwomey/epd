@@ -12,14 +12,14 @@
 
 bool startPageCache() {
     if (LittleFS.begin(true)) return true;
-    log(LOG_WARNING, "LittleFS mount failed - page cache unavailable");
+    log(LOG_WARNING, "page cache unavailable: LittleFS did not mount");
     return false;
 }
 
 bool savePageCache(const uint8_t* buf, int32_t len) {
     File f = LittleFS.open(PAGE_CACHE_WRITE_PATH, FILE_WRITE);
     if (!f) {
-        log(LOG_WARNING, "savePageCache: failed to open file");
+        log(LOG_WARNING, "page cache not saved: cannot open the file");
         return false;
     }
     size_t written = f.write(buf, (size_t)len);
@@ -27,10 +27,15 @@ bool savePageCache(const uint8_t* buf, int32_t len) {
     // The decoder draws a cut PNG as if it were whole, so a short write must
     // not replace the last good page.
     if ((int32_t)written != len) {
+        logf(LOG_WARNING, "page cache not saved: wrote %u of %ld bytes", (unsigned)written, (long)len);
         LittleFS.remove(PAGE_CACHE_WRITE_PATH);
         return false;
     }
-    return LittleFS.rename(PAGE_CACHE_WRITE_PATH, PAGE_CACHE_PATH);
+    if (!LittleFS.rename(PAGE_CACHE_WRITE_PATH, PAGE_CACHE_PATH)) {
+        log(LOG_WARNING, "page cache not saved: cannot replace the old page");
+        return false;
+    }
+    return true;
 }
 
 bool drawCachedPage() {
