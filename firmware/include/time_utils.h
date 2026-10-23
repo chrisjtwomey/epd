@@ -4,7 +4,7 @@
 #include <time.h>
 
 #define SECONDS_IN_DAY 86400
-#define SECONDS_IN_YEAR SECONDS_IN_DAY * 365
+#define SECONDS_IN_YEAR (SECONDS_IN_DAY * 365)
 
 /** The time now as RFC 3339 local time; UTC until a time zone is set. */
 String nowTzFmt();
