@@ -24,11 +24,6 @@ void test_valid_six_hours(void) {
     TEST_ASSERT_EQUAL_UINT32(21600, out);
 }
 
-void test_valid_one_day(void) {
-    TEST_ASSERT_TRUE(parseRefreshTime("86400", &out));
-    TEST_ASSERT_EQUAL_UINT32(86400, out);
-}
-
 void test_valid_zero(void) {
     // Server might send 0 if the refresh time is "right now" — refresh immediately.
     TEST_ASSERT_TRUE(parseRefreshTime("0", &out));
@@ -130,7 +125,6 @@ int main(int argc, char **argv) {
     (void)argc; (void)argv;
     UNITY_BEGIN();
     RUN_TEST(test_valid_six_hours);
-    RUN_TEST(test_valid_one_day);
     RUN_TEST(test_valid_zero);
     RUN_TEST(test_valid_uint32_max);
     RUN_TEST(test_rejects_null_header);

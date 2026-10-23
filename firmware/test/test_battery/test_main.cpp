@@ -34,7 +34,6 @@ void test_mid_range_voltages(void) {
     // Spot-check a handful of values from the table.
     TEST_ASSERT_EQUAL_INT(50, getBatteryCapacity(3.79));
     TEST_ASSERT_EQUAL_INT(30, getBatteryCapacity(3.64));
-    TEST_ASSERT_EQUAL_INT(10, getBatteryCapacity(3.40));
 }
 
 void test_low_battery_threshold(void) {

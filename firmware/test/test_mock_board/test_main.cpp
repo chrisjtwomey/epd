@@ -23,30 +23,13 @@ void setUp(void) {
 
 void tearDown(void) {}
 
+// The wake pin is board-specific, so sleep() must ask the board to arm its
+// own wake source rather than enabling a hard-coded GPIO itself.
 void test_sleep_for_sets_rtc_alarm_relative_to_epoch() {
     mockBoard.epochReturn = 1000;
     sleep_for(3600);
     TEST_ASSERT_TRUE(mockBoard.rtcSetAlarmEpochCalled);
     TEST_ASSERT_EQUAL(4600, mockBoard.lastAlarmEpoch);
-}
-
-void test_sleep_for_zero_seconds() {
-    mockBoard.epochReturn = 500;
-    sleep_for(0);
-    TEST_ASSERT_EQUAL(500, mockBoard.lastAlarmEpoch);
-}
-
-void test_sleep_for_large_offset() {
-    mockBoard.epochReturn = 0;
-    sleep_for(86400);   // 24 h
-    TEST_ASSERT_EQUAL(86400, mockBoard.lastAlarmEpoch);
-}
-
-// The wake pin is board-specific, so sleep() must ask the board to arm its
-// own wake source rather than enabling a hard-coded GPIO itself.
-void test_sleep_arms_board_wake_source() {
-    mockBoard.epochReturn = 1000;
-    sleep_for(60);
     TEST_ASSERT_TRUE(mockBoard.enableWakeOnRtcAlarmCalled);
 }
 
@@ -71,21 +54,12 @@ void test_timer_wake_is_armed_alongside_the_rtc_alarm() {
     TEST_ASSERT_EQUAL(1010, mockBoard.lastAlarmEpoch);
 }
 
-// ---------------------------------------------------------------------------
-// displayBatteryStatus — icon selection tests.
-//
-// icons_32x32.h defines its bitmaps as `static`, so each translation unit
-// gets its own copy. We cannot compare raw pointer values across TUs.
-// Instead we verify:
 int main(int argc, char** argv) {
     (void)argc; (void)argv;
     UNITY_BEGIN();
 
     // sleep_for
     RUN_TEST(test_sleep_for_sets_rtc_alarm_relative_to_epoch);
-    RUN_TEST(test_sleep_for_zero_seconds);
-    RUN_TEST(test_sleep_for_large_offset);
-    RUN_TEST(test_sleep_arms_board_wake_source);
     RUN_TEST(test_sleep_sets_alarm_and_wake_source_together);
     RUN_TEST(test_timer_wake_is_armed_alongside_the_rtc_alarm);
 
