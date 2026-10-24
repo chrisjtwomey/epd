@@ -33,7 +33,7 @@ PUBLIC = {
     "epd_server.pipeline": ["regenerate"],
     "epd_server.app": ["DisplayServer", "align_process_timezone"],
     "epd_server.headers": ["Wire"],
-    "epd_server.logs": ["LEVELS", "LogStore"],
+    "epd_server.logs": ["LEVELS", "LogStore", "LogsQuery", "MAX_LINES"],
 }
 
 

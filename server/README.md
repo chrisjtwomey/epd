@@ -63,7 +63,7 @@ fails a test before it reaches a project.
 | `epd_server.headers` | `Wire` — every header name, for one product's prefix |
 | `epd_server.compat` | Whether a board's version and the server's work together, by the rule in [docs/protocol.md](../docs/protocol.md) |
 | `epd_server.posix_tz` | The server's time zone as a POSIX TZ string, for `EPD-Server-Timezone` |
-| `epd_server.logs` | `LogStore` — what each board logs over MQTT, kept on disk and read back in order; `LEVELS`, the levels a line can carry |
+| `epd_server.logs` | `LogStore` — what each board logs over MQTT, kept on disk and read back in order; `LEVELS`, the levels a line can carry; `LogsQuery` — the lines a `/logs` query route asks for, paged and filtered, at most `MAX_LINES` |
 
 ## Tests
 

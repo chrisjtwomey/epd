@@ -15,7 +15,8 @@ The pieces a project composes:
 - :mod:`epd_server.board_keys`  each board's key, paired over the air, and the signatures made with it
 - :mod:`epd_server.network`    the network settings a USB flash writes to a board
 - :mod:`epd_server.install`    the install page, and install-firmware.sh: firmware onto a board over USB
-- :mod:`epd_server.logs`       LogStore: the boards' log lines, in SQLite, read back in order
+- :mod:`epd_server.logs`       LogStore: the boards' log lines, in SQLite, read back in order;
+                               LogsQuery answers a /logs route from it
 - :mod:`epd_server.source`     DataSource protocol; Static / Composite / Ingest helpers
 - :mod:`epd_server.store`      ReadingsStore: what a board posts, in SQLite, read back by time
 - :mod:`epd_server.pipeline`   regenerate(): fetch what pages need, render, save
@@ -48,7 +49,7 @@ from .firmware import (
     update_applies,
 )
 from .install import InstallBoard
-from .logs import LogStore
+from .logs import LogsQuery, LogStore
 from .network import network_settings_file
 from .page import Page, SkipPage
 from .pipeline import regenerate, select_pages
@@ -75,6 +76,7 @@ __all__ = [
     "Page", "SkipPage",
     "DataSource", "StaticSource", "CompositeSource", "IngestSource", "ReadingsStore",
     "LogStore",
+    "LogsQuery",
     "regenerate", "select_pages",
     "Renderer", "ChromiumRenderer",
     "Quantiser", "GreyscaleQuantiser", "PaletteQuantiser", "IdentityQuantiser",
