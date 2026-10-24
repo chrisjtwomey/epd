@@ -28,6 +28,7 @@
 #include "image.h"         // draw a page, and cache the last one
 #include "sleep_utils.h"   // sleepFor, sleepUntil, deepSleep
 #include "ota.h"           // take a firmware update, confirm it, roll it back
+#include "progress_bar.h"  // a bar that follows an update, ten partial updates at most
 #include "sd_config.h"     // settings from a card, when USE_SDCARD is set
 
 #include "backoff.h"       // how long to wait after a failure

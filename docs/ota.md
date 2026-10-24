@@ -14,7 +14,8 @@ enough.
 1. The panel fetches its page and draws it, exactly as it always does.
 2. If the response offered a newer version, the panel downloads it.
 3. It writes the image, checks it, restarts, and comes up running the new
-   software.
+   software. A project can show a bar on the panel while it writes (see
+   below).
 
 The update is last on purpose. A download that fails, a server that has gone
 away, a flat battery — none of it stops the picture reaching the screen. The
@@ -40,9 +41,15 @@ update.
 [`examples/ota`](../examples/ota) is a whole project that does this, with a
 walk-through of an update, and of a rollback, on the bench.
 
-`applyFirmwareUpdate()` takes an optional progress callback, called with the
-bytes written and the image's size, for a board that wants to show how far
-along it is.
+`applyFirmwareUpdate()` and `takeOfferedUpdate()` take an optional progress
+callback, called with the bytes written and the image's size, for a board
+that wants to show how far along it is. `ProgressBar` (`progress_bar.h`) turns
+those bytes into what to push to the panel: one full update for the first
+call, then a partial update each time the bar gains one of its ten steps. Ten,
+because the Inkplate library makes every eleventh partial update a full one.
+Partial updates need the panel in black and white
+(`IBoard::setBlackAndWhite(true)`). What the screen looks like is the
+project's.
 
 A panel that rolled back remembers the version it rejected and will not take
 that version again. Without that memory it would roll back, be offered the
