@@ -1,5 +1,11 @@
 #include "InkplateBoard.h"
 
+#include <new>
+
+#include <PNGdec.h>
+
+#include "frame_rows.h"
+
 // Where the Inkplate's PCF85063A RTC drives its interrupt line.
 static const gpio_num_t kRtcAlarmWakePin = GPIO_NUM_39;
 
@@ -84,11 +90,52 @@ static bool pngDither(Inkplate& inkplate, PngDraw options) {
     return pngDrawHas(options, PngDraw::Dither) || inkplate.getDisplayMode() == INKPLATE_1BIT;
 }
 
+// The boards whose drivers keep a 3-bit frame buffer that FrameRows writes as
+// their drawPixel() does (InkplateLibrary 11.2.1).
+#if defined(ARDUINO_INKPLATE10) || defined(ARDUINO_INKPLATE10V2) || \
+    defined(ARDUINO_INKPLATE5V2) || defined(ARDUINO_INKPLATE6) || defined(ARDUINO_INKPLATE6PLUS)
+#define EPD_GREY_PNG_ROWS 1
+#endif
+
+#if defined(EPD_GREY_PNG_ROWS)
+// One page's rows on their way into the frame buffer.
+struct PngRows {
+    FrameRows rows;
+    int x, y;
+};
+
+static int drawPngRow(PNGDRAW* draw) {
+    const PngRows* page = static_cast<const PngRows*>(draw->pUser);
+    page->rows.writeGreyRow(page->x, page->y + draw->y, draw->pPixels, draw->iWidth);
+    return 1;
+}
+
+// An 8-bit grey PNG, decoded a row at a time straight into the frame buffer:
+// the library's path decodes it a byte at a time and draws it a pixel at a
+// time, which takes seconds for a page. The decoder's state is about 45 KB,
+// most of it the inflate window, so it lives on the heap: in PSRAM.
+static bool drawGreyPngRows(Inkplate& inkplate, const uint8_t* buf, int32_t len, int x, int y) {
+    static PNG* png = new (std::nothrow) PNG();
+    if (!png) return false;
+    if (png->openRAM(const_cast<uint8_t*>(buf), len, drawPngRow) != PNG_SUCCESS) return false;
+    PngRows page{{inkplate.DMemory4Bit, E_INK_WIDTH, E_INK_HEIGHT, inkplate.getRotation()}, x, y};
+    const bool drawn = png->getPixelType() == PNG_PIXEL_GRAYSCALE && png->getBpp() == 8 &&
+                       png->decode(&page, 0) == PNG_SUCCESS;
+    png->close();
+    return drawn;
+}
+#endif
+
+// In 3-bit greys and undithered, the library ignores options' Invert, and so
+// does the row path.
 bool InkplateBoard::drawPngFromBuffer(const uint8_t* buf, int32_t len,
                                       int x, int y, PngDraw options) {
+    const bool dither = pngDither(_inkplate, options);
+#if defined(EPD_GREY_PNG_ROWS)
+    if (!dither && drawGreyPngRows(_inkplate, buf, len, x, y)) return true;
+#endif
     // The library only reads the buffer, but takes it as non-const.
-    return _inkplate.image.drawPngFromBuffer(const_cast<uint8_t*>(buf), len, x, y,
-                                             pngDither(_inkplate, options),
+    return _inkplate.image.drawPngFromBuffer(const_cast<uint8_t*>(buf), len, x, y, dither,
                                              pngDrawHas(options, PngDraw::Invert));
 }
 

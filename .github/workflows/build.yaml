@@ -43,6 +43,9 @@ jobs:
       - name: Run native_io_sd tests
         run: pio test -e native_io_sd
 
+      - name: Run native_inkplate tests
+        run: pio test -e native_inkplate
+
   example-build:
     name: Example project (ESP32)
     runs-on: ubuntu-latest

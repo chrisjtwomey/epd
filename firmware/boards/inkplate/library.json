@@ -28,6 +28,11 @@
       "owner": "e-radionicacom",
       "name": "InkplateLibrary",
       "version": "^11.0.0"
+    },
+    {
+      "owner": "bitbank2",
+      "name": "PNGdec",
+      "version": "^1.1.6"
     }
   ]
 }
