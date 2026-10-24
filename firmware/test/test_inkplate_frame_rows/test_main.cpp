@@ -103,6 +103,30 @@ static void decodeFixture(Decoded* into) {
 void setUp() {}
 void tearDown() {}
 
+// The same rows as compare(), written block by block.
+static void compareBlocks(int16_t w, int16_t h, uint8_t rotation, int x, int y, int rows, int cols,
+                          int block) {
+    const size_t bytes = (size_t)w * h / 2;
+    std::vector<uint8_t> noise(bytes);
+    for (auto& b : noise) b = nextGrey();
+    std::vector<uint8_t> grey((size_t)rows * cols);
+    for (auto& g : grey) g = nextGrey();
+
+    LibraryPanel lib{noise, w, h, rotation};
+    for (int j = 0; j < rows; ++j)
+        for (int i = 0; i < cols; ++i) {
+            const uint8_t v = grey[(size_t)j * cols + i];
+            lib.drawPixel(x + i, y + j, RGB3BIT(v, v, v));
+        }
+
+    std::vector<uint8_t> ours = noise;
+    FrameRows writer{ours.data(), w, h, rotation};
+    for (int j = 0; j < rows; j += block)
+        writer.writeGreyRows(x, y + j, grey.data() + (size_t)j * cols, cols,
+                             rows - j < block ? rows - j : block, cols);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(lib.memory.data(), ours.data(), bytes);
+}
+
 void test_every_grey_maps_as_the_library_maps_it() {
     for (int v = 0; v < 256; ++v)
         TEST_ASSERT_EQUAL_UINT8(RGB3BIT(v, v, v), grey3((uint8_t)v));
@@ -149,11 +173,22 @@ void test_a_decoded_page_lands_where_the_library_draws_it() {
     }
 }
 
+void test_blocks_of_rows_land_as_rows_do() {
+    for (uint8_t r = 0; r < 4; ++r) {
+        const bool sideways = r & 1;
+        compareBlocks(1200, 825, r, 0, 0, sideways ? 1200 : 825, sideways ? 825 : 1200, 16);
+        compareBlocks(64, 40, r, 3, 5, 50, 70, 16);     // a last block of 2 rows, run off the panel
+        compareBlocks(64, 40, r, -7, -3, 20, 30, 7);    // odd blocks, starting off the panel
+        compareBlocks(64, 40, r, 2, 1, 33, 30, 1);      // a row at a time
+    }
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_every_grey_maps_as_the_library_maps_it);
     RUN_TEST(test_a_whole_page_at_each_rotation);
     RUN_TEST(test_an_odd_offset_and_pixels_off_the_panel);
+    RUN_TEST(test_blocks_of_rows_land_as_rows_do);
     RUN_TEST(test_pngdec_gives_the_pixels_the_png_holds_through_every_row_filter);
     RUN_TEST(test_a_decoded_page_lands_where_the_library_draws_it);
     return UNITY_END();

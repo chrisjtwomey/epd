@@ -1,6 +1,9 @@
 #include "InkplateBoard.h"
 
 #include <new>
+#include <string.h>
+
+#include <esp_heap_caps.h>
 
 #include <PNGdec.h>
 
@@ -98,15 +101,31 @@ static bool pngDither(Inkplate& inkplate, PngDraw options) {
 #endif
 
 #if defined(EPD_GREY_PNG_ROWS)
-// One page's rows on their way into the frame buffer.
+// How many decoded rows are written to the frame buffer together.
+static const int kRowsPerBlock = 16;
+
+// One page's rows on their way into the frame buffer, gathered into blocks in
+// internal RAM: the frame buffer is in PSRAM, and on a portrait page a single
+// row would touch a different line of it with every pixel.
 struct PngRows {
     FrameRows rows;
     int x, y;
+    uint8_t* block;
+    int width;
+    int held;
+    int firstRow;
+
+    void flush() {
+        if (held) rows.writeGreyRows(x, y + firstRow, block, width, held, width);
+        held = 0;
+    }
 };
 
 static int drawPngRow(PNGDRAW* draw) {
-    const PngRows* page = static_cast<const PngRows*>(draw->pUser);
-    page->rows.writeGreyRow(page->x, page->y + draw->y, draw->pPixels, draw->iWidth);
+    PngRows* page = static_cast<PngRows*>(draw->pUser);
+    if (page->held == 0) page->firstRow = draw->y;
+    memcpy(page->block + page->held * page->width, draw->pPixels, page->width);
+    if (++page->held == kRowsPerBlock) page->flush();
     return 1;
 }
 
@@ -118,9 +137,19 @@ static bool drawGreyPngRows(Inkplate& inkplate, const uint8_t* buf, int32_t len,
     static PNG* png = new (std::nothrow) PNG();
     if (!png) return false;
     if (png->openRAM(const_cast<uint8_t*>(buf), len, drawPngRow) != PNG_SUCCESS) return false;
-    PngRows page{{inkplate.DMemory4Bit, E_INK_WIDTH, E_INK_HEIGHT, inkplate.getRotation()}, x, y};
-    const bool drawn = png->getPixelType() == PNG_PIXEL_GRAYSCALE && png->getBpp() == 8 &&
-                       png->decode(&page, 0) == PNG_SUCCESS;
+    bool drawn = false;
+    if (png->getPixelType() == PNG_PIXEL_GRAYSCALE && png->getBpp() == 8) {
+        const int width = png->getWidth();
+        uint8_t* block = static_cast<uint8_t*>(
+            heap_caps_malloc((size_t)kRowsPerBlock * width, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+        if (block) {
+            PngRows page{{inkplate.DMemory4Bit, E_INK_WIDTH, E_INK_HEIGHT, inkplate.getRotation()},
+                         x, y, block, width, 0, 0};
+            drawn = png->decode(&page, 0) == PNG_SUCCESS;
+            if (drawn) page.flush();
+            heap_caps_free(block);
+        }
+    }
     png->close();
     return drawn;
 }

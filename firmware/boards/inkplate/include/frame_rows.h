@@ -22,6 +22,16 @@ struct FrameRows {
 
     /** Write count greys at (x, y), (x + 1, y), ... in rotated coordinates. */
     void writeGreyRow(int x, int y, const uint8_t* grey, int count) const;
+
+    /**
+      Write rowCount rows of count greys, pitch bytes apart, from (x, y): the
+      same pixels as writeGreyRow() for each row. On a panel turned sideways
+      a row runs down a column of the frame buffer, so this writes a block of
+      rows one panel row at a time, where a row at a time would touch a
+      different panel row with every pixel.
+    */
+    void writeGreyRows(int x, int y, const uint8_t* grey, int pitch, int rowCount,
+                       int count) const;
 };
 
 /** The 3-bit grey the library gives an 8-bit grey: RGB3BIT(v, v, v). */
