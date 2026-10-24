@@ -2,6 +2,7 @@
 
 #include "log_utils.h"
 #include "network_utils.h"
+#include "wifi_hint.h"
 #include "wifi_retry.h"
 
 // What configureWiFi was given, for keepWiFiConnected() to reconnect with.
@@ -19,6 +20,13 @@ static volatile uint8_t wifiJoinReason = 0;
 static SemaphoreHandle_t wifiGotAddress = nullptr;
 // The longest wait between two checks of the status.
 static const uint32_t kJoinCheckMs = 100;
+// The access point this board last joined, kept through deep sleep.
+static RTC_DATA_ATTR WifiHint wifiHint;
+// How long a join on the kept channel may take before the board scans for the
+// network instead: a router that restarts can come back on another channel.
+static const uint32_t kHintJoinMs = 3000;
+// The reason a join gives when the access point is not on the channel tried.
+static const uint8_t kNoApFound = 201;
 
 static void noteWifiLost(WiFiEvent_t, WiFiEventInfo_t info) {
     wifiJoinReason = info.wifi_sta_disconnected.reason;
@@ -43,12 +51,28 @@ esp_err_t configureWiFi(const char* ssid, const char* pass, int timeoutSeconds) 
     WiFi.disconnect();
     wifiJoinReason = 0;
     if (wifiGotAddress) xSemaphoreTake(wifiGotAddress, 0);
-    WiFi.begin(ssid, pass);
-    logf(LOG_INFO, "connecting to WiFi SSID %s...", ssid);
+    bool hinted = wifiHint.usableFor(ssid);
+    if (hinted) {
+        WiFi.begin(ssid, pass, wifiHint.channel, wifiHint.bssid);
+        logf(LOG_INFO, "connecting to WiFi SSID %s on channel %u...", ssid,
+             (unsigned)wifiHint.channel);
+    } else {
+        WiFi.begin(ssid, pass);
+        logf(LOG_INFO, "connecting to WiFi SSID %s...", ssid);
+    }
 
     const uint32_t startMs = millis();
     const uint32_t waitMs = (uint32_t)(timeoutSeconds > 0 ? timeoutSeconds : 1) * 1000;
     while (WiFi.status() != WL_CONNECTED) {
+        if (hinted && (millis() - startMs >= kHintJoinMs || wifiJoinReason == kNoApFound)) {
+            logf(LOG_NOTICE, "wifi not joined on channel %u; scanning for %s",
+                 (unsigned)wifiHint.channel, ssid);
+            wifiHint.forget();
+            hinted = false;
+            WiFi.disconnect();
+            wifiJoinReason = 0;
+            WiFi.begin(ssid, pass);
+        }
         if (millis() - startMs >= waitMs) {
             const uint8_t reason = wifiJoinReason;
             logf(LOG_WARNING, "wifi not joined in %lu ms; last reason %u (%s)",
@@ -63,6 +87,7 @@ esp_err_t configureWiFi(const char* ssid, const char* pass, int timeoutSeconds) 
     }
     logf(LOG_INFO, "wifi connected in %lu ms: %s", (unsigned long)(millis() - startMs),
          WiFi.localIP().toString().c_str());
+    wifiHint.keep(ssid, (uint8_t)WiFi.channel(), WiFi.BSSID());
 
     return ESP_OK;
 }

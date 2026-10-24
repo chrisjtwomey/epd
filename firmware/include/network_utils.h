@@ -34,6 +34,11 @@ struct ServerResponse {
   last one, and returns as soon as the board has an address. A wait that ends
   without a connection logs the reason the join last failed.
 
+  The access point it joins is kept through deep sleep, and the next join to
+  the same SSID goes straight to its channel, without a scan of every channel.
+  When that join has not connected in 3 s, or the access point is not on the
+  channel, it forgets it and scans.
+
   @param ssid the network SSID.
   @param pass the network password.
   @param timeoutSeconds how long to wait for the connection; less than one
