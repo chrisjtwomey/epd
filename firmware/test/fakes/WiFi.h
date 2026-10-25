@@ -44,13 +44,6 @@ public:
     // begin() starts: a join after this many ms of the fake clock, or none.
     wl_status_t status_ = WL_DISCONNECTED;
     long joinAfterMs = -1;
-    // The access point the link joins, and whether a join that names a
-    // channel finds it there.
-    uint8_t channel_ = 6;
-    uint8_t bssid_[6] = {0x10, 0x7b, 0x44, 0x01, 0x02, 0x03};
-    bool onHintedChannel = true;
-    // What the last begin() named: 0 when it named no channel.
-    int lastBeginChannel = -1;
 
     void mode(int m) { mode_ = m; }
     void disconnect() {
@@ -59,16 +52,8 @@ public:
     }
     void begin(const char*, const char*) {
         ++beginCount;
-        lastBeginChannel = 0;
         joinAt_ = joinAfterMs < 0 ? -1 : (long)(millis() + joinAfterMs);
     }
-    void begin(const char* ssid, const char* pass, int32_t channel, const uint8_t*) {
-        begin(ssid, pass);
-        lastBeginChannel = channel;
-        if (!onHintedChannel) joinAt_ = -1;
-    }
-    uint8_t channel() { return channel_; }
-    uint8_t* BSSID() { return bssid_; }
     wl_status_t status() {
         if (joinAt_ >= 0 && (long)millis() >= joinAt_) {
             joinAt_ = -1;

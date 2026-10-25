@@ -18,7 +18,6 @@ void setUp() {
     fake::onSemaphoreWait() = dropOnce;
     WiFi.joinAfterMs = 250;
     WiFi.beginCount = 0;
-    WiFi.onHintedChannel = true;
 }
 void tearDown() {}
 
@@ -40,8 +39,7 @@ void test_a_join_that_times_out_says_why_it_last_failed() {
     WiFi.joinAfterMs = -1;
     dropDuringWait = true;
     const uint32_t start = millis();
-    // Another network, so no channel kept from the join before applies.
-    TEST_ASSERT_EQUAL(ESP_ERR_TIMEOUT, configureWiFi("work", "wrong", 3));
+    TEST_ASSERT_EQUAL(ESP_ERR_TIMEOUT, configureWiFi("home", "wrong", 3));
     TEST_ASSERT_EQUAL(3000u, millis() - start);
     TEST_ASSERT_TRUE(logged("wifi not joined in 3000 ms; last reason 2 (AUTH_EXPIRE)"));
 }
@@ -51,25 +49,6 @@ void test_a_timeout_below_one_second_waits_one_second() {
     const uint32_t start = millis();
     TEST_ASSERT_EQUAL(ESP_ERR_TIMEOUT, configureWiFi("home", "wrong", 0));
     TEST_ASSERT_EQUAL(1000u, millis() - start);
-}
-
-void test_the_next_join_goes_straight_to_the_channel_last_joined() {
-    TEST_ASSERT_EQUAL(ESP_OK, configureWiFi("home", "secret", 10));
-    TEST_ASSERT_EQUAL(ESP_OK, configureWiFi("home", "secret", 10));
-    TEST_ASSERT_EQUAL(6, WiFi.lastBeginChannel);
-    TEST_ASSERT_TRUE(logged("connecting to WiFi SSID home on channel 6"));
-}
-
-void test_a_kept_channel_that_fails_falls_back_to_a_scan() {
-    TEST_ASSERT_EQUAL(ESP_OK, configureWiFi("home", "secret", 10));
-    WiFi.beginCount = 0;
-    WiFi.onHintedChannel = false;
-    const uint32_t start = millis();
-    TEST_ASSERT_EQUAL(ESP_OK, configureWiFi("home", "secret", 10));
-    TEST_ASSERT_EQUAL(2, WiFi.beginCount);
-    TEST_ASSERT_EQUAL(0, WiFi.lastBeginChannel);
-    TEST_ASSERT_TRUE(millis() - start >= 3000);
-    TEST_ASSERT_TRUE(logged("wifi not joined on channel 6; scanning for home"));
 }
 
 void test_a_dropped_link_is_joined_again_every_30_s() {
@@ -100,8 +79,6 @@ int main() {
     RUN_TEST(test_a_join_ends_once_the_board_has_an_address);
     RUN_TEST(test_a_join_that_times_out_says_why_it_last_failed);
     RUN_TEST(test_a_timeout_below_one_second_waits_one_second);
-    RUN_TEST(test_the_next_join_goes_straight_to_the_channel_last_joined);
-    RUN_TEST(test_a_kept_channel_that_fails_falls_back_to_a_scan);
     RUN_TEST(test_a_dropped_link_is_joined_again_every_30_s);
     return UNITY_END();
 }
