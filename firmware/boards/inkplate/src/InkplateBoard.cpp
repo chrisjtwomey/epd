@@ -8,6 +8,7 @@
 #include <PNGdec.h>
 
 #include "frame_rows.h"
+#include "utc_scope.h"
 
 // Where the Inkplate's PCF85063A RTC drives its interrupt line.
 static const gpio_num_t kRtcAlarmWakePin = GPIO_NUM_39;
@@ -236,10 +237,12 @@ int InkplateBoard::readPanelTemperature() {
 // -----------------------------------------------------------------------------
 
 time_t InkplateBoard::rtcGetEpoch() {
+    UtcScope utc;
     return _inkplate.rtc.getEpoch();
 }
 
 void InkplateBoard::rtcSetEpoch(time_t epoch) {
+    UtcScope utc;
     _inkplate.rtc.setEpoch(epoch);
 }
 
@@ -250,6 +253,7 @@ void InkplateBoard::rtcClearAlarmFlag() {
 void InkplateBoard::rtcSetAlarmEpoch(time_t epoch) {
     // RTC_ALARM_MATCH_DHHMMSS is the Inkplate-specific alarm match mode;
     // hidden here so callers depend only on the IBoard interface.
+    UtcScope utc;
     _inkplate.rtc.setAlarmEpoch(epoch, RTC_ALARM_MATCH_DHHMMSS);
 }
 

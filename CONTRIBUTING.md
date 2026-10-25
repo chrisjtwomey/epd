@@ -63,7 +63,7 @@ pio test -e native_settings     # loadConfig and the board key's store against a
 pio test -e native_board_key    # the board key's signatures, against the RFCs and the server's vectors; the /pair answer; the step after a 401
 pio test -e native_io           # downloads, posts, pairing, updates, the wake's steps, Wi-Fi, logging and the page cache, against the fakes in test/fakes/
 pio test -e native_io_sd        # the same with USE_SDCARD: config.yaml from the card, through the real YAMLDuino
-pio test -e native_inkplate     # the Inkplate board's PNG rows against the library's per-pixel path, decoded by PNGdec
+pio test -e native_inkplate     # the Inkplate board's PNG rows against the library's per-pixel path, decoded by PNGdec; the RTC kept in UTC
 cd ../examples/minimal
 pio run -e dev                  # an ESP32 build of this checkout; the host tests never see the framework
 pio run -e sd-dev               # the same with USE_SDCARD: the card's code on the ESP32
@@ -108,7 +108,8 @@ figures; it is apart from PlatformIO CI, so CI still passes.
 
 The goal is 80% or more of the server's code and of `firmware/src`, counted
 by line; the board driver in `firmware/boards/` is left to the bench, apart
-from its pure part, `frame_rows.cpp`, which `native_inkplate` tests. The
+from its pure parts, `frame_rows.cpp` and `utc_scope.h`, which
+`native_inkplate` tests. The
 firmware's figure counts only what the host environments compile, which is
 all of `firmware/src` since `native_io` and `native_io_sd`. A test earns its
 place by checking behaviour a reader would miss if it broke, not by lifting

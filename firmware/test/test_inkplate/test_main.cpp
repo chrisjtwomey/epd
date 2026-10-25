@@ -1,16 +1,19 @@
-// A page written a row at a time lands in the frame buffer exactly as the
-// Inkplate library's PNG path puts it there a pixel at a time, and PNGdec
-// gives the rows the pixels the PNG holds.
+// The Inkplate board's pure parts. A page written a row at a time lands in
+// the frame buffer exactly as the library's PNG path puts it there a pixel at
+// a time, and PNGdec gives the rows the pixels the PNG holds. The RTC, kept in
+// UTC, means the same moment whatever zone is set when it is read.
 #include <unity.h>
 
 #include <PNGdec.h>
 
 #include <cstdint>
 #include <cstring>
+#include <ctime>
 #include <vector>
 
 #include "fixture.h"
 #include "frame_rows.h"
+#include "utc_scope.h"
 
 // The library's own path, ported: pngle_on_draw's grey for an undithered
 // pixel, and EPDDriver::writePixelInternal in 3-bit mode (InkplateLibrary
@@ -183,12 +186,70 @@ void test_blocks_of_rows_land_as_rows_do() {
     }
 }
 
+// What the library does to the RTC: an epoch to clock fields with
+// localtime(), and back with mktime().
+struct RtcFields {
+    struct tm t;
+    void set(time_t epoch) { t = *localtime(&epoch); }
+    time_t get() const {
+        struct tm copy = t;
+        copy.tm_isdst = -1;
+        return mktime(&copy);
+    }
+};
+
+static const char* kDublin = "IST-1GMT0,M10.5.0,M3.5.0/1";
+
+void test_the_rtc_means_the_same_moment_after_the_zone_is_lost() {
+    // Written on a wake that knew the zone; read after a reset, which has none.
+    const time_t summer = 1784000000;   // July 2026: Irish summer time
+    setenv("TZ", kDublin, 1);
+    tzset();
+    RtcFields rtc;
+    {
+        UtcScope utc;
+        rtc.set(summer);
+    }
+    unsetenv("TZ");
+    tzset();
+    UtcScope utc;
+    TEST_ASSERT_EQUAL(summer, rtc.get());
+}
+
+void test_the_rtc_means_the_same_moment_across_a_change_of_the_clocks() {
+    // Set before the clocks went back, read after: 25 October 2026.
+    const time_t before = 1792890000;   // 23:00 GMT, 24 October: still summer time
+    setenv("TZ", kDublin, 1);
+    tzset();
+    RtcFields rtc;
+    {
+        UtcScope utc;
+        rtc.set(before);
+    }
+    UtcScope utc;
+    TEST_ASSERT_EQUAL(before, rtc.get());
+}
+
+void test_the_zone_set_before_is_put_back() {
+    setenv("TZ", kDublin, 1);
+    tzset();
+    { UtcScope utc; TEST_ASSERT_EQUAL_STRING("UTC0", getenv("TZ")); }
+    TEST_ASSERT_EQUAL_STRING(kDublin, getenv("TZ"));
+
+    unsetenv("TZ");
+    { UtcScope utc; }
+    TEST_ASSERT_NULL(getenv("TZ"));
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_every_grey_maps_as_the_library_maps_it);
     RUN_TEST(test_a_whole_page_at_each_rotation);
     RUN_TEST(test_an_odd_offset_and_pixels_off_the_panel);
     RUN_TEST(test_blocks_of_rows_land_as_rows_do);
+    RUN_TEST(test_the_rtc_means_the_same_moment_after_the_zone_is_lost);
+    RUN_TEST(test_the_rtc_means_the_same_moment_across_a_change_of_the_clocks);
+    RUN_TEST(test_the_zone_set_before_is_put_back);
     RUN_TEST(test_pngdec_gives_the_pixels_the_png_holds_through_every_row_filter);
     RUN_TEST(test_a_decoded_page_lands_where_the_library_draws_it);
     return UNITY_END();

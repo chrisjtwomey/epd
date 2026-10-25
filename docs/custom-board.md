@@ -79,10 +79,10 @@ from the server's clock with each page.
 
 | Method | Notes |
 |---|---|
-| `rtcGetEpoch()` | Return the current Unix timestamp held in the RTC. |
+| `rtcGetEpoch()` | Return the Unix timestamp held in the RTC, UTC. A board whose RTC library converts in the local zone must hold the zone at UTC while it does, or the time is an hour off after a reset and across a change of the clocks. |
 | `rtcSetEpoch(epoch)` | Write `epoch` to the RTC. Called with the server's clock, from `keepServerTime()`, so the RTC stays accurate across deep sleep. |
 | `rtcClearAlarmFlag()` | Clear any pending alarm interrupt flag (called on `ESP_SLEEP_WAKEUP_EXT0`). |
-| `rtcSetAlarmEpoch(epoch)` | Program the RTC alarm to fire at `epoch`. All alarm-match mode details are encapsulated inside the implementation. |
+| `rtcSetAlarmEpoch(epoch)` | Program the RTC alarm to fire at `epoch`, UTC. All alarm-match mode details are encapsulated inside the implementation. |
 | `enableWakeOnRtcAlarm()` | Arm the deep-sleep wake source the RTC alarm drives. The alarm reaches the SoC on a board-specific pin, so the pin and wake mode belong here. Arm it as EXT0: `logWakeReason()` takes an EXT0 wake as the alarm, logs it so, and clears the flag. `InkplateBoard` calls `esp_sleep_enable_ext0_wakeup(GPIO_NUM_39, 0)`. |
 
 ### SD card (`USE_SDCARD` only)

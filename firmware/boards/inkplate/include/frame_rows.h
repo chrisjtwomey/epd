@@ -12,7 +12,7 @@
   gives it, RGB3BIT(v, v, v): so a page drawn a row at a time is the page the
   library draws a pixel at a time. Pixels off the panel are left out.
 
-  Pure: no hardware, no globals. Tested in test/test_inkplate_frame_rows/.
+  Pure: no hardware, no globals. Tested in test/test_inkplate/.
 */
 struct FrameRows {
     uint8_t* buffer;      // physicalWidth * physicalHeight / 2 bytes

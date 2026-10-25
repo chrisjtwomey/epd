@@ -154,7 +154,7 @@ public:
     // RTC
     // -------------------------------------------------------------------------
 
-    /** Return the current epoch time as held by the RTC. */
+    /** Return the RTC's time as a Unix timestamp, UTC. */
     virtual time_t rtcGetEpoch() = 0;
 
     /**
@@ -174,7 +174,7 @@ public:
      * The implementation is responsible for any hardware-specific alarm-match
      * mode details (e.g. day/hour/minute/second matching).
      *
-     * @param epoch  the Unix timestamp at which the alarm should fire.
+     * @param epoch  the Unix timestamp, UTC, at which the alarm should fire.
      */
     virtual void rtcSetAlarmEpoch(time_t epoch) = 0;
 
