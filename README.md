@@ -53,6 +53,8 @@ works unchanged.
 | **[PlatformIO](https://platformio.org/install)** | To put the software on the panel. |
 | **A USB cable** | For the first flash only. After that the panel updates itself over WiFi. |
 
+On battery, turn off the board's power LED with its switch, if it has one. With the LED on, an Inkplate 5 Gen2 draws about 0.8 mA asleep instead of 17 µA, and the battery lasts weeks instead of months.
+
 Expect about 30 minutes to the first picture on the screen.
 
 ## Quickstart
