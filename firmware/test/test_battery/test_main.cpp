@@ -1,8 +1,8 @@
-// Native tests for the battery voltage-to-capacity lookup table.
+// Native tests for the battery voltage-to-capacity lookup.
 //
-// batteryPercent() is a pure table-scan function — no hardware, no
-// Arduino.h. Tests verify the known boundaries and a spread of typical
-// in-use voltages.
+// batteryPercent() is a pure function of the table — no hardware, no
+// Arduino.h. Tests verify the two ends, the rows themselves, and the blend
+// between rows.
 
 #include <unity.h>
 #include "battery.h"
@@ -25,33 +25,41 @@ void test_dead_voltage(void) {
 }
 
 void test_below_dead_voltage(void) {
-    // Below the lowest entry the loop exhausts and returns 0.
     TEST_ASSERT_EQUAL_INT(0, batteryPercent(2.50));
     TEST_ASSERT_EQUAL_INT(0, batteryPercent(0.00));
 }
 
-void test_mid_range_voltages(void) {
-    // Spot-check a handful of values from the table.
+void test_row_voltages_give_their_own_percent(void) {
     TEST_ASSERT_EQUAL_INT(50, batteryPercent(3.79));
     TEST_ASSERT_EQUAL_INT(30, batteryPercent(3.64));
-}
-
-void test_low_battery_threshold(void) {
-    // The firmware treats <=10% as "battery low" and <=1% as "empty".
     TEST_ASSERT_EQUAL_INT(10, batteryPercent(3.40));
     TEST_ASSERT_EQUAL_INT(1,  batteryPercent(3.16));
 }
 
-void test_returns_highest_matching_entry(void) {
-    // Table is scanned top-to-bottom; first entry where voltage >= threshold
-    // wins. 4.08 V appears for four consecutive percentages (89/88/87/86);
-    // the highest (89) must be returned.
-    TEST_ASSERT_EQUAL_INT(89, batteryPercent(4.08));
+void test_blends_between_rows(void) {
+    // Halfway between {3.89, 59} and {3.87, 57}: a percent no row holds.
+    TEST_ASSERT_EQUAL_INT(58, batteryPercent(3.88));
+    // Halfway between {4.02, 76} and {4.00, 74}.
+    TEST_ASSERT_EQUAL_INT(75, batteryPercent(4.01));
+    // A quarter of the way up from {3.10, 0} to {3.16, 1} rounds down.
+    TEST_ASSERT_EQUAL_INT(0, batteryPercent(3.115));
 }
 
-void test_voltage_just_below_entry_falls_through(void) {
-    // 4.07 V falls through the 4.08 entries and hits the first 4.07 entry.
-    TEST_ASSERT_EQUAL_INT(85, batteryPercent(4.07));
+void test_repeated_voltage_gives_the_highest_row(void) {
+    // 4.08 V appears for 89/88/87/86; the first row wins.
+    TEST_ASSERT_EQUAL_INT(89, batteryPercent(4.08));
+    // Just below the repeated rows, the blend runs from the last of them.
+    TEST_ASSERT_EQUAL_INT(86, batteryPercent(4.077));
+}
+
+void test_percent_never_rises_as_voltage_falls(void) {
+    int last = batteryPercent(4.40);
+    for (int mv = 4400; mv >= 3000; mv--) {
+        int percent = batteryPercent(mv / 1000.0);
+        TEST_ASSERT_TRUE_MESSAGE(percent <= last, "percent rose as voltage fell");
+        TEST_ASSERT_TRUE(percent >= 0 && percent <= 100);
+        last = percent;
+    }
 }
 
 
@@ -62,9 +70,9 @@ int main(int argc, char **argv) {
     RUN_TEST(test_above_full_charge_voltage);
     RUN_TEST(test_dead_voltage);
     RUN_TEST(test_below_dead_voltage);
-    RUN_TEST(test_mid_range_voltages);
-    RUN_TEST(test_low_battery_threshold);
-    RUN_TEST(test_returns_highest_matching_entry);
-    RUN_TEST(test_voltage_just_below_entry_falls_through);
+    RUN_TEST(test_row_voltages_give_their_own_percent);
+    RUN_TEST(test_blends_between_rows);
+    RUN_TEST(test_repeated_voltage_gives_the_highest_row);
+    RUN_TEST(test_percent_never_rises_as_voltage_falls);
     return UNITY_END();
 }

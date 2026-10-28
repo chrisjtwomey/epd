@@ -1,5 +1,7 @@
 #include "battery.h"
 
+#include <math.h>
+
 struct BatteryCapacity {
     double voltage;
     int percentage;
@@ -39,9 +41,13 @@ static const BatteryCapacity capacityTable[] = {
 static const int numCapacityEntries = sizeof(capacityTable) / sizeof(BatteryCapacity);
 
 int batteryPercent(double voltage) {
-    for (int i = 0; i < numCapacityEntries; i++) {
-        if (voltage >= capacityTable[i].voltage) {
-            return capacityTable[i].percentage;
+    if (voltage >= capacityTable[0].voltage) return capacityTable[0].percentage;
+    for (int i = 1; i < numCapacityEntries; i++) {
+        const BatteryCapacity& above = capacityTable[i - 1];
+        const BatteryCapacity& below = capacityTable[i];
+        if (voltage >= below.voltage) {
+            double share = (voltage - below.voltage) / (above.voltage - below.voltage);
+            return (int)lround(below.percentage + share * (above.percentage - below.percentage));
         }
     }
     return 0;
