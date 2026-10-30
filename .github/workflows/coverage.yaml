@@ -28,7 +28,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install PlatformIO Core, gcovr and the server
-        run: pip install --upgrade platformio gcovr && pip install -e './server[dev]'
+        run: pip install platformio==6.2.0 gcovr && pip install -e './server[dev]'
 
       - name: Measure coverage
         run: python scripts/coverage_report.py --python "$(which python)" --badges badges

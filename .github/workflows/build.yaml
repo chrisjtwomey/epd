@@ -23,7 +23,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install PlatformIO Core
-        run: pip install --upgrade platformio
+        run: pip install platformio==6.2.0
 
       - name: Run native unit tests
         run: pio test -e native
@@ -69,7 +69,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install PlatformIO Core
-        run: pip install --upgrade platformio
+        run: pip install platformio==6.2.0
 
       # The only builds here that see the ESP32 framework. The host tests
       # cannot catch what breaks only there. The dev environment builds
