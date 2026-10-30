@@ -17,7 +17,6 @@ These go in `build_flags` in `platformio.ini`.
 
 | Flag | What it does |
 |---|---|
-| `-Os` | Build for size. PlatformIO's `espressif32` sets no optimisation level, and without one the image does not fit in flash. |
 | `-DHTTPCLIENT_NOSECURE` | Leave HTTPS out of the HTTP client: about 90 KB less flash. The panel fetches over HTTP ([the HTTP contract](protocol.md)), so it needs none. A `serverURL` that starts with `https://` then does not connect. |
 | `-DARDUINO_INKPLATE10` | Which panel. Also `INKPLATE6`, `INKPLATE5V2`, `INKPLATE2`, and the rest that the Inkplate library supports. Switching panels is only this flag. |
 | `-DBOARD_HAS_PSRAM` | The Inkplate has external RAM, and the image buffer needs it. |

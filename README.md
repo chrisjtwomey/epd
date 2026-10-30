@@ -157,16 +157,18 @@ Three more files, alongside the `server.py` you already have.
 
 ```ini
 [env:release]
-platform = espressif32
+; pioarduino's platform for Arduino core 3, pinned: every epd board is built
+; and tested on it. PlatformIO's own espressif32 cannot build EpdBoardInkplate.
+platform = https://github.com/pioarduino/platform-espressif32/releases/download/55.03.312-1/platform-espressif32.zip
 framework = arduino
 board = esp32dev
 monitor_speed = 115200
 lib_deps =
 	chrisjtwomey/EpdClient @ ^0.21.0
 	chrisjtwomey/EpdBoardInkplate @ ^0.21.0
-build_unflags = -DARDUINO_ESP32 -DARDUINO_ESP32_DEV
+; The framework passes -std=gnu++2b, then -std=gnu++2a, and the last one wins.
+build_unflags = -std=gnu++2a -DARDUINO_ESP32 -DARDUINO_ESP32_DEV
 build_flags =
-	-Os                            ; smallest code: espressif32 sets no optimisation
 	-DHTTPCLIENT_NOSECURE          ; no HTTPS: the panel fetches over HTTP
 	-DARDUINO_INKPLATE10           ; or ARDUINO_INKPLATE6, ARDUINO_INKPLATE5V2…
 	-DBOARD_HAS_PSRAM
