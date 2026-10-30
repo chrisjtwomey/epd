@@ -63,6 +63,7 @@ fails a test before it reaches a project.
 | `epd_server.headers` | `Wire` — every header name, for one product's prefix |
 | `epd_server.compat` | Whether a board's version and the server's work together, by the rule in [docs/protocol.md](../docs/protocol.md) |
 | `epd_server.posix_tz` | The server's time zone as a POSIX TZ string, for `EPD-Server-Timezone` |
+| `epd_server.login` | `Login` — the password, its cookies and the access token; `SignInSite` — what a project chooses; `guard` — puts them in front of the routes; `board_route` — the routes a board uses; `sign_in_html` — a plain sign-in page |
 | `epd_server.logs` | `LogStore` — what each board logs over MQTT, kept on disk and read back in order; `LEVELS`, the levels a line can carry; `LogsQuery` — the lines a `/logs` query route asks for, paged and filtered, at most `MAX_LINES` |
 
 ## Tests
@@ -432,6 +433,42 @@ after too many. With `TOKEN` set to the project's access token, the script
 sends `Authorization: Bearer <token>` instead, and asks for nothing: that
 is how it runs with no terminal. The password and the token go to curl on
 stdin, so `ps` does not show them.
+
+## The sign-in
+
+`guard` puts a password in front of a server. With no password every route
+stays open, so log a warning when there is none:
+
+```python
+from epd_server.login import Login, SignInSite, guard
+
+login = Login(os.environ.get("MY_PASSWORD", ""), "data/login.json")
+guard(server.app, login, SignInSite("my-display"), core.server.reverse_proxy)
+```
+
+Every route then needs a sign-in, so a new route stays closed until someone
+opens it. Open by default: `/`, each page image, `/firmware.bin`,
+`/firmware.merged.bin`, `/install-firmware.sh`, `POST /pair`, the files under
+`/static/` and `/install/`, and the sign-in at `/login` and `POST /logout`.
+A project with routes of its own for boards passes `is_open`, usually calling
+`board_route` first. `/network.bin` needs a sign-in, because it holds the Wi-Fi
+password: pass `login_url="login"` to `DisplayServer` so that
+`install-firmware.sh` can ask for the password.
+
+- **Cookie:** lasts 30 days. A new password ends every sign-in.
+- **Wrong passwords:** 5 in a row make that address wait 15 minutes.
+- **Access token:** `Login.token`, for other apps. It reads only the paths in
+  `SignInSite.data`, `/network.bin` by default, and `Login.replace_token()`
+  replaces it. Show it to a signed-in person.
+- **Changes from another site:** a POST, PUT, PATCH or DELETE whose `Origin` is
+  another site gets 403, with a password or without.
+- **Behind a reverse proxy:** set `server.reverse_proxy`, or the server ignores
+  the proxy's `X-Forwarded-*` headers and refuses its changes.
+
+The keep file holds the cookies' secret and the token, never the password. A
+project with a layout of its own passes `page`, which draws the form from where
+it goes after and a problem to show; the form posts `password` and `next`.
+`prefix` and `home` move the sign-in's routes and its default destination.
 
 ## Wiring a project
 

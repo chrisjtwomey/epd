@@ -15,6 +15,7 @@ The pieces a project composes:
 - :mod:`epd_server.board_keys`  each board's key, paired over the air, and the signatures made with it
 - :mod:`epd_server.network`    the network settings a USB flash writes to a board
 - :mod:`epd_server.install`    the install page, and install-firmware.sh: firmware onto a board over USB
+- :mod:`epd_server.login`      the sign-in: a password, its cookie, an access token, the Origin check
 - :mod:`epd_server.logs`       LogStore: the boards' log lines, in SQLite, read back in order;
                                LogsQuery answers a /logs route from it
 - :mod:`epd_server.source`     DataSource protocol; Static / Composite / Ingest helpers

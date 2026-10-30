@@ -123,6 +123,7 @@ class ServerSettings:
     schedule: WakeSchedule          # from the display block: pools, and when they show
     regen_lead_seconds: int         # regenerate this long before each wake
     debug: bool
+    reverse_proxy: bool = False         # trust a proxy's X-Forwarded-* headers
 
 
 @dataclass(frozen=True)
@@ -322,6 +323,10 @@ def parse_server(
                 f"server.timezone '{tz_name}' is not a valid IANA zone (e.g. Europe/Dublin)"
             ) from None
 
+    reverse_proxy = get_prop_by_keys(config, "server", "reverse_proxy", default=False)
+    if not isinstance(reverse_proxy, bool):
+        raise ConfigError("server.reverse_proxy must be true or false")
+
     schedule = parse_display(config, tz, default_display)
     debug = bool(get_prop(config, "debug", default=False, required=False))
 
@@ -332,6 +337,7 @@ def parse_server(
         schedule=schedule,
         regen_lead_seconds=regen_lead,
         debug=debug,
+        reverse_proxy=reverse_proxy,
     )
 
 

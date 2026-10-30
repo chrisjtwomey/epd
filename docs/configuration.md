@@ -221,6 +221,11 @@ a certificate of its own. A project passes it to `DisplayServer` with a
 directory for the certificate. When the certificate cannot be made or the
 port is taken, the server logs it and runs on HTTP alone.
 
+`server.reverse_proxy`, false unless set, trusts a reverse proxy's
+`X-Forwarded-*` headers for the visitor's address, host and scheme. Set it only
+behind a proxy: without one, anyone could fake them. See the sign-in in
+[server/README.md](../server/README.md).
+
 `client.firmware` sits under `client` because every key in it describes the
 panel rather than the server. A relative `dir` is resolved against the
 directory holding `config.yaml`.

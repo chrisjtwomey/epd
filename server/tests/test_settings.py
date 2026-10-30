@@ -450,3 +450,11 @@ def test_a_wifi_value_that_yaml_did_not_read_as_text_is_refused(key, value):
 def test_an_mqtt_host_is_a_host_alone(host):
     with pytest.raises(ConfigError, match="client.mqtt_host must be a host name or address alone"):
         parse_network(network_cfg(mqtt_host=host))
+
+
+def test_a_reverse_proxy_is_trusted_only_when_the_config_says_so():
+    assert parse_server({}, default_display=DISPLAY).reverse_proxy is False
+    assert parse_server({"server": {"reverse_proxy": True}},
+                        default_display=DISPLAY).reverse_proxy is True
+    with pytest.raises(ConfigError, match="^server.reverse_proxy must be true or false$"):
+        parse_server({"server": {"reverse_proxy": "yes"}}, default_display=DISPLAY)

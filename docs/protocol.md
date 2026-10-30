@@ -304,9 +304,9 @@ The network settings are the panel's whole settings store, written at
 and its password, and the MQTT block when MQTT is on, with the product's
 name as the client ID. They replace the whole store, the board's key
 included, so a paired board pairs again after the flash. The server makes the file from its config at each
-download. epd puts no sign-in in front of it, so anyone who can reach the
-server can download it, password included, unless the project adds one
-([the server reference](../server/README.md#from-a-terminal)).
+download. A project puts a sign-in in front of it with `epd_server.login.guard`
+([the server reference](../server/README.md#the-sign-in)). Without one, anyone
+who can reach the server can download it, password included.
 
 Both routes take the default product without the query, as `/firmware.bin`
 does. `/network.bin` exists when a project passes the server its network
