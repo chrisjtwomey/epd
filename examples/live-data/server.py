@@ -1,6 +1,6 @@
 """A display with live data: two pages, one API, one schedule.
 
-    pip install "epd-server~=0.20.0"
+    pip install "epd-server~=0.21.0"
     python3 server.py
 
 Then open http://localhost:8080/now.png and .../forecast.png.
