@@ -17,6 +17,7 @@ dependencies = [
     "selenium>=4.10",
     "paho-mqtt>=2.0",
     "PyYAML>=6.0",
+    "ruamel.yaml>=0.18",
     "Flask>=3.0",
     "itsdangerous>=2.0",
     "Werkzeug>=3.0",

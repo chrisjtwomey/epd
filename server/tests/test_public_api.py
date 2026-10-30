@@ -34,6 +34,9 @@ PUBLIC = {
     "epd_server.app": ["DisplayServer", "align_process_timezone"],
     "epd_server.headers": ["Wire"],
     "epd_server.logs": ["LEVELS", "LogStore", "LogsQuery", "MAX_LINES"],
+    "epd_server.config_file": ["EDIT_ON_SERVER", "MISSING", "NOT_A_MAPPING", "NOT_YAML", "ON_SERVER", "Doc",
+                               "FormError", "changed_paths", "flat", "lookup", "read", "reads_as",
+                               "same", "twice"],
     "epd_server.login": ["Login", "SignInSite", "board_route", "guard", "sign_in_html"],
 }
 
