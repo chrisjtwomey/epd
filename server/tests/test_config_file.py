@@ -27,6 +27,11 @@ def test_an_untouched_file_comes_back_as_it_was():
     assert Doc(TEXT).text() == TEXT
 
 
+def test_the_files_opening_marker_stays():
+    assert Doc("---\n" + TEXT).text() == "---\n" + TEXT
+    assert edited("---\na: 1\n", ("a",), 2) == "---\na: 2\n"
+
+
 def test_a_new_value_changes_only_its_line():
     assert edited(TEXT, ("server", "port"), 9090) == TEXT.replace("port: 8080", "port: 9090")
 

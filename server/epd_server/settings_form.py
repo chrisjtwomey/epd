@@ -35,8 +35,8 @@ class Field:
     of the config that gives it; the form shows it as the field's value.
     ``hint`` is an example of the value, for a field with no default. ``when``
     is another field and a
-    value, as ``source.kind=store``, or values, as ``log.level=info|debug``:
-    the field shows only while that one holds one of them. ``env`` is false for keys the server reads without looking for an
+    value, as ``source.kind=store``, or values, as ``log.level=info|debug``, or
+    ``source.url=*`` for any value: the field shows only while that one holds one of them. ``env`` is false for keys the server reads without looking for an
     environment variable. ``recommended`` is the value to keep, which the
     group's drawing marks; below it, ``caution`` shows under the field. With
     ``zero_means_always``, 0 is not below it: the fan's 0 keeps it on.
@@ -46,7 +46,7 @@ class Field:
     key: str
     label: str
     help: str = ""
-    kind: str = "text"      # text password zone int number bool choice stops time order pools, or a Form's own
+    kind: str = "text"      # text password zone int number bool choice stops time order, or a Kind's name
     default: Any = None
     hint: str = ""
     choices: tuple[tuple[str, str], ...] = ()
@@ -178,6 +178,9 @@ def words_of(v: Any) -> str:
 
 
 _HHMM = re.compile(r"(\d{1,2}):(\d{2})")
+_HHMMSS = re.compile(r"(\d{1,2}):(\d{2})(?::(\d{2}))?")
+# What a schedule's block holds besides its wake times.
+_SCHEDULE_KEYS = frozenset({"type", "reshuffle_hours", "seed"})
 
 
 def clock_time(raw: str) -> str | None:
@@ -240,8 +243,14 @@ class Kind:
     """A kind of field a :class:`Form` does not know: how it shows, posts, parses
     and writes. With ``rows``, its value is several inputs rather than one."""
     rows = False
+    #: With ``rows``, each row's inputs, as ``(name, label)``. Their posted names
+    #: are the field's key, a dot and this name.
+    columns: tuple[tuple[str, str], ...] = ()
     #: What a list of changes says when the file has no value.
     when_missing: str | None = None
+    #: The value never leaves the server: no input shows it, and a list of
+    #: changes says only whether it is set.
+    secret = False
 
     def show(self, f: Field, value: Any, cfg: dict) -> Any:
         """What the input shows, for ``value`` from the file or MISSING."""
@@ -270,9 +279,74 @@ def _normal_pools(v: Any) -> list[tuple[str, list]]:
     return [(str(n), p if isinstance(p, list) else [p]) for n, p in v.items()]
 
 
+class Secret(Kind):
+    """An API key or a password. An empty input keeps the value the file holds."""
+    secret = True
+
+    def show(self, f, value, cfg):
+        return ""
+
+    def parse(self, f, raw):
+        return str(raw).strip() or None
+
+    def write(self, w, f, value):
+        if value is not None:
+            write_value(w, f, value)
+
+
+class Times(Kind):
+    """``display.schedule`` of type ``times``: rows of a wake time and a pool.
+    A schedule of another type is edited in the file."""
+    rows = True
+    columns = (("at", "Time"), ("pool", "Set"))
+
+    def show(self, f, value, cfg):
+        if not isinstance(value, dict):
+            value = default_of(f, cfg)
+        if not isinstance(value, dict) or value.get("type") != "times":
+            return []
+        return [(str(at), str(pool)) for at, pool in value.items() if at not in _SCHEDULE_KEYS]
+
+    def submitted(self, form, key):
+        return list(zip(form.getlist(key + ".at"), form.getlist(key + ".pool"), strict=False))
+
+    def parse(self, f, raw):
+        times: dict[str, str] = {}
+        for at, pool in raw:
+            at, pool = at.strip(), pool.strip()
+            if not at and not pool:
+                continue
+            m = _HHMMSS.fullmatch(at)
+            if not m or int(m[1]) > 23 or int(m[2]) > 59 or int(m[3] or 0) > 59:
+                raise FieldError(f"{at or 'A row'}: enter a time as HH:MM.")
+            at = f"{int(m[1]):02d}:{m[2]}:{m[3] or '00'}"
+            if not pool:
+                raise FieldError(f"{at}: choose a set.")
+            if at in times:
+                raise FieldError(f"Two rows are at {at}. Change one.")
+            times[at] = pool
+        if not times:
+            raise FieldError("Keep at least one wake time.")
+        return dict(sorted(times.items()))
+
+    def write(self, w, f, value):
+        cur = lookup(w.cfg, f.path)
+        if isinstance(cur, dict) and cur.get("type") != "times":
+            raise FormError(f"This schedule has another type. {EDIT_ON_SERVER}")
+        kept = {k: v for k, v in cur.items() if k in _SCHEDULE_KEYS} if isinstance(cur, dict) else {}
+        new = {**kept, "type": "times", **value}
+        if isinstance(cur, dict) and same(cur, new):
+            return
+        if not isinstance(cur, dict) and same(default_of(f, w.cfg), new):
+            return
+        w.put(f.path, new)
+        w.changed.append(f.key)
+
+
 class Pools(Kind):
     """``display.pools``: rows of a set's name and its pages."""
     rows = True
+    columns = (("name", "Name"), ("pages", "Pages"))
     when_missing = "none"
 
     def show(self, f, value, cfg):
@@ -313,7 +387,8 @@ class Form:
     """A project's settings, as one form.
 
     Args:
-        tabs: the settings, in the page's order.
+        tabs: the settings, in the page's order. Every form has the kinds
+            ``pools``, ``times`` and ``secret``.
         extra: fields outside the tabs, such as those on an install page.
         extra_title: what a list of changes names ``extra`` by.
         kinds: this project's own kinds of field, by name.
@@ -331,7 +406,7 @@ class Form:
         self.tabs = tuple(tabs)
         self.extra = tuple(extra)
         self.extra_title = extra_title
-        self.kinds = {"pools": Pools(), **(kinds or {})}
+        self.kinds = {"pools": Pools(), "secret": Secret(), "times": Times(), **(kinds or {})}
         self.joint = dict(joint or {})
         self.with_words = with_words or (lambda cfg: cfg)
         self.fields: tuple[Field, ...] = tuple(f for t in self.tabs for f in t.fields) + self.extra
@@ -531,6 +606,9 @@ class Form:
             f = self.field_at(path)
             before, after = a.get(path, MISSING), b.get(path, MISSING)
             kind = self.kinds.get(f.kind) if f is not None else None
+            if kind is not None and kind.secret:
+                before = "not set" if before is MISSING else "set"
+                after = "not set" if after is MISSING else "changed"
             if kind is not None and kind.when_missing is not None:
                 before = kind.when_missing if before is MISSING else before
                 after = kind.when_missing if after is MISSING else after

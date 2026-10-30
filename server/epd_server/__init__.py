@@ -17,6 +17,7 @@ The pieces a project composes:
 - :mod:`epd_server.install`    the install page, and install-firmware.sh: firmware onto a board over USB
 - :mod:`epd_server.config_file` config.yaml as text: edited with its comments kept
 - :mod:`epd_server.settings_form` a settings form over config.yaml: fields, parsing, what a form changes
+- :mod:`epd_server.settings_page` config.yaml in the browser: tabs, a review, a save and a restart
 - :mod:`epd_server.login`      the sign-in: a password, its cookie, an access token, the Origin check
 - :mod:`epd_server.logs`       LogStore: the boards' log lines, in SQLite, read back in order;
                                LogsQuery answers a /logs route from it

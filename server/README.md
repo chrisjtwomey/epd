@@ -64,7 +64,8 @@ fails a test before it reaches a project.
 | `epd_server.compat` | Whether a board's version and the server's work together, by the rule in [docs/protocol.md](../docs/protocol.md) |
 | `epd_server.posix_tz` | The server's time zone as a POSIX TZ string, for `EPD-Server-Timezone` |
 | `epd_server.config_file` | `Doc` — `config.yaml` as text, edited with its comments kept; `read`, `twice` — read it as a server does, and find a key written twice; `lookup`, `same`, `flat`, `changed_paths`, `reads_as` — check what an edit did; `MISSING`, `FormError`, and the words a page shows for a file it cannot edit: `NOT_YAML`, `NOT_A_MAPPING`, `EDIT_ON_SERVER`, `ON_SERVER` |
-| `epd_server.settings_form` | `Form` — a project's settings as one form: what it shows, what a post does to `config.yaml`, and the changes in words; `Tab`, `Group`, `Field` — the settings; `Kind`, `Writer`, `write_value` — a project's own kind of field; `Pools` — `display.pools` as rows, which every form has; `Edit`, `FieldError`; `default_of`, `scaled`, `as_input`, `input_text`, `initial`, `words_of`, `clock_time`, `host_zone` |
+| `epd_server.settings_page` | `settings_blueprint(form, path, check, …)` — `config.yaml` in the browser; `restart_soon`, `save`, `READ_ONLY` |
+| `epd_server.settings_form` | `Form` — a project's settings as one form: what it shows, what a post does to `config.yaml`, and the changes in words; `Tab`, `Group`, `Field` — the settings; `Kind`, `Writer`, `write_value` — a project's own kind of field; `Pools`, `Times`, `Secret` — `display.pools`, a `times` schedule, and an API key or password that never leaves the server, which every form has; `Edit`, `FieldError`; `default_of`, `scaled`, `as_input`, `input_text`, `initial`, `words_of`, `clock_time`, `host_zone` |
 | `epd_server.login` | `Login` — the password, its cookies and the access token; `SignInSite` — what a project chooses; `guard` — puts them in front of the routes; `board_route` — the routes a board uses; `sign_in_html` — a plain sign-in page |
 | `epd_server.logs` | `LogStore` — what each board logs over MQTT, kept on disk and read back in order; `LEVELS`, the levels a line can carry; `LogsQuery` — the lines a `/logs` query route asks for, paged and filtered, at most `MAX_LINES` |
 
@@ -435,6 +436,38 @@ after too many. With `TOKEN` set to the project's access token, the script
 sends `Authorization: Bearer <token>` instead, and asks for nothing: that
 is how it runs with no terminal. The password and the token go to curl on
 stdin, so `ps` does not show them.
+
+## The settings page
+
+`settings_blueprint` puts `config.yaml` in the browser: a form in tabs, a check,
+a list of the changes, a save that keeps the file's comments and a `.bak`, and a
+restart. List the settings, give it the test the server starts with, and put the
+sign-in in front of it:
+
+```python
+from epd_server.settings_form import Field, Form, Group, Tab
+from epd_server.settings_page import settings_blueprint
+
+FORM = Form((Tab("server", "Server", (Group("Network", (
+    Field("server.port", "Port", "", "int", 8080, minimum=1, maximum=65535),
+    Field("weather.apikey", "API key", "", "secret"),
+)),)),))
+
+server.app.register_blueprint(settings_blueprint(FORM, "config.yaml", check_config, login=login))
+```
+
+- **`check`** gets a config's text, and raises `ValueError`, with the problem, when
+  the server would not start on it. A save never writes a file the check refuses.
+- **Secrets:** a field of kind `secret` never reaches the page. An empty input keeps
+  the value, and the list of changes says only that it changed.
+- **An environment variable** that sets a key locks its field, and the page says so.
+- **Without a restart:** a save that changes only `live_keys` calls `take_live` with
+  the new text.
+- **`config.yaml` must be writable.** If it is not, the page says so, and turns save off.
+- **A look of your own:** `styles` loads your stylesheets after the page's own, whose
+  custom properties are the place to start. The page works without its script.
+- **A field of your own:** subclass `Kind`, and pass it to `Form` by name. `columns`
+  gives a row kind its inputs.
 
 ## The sign-in
 

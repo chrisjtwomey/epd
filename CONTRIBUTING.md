@@ -23,8 +23,8 @@ server/                   epd-server — pip package
   epd_server/             config, registry, cache, page, render, quantise,
                           source, pipeline, scheduling, mqtt, app, firmware,
                           network, certificate, install, board_keys, login,
-                          config_file, settings_form; and app's parts: offers,
-                          install_routes, key_routes, responses
+                          config_file, settings_form, settings_page; and app's
+                          parts: offers, install_routes, key_routes, responses
     static/install/       the install page, install-firmware.sh, and
                           esptool-js kept at a fixed version with its licences
   tests/

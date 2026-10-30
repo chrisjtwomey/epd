@@ -37,8 +37,9 @@ PUBLIC = {
     "epd_server.config_file": ["EDIT_ON_SERVER", "MISSING", "NOT_A_MAPPING", "NOT_YAML", "ON_SERVER", "Doc",
                                "FormError", "changed_paths", "flat", "lookup", "read", "reads_as",
                                "same", "twice"],
-    "epd_server.settings_form": ["Edit", "Field", "FieldError", "Form", "Group", "Kind", "Pools", "Tab",
-                                 "Writer", "as_input", "clock_time", "default_of", "host_zone", "initial",
+    "epd_server.settings_page": ["READ_ONLY", "restart_soon", "save", "settings_blueprint"],
+    "epd_server.settings_form": ["Edit", "Field", "FieldError", "Form", "Group", "Kind", "Pools", "Secret",
+                                 "Tab", "Times", "Writer", "as_input", "clock_time", "default_of", "host_zone", "initial",
                                  "input_text", "scaled", "words_of", "write_value"],
     "epd_server.login": ["Login", "SignInSite", "board_route", "guard", "sign_in_html"],
 }

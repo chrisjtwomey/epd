@@ -258,6 +258,7 @@ class Doc:
     """config.yaml as ruamel holds it, with edits that keep its comments."""
 
     def __init__(self, text: str):
+        self.marker = text.startswith("---")
         if text.strip():
             self.ind, self.offset = _indents(text)
             try:
@@ -276,7 +277,9 @@ class Doc:
 
     def text(self) -> str:
         out = io.StringIO()
-        _yaml(self.ind, self.offset).dump(self.root, out)
+        y = _yaml(self.ind, self.offset)
+        y.explicit_start = self.marker
+        y.dump(self.root, out)
         return out.getvalue()
 
     def _chain(self, path) -> list[tuple[CommentedMap, int]]:
