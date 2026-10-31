@@ -71,18 +71,18 @@ def board_route(method: str, path: str) -> bool:
 
 def sign_in_html(next_path: str, problem: str = "") -> str:
     """A plain sign-in page, for a project with no layout of its own."""
-    alert = f'<p id="problem" role="alert">{html.escape(problem)}</p>' if problem else ""
+    alert = f'<p class="banner problem" id="problem" role="alert">{html.escape(problem)}</p>' if problem else ""
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sign in</title>
+<link rel="stylesheet" href="/static/look/look.css">
 <style>
-body {{ font-family: system-ui, sans-serif; max-width: 22rem; margin: 4rem auto; padding: 0 1rem; }}
-label, input, button {{ display: block; width: 100%; box-sizing: border-box; font: inherit; }}
-input, button {{ margin-top: .5rem; padding: .5rem; }}
-button {{ margin-top: 1rem; }}
+body {{ box-sizing: border-box; max-width: 24rem; margin: 0 auto; padding: 72px 24px 0; }}
+form {{ display: grid; gap: 8px; margin-top: 16px; }}
+button {{ margin-top: 8px; }}
 </style>
 </head>
 <body>
@@ -92,7 +92,7 @@ button {{ margin-top: 1rem; }}
 <input type="hidden" name="next" value="{html.escape(next_path, quote=True)}">
 <label for="password">Password</label>
 <input type="password" id="password" name="password" autocomplete="current-password" autofocus required>
-<button type="submit">Sign in</button>
+<button type="submit" class="primary">Sign in</button>
 </form>
 </body>
 </html>

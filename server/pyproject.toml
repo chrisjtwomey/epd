@@ -40,7 +40,7 @@ Repository = "https://github.com/chrisjtwomey/epd"
 include = ["epd_server*"]
 
 [tool.setuptools.package-data]
-epd_server = ["static/install/*", "static/settings/*"]
+epd_server = ["static/install/*", "static/settings/*", "static/look/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

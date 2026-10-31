@@ -66,7 +66,7 @@ fails a test before it reaches a project.
 | `epd_server.config_file` | `Doc` — `config.yaml` as text, edited with its comments kept; `read`, `twice` — read it as a server does, and find a key written twice; `lookup`, `same`, `flat`, `changed_paths`, `reads_as` — check what an edit did; `MISSING`, `FormError`, and the words a page shows for a file it cannot edit: `NOT_YAML`, `NOT_A_MAPPING`, `EDIT_ON_SERVER`, `ON_SERVER` |
 | `epd_server.settings_page` | `settings_blueprint(form, path, check, …)` — `config.yaml` in the browser; `save_flow`, `Outcome` — the same post for a page a project draws itself; `restart_soon`, `save`, `READ_ONLY`, `NOTHING`, `NO_BACKUP` |
 | `epd_server.settings_form` | `Form` — a project's settings as one form: what it shows, what a post does to `config.yaml`, and the changes in words; `Tab`, `Group`, `Field` — the settings; `Kind`, `Writer`, `write_value` — a project's own kind of field; `Pools`, `Times`, `Secret` — `display.pools`, a `times` schedule, and an API key or password that never leaves the server, which every form has; `Edit`, `FieldError`; `default_of`, `scaled`, `as_input`, `input_text`, `initial`, `words_of`, `clock_time`, `host_zone` |
-| `epd_server.login` | `Login` — the password, its cookies and the access token; `SignInSite` — what a project chooses; `guard` — puts them in front of the routes; `board_route` — the routes a board uses; `sign_in_html` — a plain sign-in page |
+| `epd_server.login` | `Login` — the password, its cookies and the access token; `SignInSite` — what a project chooses; `guard` — puts them in front of the routes; `board_route` — the routes a board uses; `sign_in_html` — a sign-in page in epd's look |
 | `epd_server.logs` | `LogStore` — what each board logs over MQTT, kept on disk and read back in order; `LEVELS`, the levels a line can carry; `LogsQuery` — the lines a `/logs` query route asks for, paged and filtered, at most `MAX_LINES` |
 
 ## Tests
@@ -464,8 +464,14 @@ server.app.register_blueprint(settings_blueprint(FORM, "config.yaml", check_conf
 - **Without a restart:** a save that changes only `live_keys` calls `take_live` with
   the new text.
 - **`config.yaml` must be writable.** If it is not, the page says so, and turns save off.
-- **A look of your own:** `styles` loads your stylesheets after the page's own, whose
-  custom properties are the place to start. The page works without its script.
+- **Access:** with `login=` and a password set, the page has an Access tab, with the
+  access token hidden until Show, and Replace token. Sign out sits beside `links`.
+- **A look of your own:** the settings page, the sign-in and the install page share
+  `/static/look/look.css`, which `DisplayServer` serves with no sign-in. `styles`
+  loads your stylesheets after it and the settings page's layout. Its custom
+  properties are the place to start. The page works without its script.
+- **The font:** Fraunces, under the SIL Open Font License, reduced to Latin text and
+  kept in `epd_server/static/look` with its licence.
 - **A field of your own:** subclass `Kind`, and pass it to `Form` by name. `columns`
   gives a row kind its inputs.
 - **A page of your own:** call `save_flow` from your own route, and draw the `Outcome`.
@@ -496,7 +502,7 @@ password: pass `login_url="login"` to `DisplayServer` so that
 - **Wrong passwords:** 5 in a row make that address wait 15 minutes.
 - **Access token:** `Login.token`, for other apps. It reads only the paths in
   `SignInSite.data`, `/network.bin` by default, and `Login.replace_token()`
-  replaces it. Show it to a signed-in person.
+  replaces it. The settings page shows it on its Access tab.
 - **Changes from another site:** a POST, PUT, PATCH or DELETE whose `Origin` is
   another site gets 403, with a password or without.
 - **Behind a reverse proxy:** set `server.reverse_proxy`, or the server ignores

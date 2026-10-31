@@ -363,3 +363,8 @@ def test_a_site_draws_its_own_page_and_opens_its_own_routes(tmp_path):
 def test_the_plain_page_escapes_what_it_is_given():
     page = sign_in_html('/x"><script>', "<b>")
     assert "<script>" not in page and "<b>" not in page
+
+
+def test_the_look_of_the_sign_in_page_needs_no_sign_in():
+    assert board_route("GET", "/static/look/look.css") and board_route("GET", "/static/look/Fraunces.woff2")
+

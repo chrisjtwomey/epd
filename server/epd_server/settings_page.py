@@ -39,6 +39,8 @@ log = logging.getLogger("settings")
 
 _ASSETS_DIR = os.path.join(os.path.dirname(__file__), "static", "settings")
 _ASSETS = ("settings.js", "settings.css")
+# Served from the DisplayServer's static folder, which needs no sign-in.
+LOOK_CSS = "static/look/look.css"
 
 READ_ONLY = "Cannot save: config.yaml is read-only. Mount it writable, then restart the server."
 NOTHING = "Nothing to save."
@@ -273,18 +275,28 @@ class _Page:
             return ""
         if not self.login.on:
             return ""
-        return (f'<section class="access"><h2>Access token</h2>'
+        return ('<section class="panel" id="access" data-tab="access"><h2>Access</h2>'
+                '<fieldset><legend>Access token</legend><div class="field wide">'
+                '<div class="control">'
+                f'<input type="password" id="access-token" readonly autocomplete="off" aria-label="Access token" '
+                f'value="{_E(self.login.token, quote=True)}">'
+                '<button type="button" id="show-token" aria-controls="access-token">Show</button>'
+                '<button type="submit" form="token-form">Replace token</button></div>'
                 '<p class="help">Other apps send this to read the logs, and to install from a terminal.</p>'
-                f'<input type="text" id="access-token" readonly value="{_E(self.login.token, quote=True)}">'
-                f'<form method="post" action="{self.url}/token"><button type="submit">Replace token</button></form>'
-                '<form method="post" action="logout"><button type="submit">Sign out</button></form></section>')
+                '</div></fieldset></section>')
 
     def render(self, banners: list[tuple[str, str]], changes: list[dict], has_backup: bool) -> str:
         banner_html = "".join(f'<p class="banner {klass}" role="alert">{_E(words)}</p>' for klass, words in banners)
+        signs_in = self.login is not None and self.login.on
         tabs = "".join(f'<a href="#{_E(t.name)}" data-tab="{_E(t.name)}">{_E(t.title)}</a>' for t in self.form.tabs)
+        if signs_in:
+            tabs += '<a href="#access" data-tab="access">Access</a>'
         links = "".join(f'<a href="{_E(href, quote=True)}">{_E(words)}</a>' for href, words in self.links)
-        links = f'<p class="links">{links}</p>' if links else ""
-        panels = "".join(self._tab(t) for t in self.form.tabs)
+        if signs_in:
+            links += '<form method="post" action="logout"><button type="submit">Sign out</button></form>'
+        links = f'<div class="links">{links}</div>' if links else ""
+        panels = "".join(self._tab(t) for t in self.form.tabs) + self._access()
+        token_form = f'<form method="post" action="{self.url}/token" id="token-form"></form>' if signs_in else ""
         rows = "".join(f"<tr><td>{_E(c['name'])}</td><td>{_E(c['old'])}</td><td>{_E(c['new'])}</td></tr>"
                        for c in changes)
         listed = (f'<table id="changes"><thead><tr><th>Setting</th><th>Was</th><th>Now</th></tr></thead>'
@@ -292,7 +304,6 @@ class _Page:
         lock = " disabled" if self.locked else ""
         restore = f'<button type="submit" name="mode" value="restore" formnovalidate id="restore"{lock}>' \
                   "Restore the previous version</button>" if has_backup else ""
-        styles = "".join(f'<link rel="stylesheet" href="{_E(s, quote=True)}">' for s in self.styles)
         initials = {f.key: initial(self.saved_values.get(f.key, "")) for f in self.form.fields}
         data = _json(initials)
         return f"""<!DOCTYPE html>
@@ -301,11 +312,11 @@ class _Page:
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{_E(self.title)}</title>
-<link rel="stylesheet" href="{self.url}/assets/settings.css">{styles}
+{_stylesheets(self.url, self.styles)}
 </head>
 <body>
-<h1>{_E(self.title)}</h1>
-{links}{banner_html}{listed}
+<header class="top"><h1>{_E(self.title)}</h1>{links}</header>
+{banner_html}{listed}
 <nav class="tabs">{tabs}</nav>
 <form method="post" action="{self.url}" id="settings-form" novalidate data-url="{self.url}">
 <input type="hidden" name="mode" value="form">
@@ -317,7 +328,7 @@ class _Page:
 {restore}
 </div>
 </form>
-{self._access()}
+{token_form}
 <dialog id="review"><h2>Save and restart?</h2><p class="about">The server restarts on the new settings.</p>
 <table><thead><tr><th>Setting</th><th>Was</th><th>Now</th></tr></thead><tbody></tbody></table>
 <button type="button" id="review-cancel">Cancel</button>
@@ -333,15 +344,20 @@ def _json(value) -> str:
     return json.dumps(value, ensure_ascii=False).replace("<", "\\u003c")
 
 
+def _stylesheets(url: str, styles: Iterable[str]) -> str:
+    """The links to epd's look, the page's layout and then a project's own."""
+    sheets = (LOOK_CSS, f"{url}/assets/settings.css", *styles)
+    return "".join(f'<link rel="stylesheet" href="{_E(s, quote=True)}">' for s in sheets)
+
+
 def _broken_page(problem: str, url: str, styles: Iterable[str], title: str, has_backup: bool) -> str:
     """The page for a file the form cannot read: the problem, and the way back."""
-    style_links = "".join(f'<link rel="stylesheet" href="{_E(s, quote=True)}">' for s in styles)
     restore = (f'<form method="post" action="{url}"><input type="hidden" name="mode" value="restore">'
                '<button type="submit" name="action" value="save">Restore the previous version</button></form>'
                ) if has_backup else ""
     return f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>{_E(title)}</title>
-<link rel="stylesheet" href="{url}/assets/settings.css">{style_links}</head>
+{_stylesheets(url, styles)}</head>
 <body><h1>{_E(title)}</h1><p class="banner problem" id="problem" role="alert">{_E(problem)}</p>{restore}</body></html>
 """
 
@@ -359,7 +375,7 @@ def settings_blueprint(form: Form, path: str, check: Callable[[str], None], *,
         check: raises ``ValueError``, with the problem, when the server would
             not start on a config's text. Give it the same test the server uses.
         restart: starts the server again on the saved file.
-        login: shows the access token on the page.
+        login: adds an Access tab with the access token, and a Sign out button.
         live_keys: fields the server can take without a restart: a save that
             changes only these calls ``take_live`` with the new text.
         url: where the page sits, relative to the server's root, with no slash.
@@ -452,10 +468,9 @@ def settings_blueprint(form: Form, path: str, check: Callable[[str], None], *,
 
 
 def _restarting_page(url: str, styles: Iterable[str], title: str) -> str:
-    style_links = "".join(f'<link rel="stylesheet" href="{_E(s, quote=True)}">' for s in styles)
     return f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta http-equiv="refresh" content="5;url={url}?saved=1">
-<title>{_E(title)}</title><link rel="stylesheet" href="{url}/assets/settings.css">{style_links}</head>
+<title>{_E(title)}</title>{_stylesheets(url, styles)}</head>
 <body><h1>{_E(title)}</h1><p class="banner notice" id="restarting">Saved. The server is restarting.</p></body></html>
 """
 

@@ -27,6 +27,9 @@ server/                   epd-server — pip package
                           parts: offers, install_routes, key_routes, responses
     static/install/       the install page, install-firmware.sh, and
                           esptool-js kept at a fixed version with its licences
+    static/look/          the stylesheet epd's own pages share, and the
+                          Fraunces font with its licence
+    static/settings/      the settings page's layout and script
   tests/
 docs/                     configuration, ota, protocol, testing, custom-board
 examples/                 minimal, the README's quickstart as a project; ota, the

@@ -1,5 +1,6 @@
 """DisplayServer: routes, headers, schedule checks, regeneration, lifecycle."""
 import os
+import re
 import socket
 import threading
 import time
@@ -1218,3 +1219,14 @@ def test_a_failed_making_serves_the_scheduled_page(server, monkeypatch):
 def test_without_a_choice_the_scheduled_page_is_made(server, monkeypatch):
     made = one_wake(server, monkeypatch)
     assert made[0] in ("today.png", "hourly.png") and server.made_for == {}
+
+
+def test_the_server_serves_the_look_and_each_font_it_names(server):
+    client = server.app.test_client()
+    css = client.get("/static/look/look.css")
+    assert css.status_code == 200
+    fonts = re.findall(r'url\("([^"]+)"\)', css.text)
+    assert fonts
+    for font in fonts:
+        assert client.get(f"/static/look/{font}").status_code == 200
+

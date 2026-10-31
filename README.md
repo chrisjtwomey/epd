@@ -317,6 +317,8 @@ Using epd for something? Open a pull request and add it.
 ## License
 
 MIT. The install page ships esptool-js (Apache-2.0), which contains pako
-(MIT and Zlib); their licences are in `server/epd_server/static/install/`.
+(MIT and Zlib); their licences are in `server/epd_server/static/install/`. The server's pages
+ship the Fraunces font (SIL Open Font License), with its licence in
+`server/epd_server/static/look/`.
 `install-firmware.sh` downloads Espressif's esptool (GPL-2.0) when it runs;
 it is not shipped.

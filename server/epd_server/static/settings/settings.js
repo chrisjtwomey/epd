@@ -140,6 +140,16 @@
     }).catch(function () { say('Cannot reach the server. Try again.', 'problem'); });
   });
 
+  var showToken = document.getElementById('show-token');
+  if (showToken) {
+    showToken.addEventListener('click', function () {
+      var token = document.getElementById('access-token');
+      var hidden = token.type === 'password';
+      token.type = hidden ? 'text' : 'password';
+      showToken.textContent = hidden ? 'Hide' : 'Show';
+    });
+  }
+
   form.addEventListener('input', refresh);
   form.addEventListener('change', refresh);
   window.addEventListener('hashchange', function () { showTab(location.hash.slice(1)); });

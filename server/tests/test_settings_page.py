@@ -121,7 +121,8 @@ def test_the_page_loads_a_projects_stylesheet_after_its_own(path):
     app.register_blueprint(settings_blueprint(FORM, str(path), lambda t: None, restart=lambda: None,
                                               styles=("mine.css",), title="Mine"))
     page = soup(app.test_client().get("/settings"))
-    assert [link["href"] for link in page.select("link[rel=stylesheet]")] == ["settings/assets/settings.css", "mine.css"]
+    assert [link["href"] for link in page.select("link[rel=stylesheet]")] == [
+        "static/look/look.css", "settings/assets/settings.css", "mine.css"]
     assert page.h1.text == "Mine"
 
 
@@ -279,15 +280,31 @@ def test_the_page_shows_the_token_and_replaces_it(path, login):
     site = Site(path, login=login)
     site.client.post("/login", data={"password": "pw"})
     old = login.token
-    assert soup(site.client.get("/settings")).find(id="access-token")["value"] == old
+    page = soup(site.client.get("/settings"))
+    token = page.find(id="access-token")
+    assert token["value"] == old and token["type"] == "password"
+    assert token.find_parent(class_="panel")["data-tab"] == "access"
+    assert page.select_one('nav.tabs a[data-tab="access"]').text == "Access"
+    assert page.select_one('button[form="token-form"]').text == "Replace token"
+    assert page.find(id="token-form")["action"] == "settings/token"
     assert site.client.post("/settings/token").headers["Location"] == "../settings"
     assert login.token != old
+
+
+def test_sign_out_sits_with_the_links_and_outside_the_settings_form(path, login):
+    site = Site(path, login=login)
+    site.client.post("/login", data={"password": "pw"})
+    page = soup(site.client.get("/settings"))
+    sign_out = page.select_one(".top .links form")
+    assert sign_out["action"] == "logout" and sign_out.button.text == "Sign out"
+    assert page.find(id="settings-form").find(id="token-form") is None
 
 
 def test_with_no_password_the_page_says_anyone_can_change_it(path, tmp_path):
     site = Site(path, login=Login("", str(tmp_path / "login.json")))
     page = soup(site.client.get("/settings"))
     assert "anyone on the network" in page.text and page.find(id="access-token") is None
+    assert page.select_one('nav.tabs a[data-tab="access"]') is None and "Sign out" not in page.text
 
 
 # ── The save flow, as another page uses it ───────────────────────────
