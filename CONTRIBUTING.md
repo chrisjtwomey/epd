@@ -34,7 +34,8 @@ examples/                 minimal, the README's quickstart as a project; ota, th
                           data source, a cache and two pages. The first two
                           are the only ESP32 builds
 scripts/                  version.py, which sets the version everywhere;
-                          coverage_report.py, the tests' coverage
+                          coverage_report.py, the tests' coverage; check_png_buffer.py,
+                          that PNGdec and the board build with one buffer size
 ```
 
 Two libraries, not one, so that a project on other hardware never pulls in
@@ -64,7 +65,7 @@ pio test -e native_settings     # loadConfig and the board key's store against a
 pio test -e native_board_key    # the board key's signatures, against the RFCs and the server's vectors; the /pair answer; the step after a 401
 pio test -e native_io           # downloads, posts, pairing, updates, the wake's steps, Wi-Fi, logging and the page cache, against the fakes in test/fakes/
 pio test -e native_io_sd        # the same with USE_SDCARD: config.yaml from the card, through the real YAMLDuino
-pio test -e native_inkplate     # the Inkplate board's PNG rows against the library's per-pixel path, decoded by PNGdec; the RTC kept in UTC
+pio test -e native_inkplate     # the Inkplate board's PNG rows against the library's per-pixel path, decoded by PNGdec, and whether PNGdec's line buffer holds them; the RTC kept in UTC
 cd ../examples/minimal
 pio run -e dev                  # an ESP32 build of this checkout; the host tests never see the framework
 pio run -e sd-dev               # the same with USE_SDCARD: the card's code on the ESP32

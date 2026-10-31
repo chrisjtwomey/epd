@@ -8,6 +8,7 @@
 #include <PNGdec.h>
 
 #include "frame_rows.h"
+#include "log_utils.h"
 #include "utc_scope.h"
 
 // Where the Inkplate's PCF85063A RTC drives its interrupt line.
@@ -113,8 +114,10 @@ struct PngRows {
     int x, y;
     uint8_t* block;
     int width;
+    int height;
     int held;
     int firstRow;
+    int rowsDone;
 
     void flush() {
         if (held) rows.writeGreyRows(x, y + firstRow, block, width, held, width);
@@ -124,6 +127,8 @@ struct PngRows {
 
 static int drawPngRow(PNGDRAW* draw) {
     PngRows* page = static_cast<PngRows*>(draw->pUser);
+    if (draw->y >= page->height) return 0;
+    page->rowsDone = draw->y + 1;
     if (page->held == 0) page->firstRow = draw->y;
     memcpy(page->block + page->held * page->width, draw->pPixels, page->width);
     if (++page->held == kRowsPerBlock) page->flush();
@@ -133,21 +138,28 @@ static int drawPngRow(PNGDRAW* draw) {
 // An 8-bit grey PNG, decoded a row at a time straight into the frame buffer:
 // the library's path decodes it a byte at a time and draws it a pixel at a
 // time, which takes seconds for a page. The decoder's state is about 45 KB,
-// most of it the inflate window, so it lives on the heap: in PSRAM.
+// most of it the inflate window, so it lives on the heap: in PSRAM. A page too
+// wide for PNGdec's line buffer, or a decode that did not reach the last row,
+// goes down the library's path. scripts/png_line_buffer.py sizes that buffer
+// for every library in the build.
 static bool drawGreyPngRows(Inkplate& inkplate, const uint8_t* buf, int32_t len, int x, int y) {
     static PNG* png = new (std::nothrow) PNG();
     if (!png) return false;
     if (png->openRAM(const_cast<uint8_t*>(buf), len, drawPngRow) != PNG_SUCCESS) return false;
     bool drawn = false;
-    if (png->getPixelType() == PNG_PIXEL_GRAYSCALE && png->getBpp() == 8) {
+    if (png->getPixelType() == PNG_PIXEL_GRAYSCALE && png->getBpp() == 8 &&
+        pngLinesFit(png->getWidth(), PNG_MAX_BUFFERED_PIXELS)) {
         const int width = png->getWidth();
+        const int height = png->getHeight();
         uint8_t* block = static_cast<uint8_t*>(
             heap_caps_malloc((size_t)kRowsPerBlock * width, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
         if (block) {
             PngRows page{{inkplate.DMemory4Bit, E_INK_WIDTH, E_INK_HEIGHT, inkplate.getRotation()},
-                         x, y, block, width, 0, 0};
-            drawn = png->decode(&page, 0) == PNG_SUCCESS;
+                         x, y, block, width, height, 0, 0, 0};
+            const int result = png->decode(&page, 0);
+            drawn = result == PNG_SUCCESS && page.rowsDone == height;
             if (drawn) page.flush();
+            else logf(LOG_WARNING, "page decode ended at row %d of %d (error %d)", page.rowsDone, height, result);
             heap_caps_free(block);
         }
     }

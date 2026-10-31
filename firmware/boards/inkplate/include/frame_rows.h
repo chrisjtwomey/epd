@@ -37,4 +37,14 @@ struct FrameRows {
 /** The 3-bit grey the library gives an 8-bit grey: RGB3BIT(v, v, v). */
 uint8_t grey3(uint8_t v);
 
+/**
+  Whether PNGdec's line buffer of bufferBytes holds two lines of pitch bytes.
+
+  It keeps each line and its filter byte aligned to 16 bytes, which PNGdec
+  1.1.6's own check leaves out: a wider line runs off the buffer into the
+  file data behind it, and the page decodes wrong, or stops, with no error.
+  scripts/png_line_buffer.py sets the buffer's size for the whole build.
+*/
+bool pngLinesFit(int pitch, int bufferBytes);
+
 #endif  // EPD_FRAME_ROWS_H

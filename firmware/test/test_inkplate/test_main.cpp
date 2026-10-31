@@ -241,6 +241,15 @@ void test_the_zone_set_before_is_put_back() {
     TEST_ASSERT_NULL(getenv("TZ"));
 }
 
+void test_png_lines_fit_the_panels_with_their_alignment() {
+    const int kDefault = (320 * 4 + 1) * 2;
+    TEST_ASSERT_TRUE(pngLinesFit(1200, kDefault));   // Inkplate 10
+    TEST_ASSERT_TRUE(pngLinesFit(1024, kDefault));   // Inkplate 6PLUS
+    TEST_ASSERT_FALSE(pngLinesFit(1280, kDefault));  // Inkplate 5 V2: 30 bytes over
+    TEST_ASSERT_TRUE(pngLinesFit(1280, 2592));
+    TEST_ASSERT_FALSE(pngLinesFit(1280, 2591));
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_every_grey_maps_as_the_library_maps_it);
@@ -252,5 +261,6 @@ int main() {
     RUN_TEST(test_the_zone_set_before_is_put_back);
     RUN_TEST(test_pngdec_gives_the_pixels_the_png_holds_through_every_row_filter);
     RUN_TEST(test_a_decoded_page_lands_where_the_library_draws_it);
+    RUN_TEST(test_png_lines_fit_the_panels_with_their_alignment);
     return UNITY_END();
 }

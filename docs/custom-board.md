@@ -38,7 +38,7 @@ EpdClient runs only on the ESP32 (`platforms: espressif32` in its
 
 | Method | Purpose |
 |---|---|
-| `drawPngFromBuffer(buf, len, x, y, options)` | Decode a PNG from a byte buffer and render it at `(x, y)`. `options` is `PngDraw::Plain`, or `PngDraw::Dither` and `PngDraw::Invert` combined with `\|`; `pngDrawHas(options, flag)` tests one. Returns `true` on success. |
+| `drawPngFromBuffer(buf, len, x, y, options)` | Decode a PNG from a byte buffer and render it at `(x, y)`. If you use PNGdec, size `PNG_MAX_BUFFERED_PIXELS` for your widest row, for every library in the build, as `boards/inkplate/scripts/png_line_buffer.py` does: its default fits 1266 pixels of 8-bit grey at most, and a wider row corrupts the decode with no error. `options` is `PngDraw::Plain`, or `PngDraw::Dither` and `PngDraw::Invert` combined with `\|`; `pngDrawHas(options, flag)` tests one. Returns `true` on success. |
 | `drawBitmap(buf, x, y, w, h, fg, bg)` | Draw a raw 1-bit bitmap at `(x, y)`. Used for battery status icons. Returns `true` on success. |
 
 ### Text / GFX primitives

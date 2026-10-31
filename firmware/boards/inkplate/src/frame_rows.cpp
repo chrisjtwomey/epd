@@ -54,3 +54,9 @@ void FrameRows::writeGreyRows(int x, int y, const uint8_t* grey, int pitch, int 
         }
     }
 }
+
+bool pngLinesFit(int pitch, int bufferBytes) {
+    const int firstLine = 15 + pitch + 1;
+    const int secondLine = firstLine + (15 - (firstLine & 15));
+    return secondLine + pitch + 1 <= bufferBytes;
+}

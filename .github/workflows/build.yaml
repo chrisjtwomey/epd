@@ -78,6 +78,14 @@ jobs:
       - name: Build the example
         run: pio run -e dev
 
+      # PNGdec and the board must agree on its line buffer, and only a wrong
+      # page on a panel would show that they do not.
+      - name: Check PNGdec's line buffer
+        if: matrix.example == 'minimal'
+        run: |
+          pio run -e dev -t clean
+          pio run -e dev -v | python3 ../../scripts/check_png_buffer.py
+
       # The only build that sets USE_SDCARD, with the card's own libraries.
       - name: Build the example with the SD card
         if: matrix.example == 'minimal'
