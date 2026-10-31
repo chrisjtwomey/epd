@@ -110,8 +110,8 @@ flag the build does not link.
 
 ```ini
 lib_deps =
-	chrisjtwomey/EpdClient @ ^0.22.0
-	chrisjtwomey/EpdBoardInkplate @ ^0.22.0
+	chrisjtwomey/EpdClient @ ^0.23.0
+	chrisjtwomey/EpdBoardInkplate @ ^0.23.0
 	tobozo/YAMLDuino @ ^1.5.0
 build_flags =
 	-DUSE_SDCARD
