@@ -25,6 +25,7 @@ import shutil
 import sys
 import threading
 from collections.abc import Callable, Iterable
+from dataclasses import dataclass, field
 
 from flask import Blueprint, Response, abort, jsonify, make_response, redirect, request, send_from_directory
 
@@ -32,7 +33,7 @@ from .config_file import FormError, read, twice
 from .login import Login
 from .settings_form import Field, Form, Group, Tab, initial
 
-__all__ = ["READ_ONLY", "restart_soon", "save", "settings_blueprint"]
+__all__ = ["NO_BACKUP", "NOTHING", "READ_ONLY", "Outcome", "restart_soon", "save", "save_flow", "settings_blueprint"]
 
 log = logging.getLogger("settings")
 
@@ -58,12 +59,105 @@ def restart_soon(delay_s: float = 1.0) -> None:
     threading.Timer(delay_s, again).start()
 
 
-def save(path: str, text: str) -> None:
+def save(path: str, text: str) -> str:
     """Keep ``path`` as it was beside it, then write ``text`` over it in place:
-    a file mounted into a container on its own cannot be replaced by a rename."""
+    a file mounted into a container on its own cannot be replaced by a rename.
+    Returns what it wrote: ``text`` ending in a newline."""
     shutil.copy(path, path + ".bak")
+    written = text if text.endswith("\n") else text + "\n"
     with open(path, "w") as f:
-        f.write(text)
+        f.write(written)
+    return written
+
+
+@dataclass
+class Outcome:
+    """What a posted form did. A page draws it in its own way.
+
+    ``state`` is one of: ``refused``, with ``problem`` and ``status``, and for a
+    field ``key``, ``tab`` and ``errors``; ``review``, with ``changes`` and ``same``;
+    ``checked``, with ``changes`` and ``same``; ``same``, a save with nothing to
+    write; ``live``, saved and taken without a restart; ``restarted``, saved and
+    restarting.
+    """
+    state: str
+    problem: str = ""
+    status: int = 200
+    key: str | None = None
+    tab: str | None = None
+    errors: dict[str, str] = field(default_factory=dict)
+    changes: list[dict] = field(default_factory=list)
+    same: bool = False
+    written: str = ""
+
+
+def save_flow(form: Form, path: str, posted, check: Callable[[str], None], *,
+              restart: Callable[[], None], live_keys: Iterable[str] = (),
+              take_live: Callable[[str], None] | None = None, read_only: str = READ_ONLY) -> Outcome:
+    """One post of a settings form: ``mode`` of ``form`` or ``restore``, and an
+    ``action`` of ``check``, ``review`` or ``save``.
+
+    The check runs on every action, and nothing is written unless it passes.
+
+    Raises:
+        ValueError: a mode this does not know.
+    """
+    mode = posted.get("mode", "form")
+    action = posted.get("action", "check")
+    with open(path) as f:
+        current = f.read()
+
+    changed: list[str] = []
+    if mode == "restore":
+        try:
+            with open(path + ".bak") as f:
+                text = f.read()
+        except OSError:
+            return Outcome("refused", NO_BACKUP, 404)
+    elif mode == "form":
+        try:
+            edit = form.apply(current, posted)
+        except FormError as exc:
+            return Outcome("refused", str(exc), 400)
+        if edit.errors:
+            key = next(f.key for f in form.fields if f.key in edit.errors)
+            return Outcome("refused", f"{form.name_of(form.by_key[key].path)}: {edit.errors[key]}", 400,
+                           key, form.tab_of.get(key), edit.errors)
+        text, changed = edit.text, edit.changed
+    else:
+        raise ValueError(f"no mode {mode}")
+
+    try:
+        check(text)
+    except ValueError as exc:
+        problem = str(exc)
+        if mode != "form":
+            return Outcome("refused", problem, 400)
+        key, tab = form.locate(problem)
+        errors = {}
+        if key:
+            f = form.by_key[key]
+            if f.refused:
+                problem = f"{form.name_of(f.path)}: {f.refused}"
+            errors[key] = f.refused or problem
+        return Outcome("refused", problem, 400, key, tab, errors)
+
+    if action != "save":
+        changes = form.changes(read(current), read(text))
+        return Outcome("review" if action == "review" else "checked", changes=changes, same=text == current)
+    if text == current:
+        return Outcome("same", same=True)
+    if not os.access(path, os.W_OK):
+        return Outcome("refused", read_only, 403)
+    try:
+        written = save(path, text)
+    except OSError as exc:
+        return Outcome("refused", f"Save failed: {exc.strerror}.", 500)
+    if take_live is not None and mode == "form" and changed and set(changed) <= frozenset(live_keys):
+        take_live(written)
+        return Outcome("live", written=written)
+    restart()
+    return Outcome("restarted", written=written)
 
 
 def _id(key: str) -> str:
@@ -320,80 +414,36 @@ def settings_blueprint(form: Form, path: str, check: Callable[[str], None], *,
     @bp.route(f"/{url}", methods=["POST"])
     def change():
         posted = request.form
-        mode = posted.get("mode", "form")
-        action = posted.get("action", "check")
-        wants_json = action == "review" or "application/json" in request.headers.get("Accept", "")
+        wants_json = posted.get("action") == "review" or "application/json" in request.headers.get("Accept", "")
         with open(path) as f:
             current = f.read()
-
         values = {f.key: v for f, v in
                   ((form.by_key[k], v) for k, v in form.submitted(posted).items())
                   if not (form.kinds.get(f.kind) and form.kinds[f.kind].secret)}
-
-        def refuse(problem: str, status: int = 400, key: str | None = None, errors=None):
-            if wants_json:
-                at = {"field": key, "error": (errors or {}).get(key)} if key else {}
-                return jsonify(problem=problem, **at), status
-            return page(current, status, values, errors, [("problem", problem)])
-
-        changed: list[str] = []
-        if mode == "restore":
-            try:
-                with open(path + ".bak") as f:
-                    text = f.read()
-            except OSError:
-                return refuse(NO_BACKUP, 404)
-        elif mode == "form":
-            try:
-                edit = form.apply(current, posted)
-            except FormError as exc:
-                return refuse(str(exc))
-            if edit.errors:
-                key = next(f.key for f in form.fields if f.key in edit.errors)
-                problem = f"{form.name_of(form.by_key[key].path)}: {edit.errors[key]}"
-                return refuse(problem, key=key, errors=edit.errors)
-            text, changed = edit.text, edit.changed
-        else:
+        try:
+            out = save_flow(form, path, posted, check, restart=restart, live_keys=live, take_live=take_live)
+        except ValueError:
             abort(400)
 
-        try:
-            check(text)
-        except ValueError as exc:
-            problem = str(exc)
-            key, _ = form.locate(problem)
-            errors = {}
-            if key:
-                f = form.by_key[key]
-                if f.refused:
-                    problem = f"{form.name_of(f.path)}: {f.refused}"
-                errors[key] = f.refused or problem
-            return refuse(problem, key=key, errors=errors)
-
-        def diff() -> list[dict]:
-            return form.changes(read(current), read(text))
-
-        if action == "review":
-            return jsonify(changes=diff(), same=text == current)
-        if action != "save":
-            if text == current:
+        if out.state == "refused":
+            if wants_json:
+                at = {"field": out.key, "error": out.errors.get(out.key)} if out.key else {}
+                return jsonify(problem=out.problem, **at), out.status
+            return page(current, out.status, values, out.errors, [("problem", out.problem)])
+        if out.state == "review":
+            return jsonify(changes=out.changes, same=out.same)
+        if out.state == "checked":
+            if out.same:
                 return page(current, 200, values, banners=[("notice", NOTHING)])
-            return page(current, 200, values, banners=[("notice", NO_PROBLEMS)], changes=diff())
-        if text == current:
+            return page(current, 200, values, banners=[("notice", NO_PROBLEMS)], changes=out.changes)
+        if out.state == "same":
             if wants_json:
                 return jsonify(saved=False, same=True)
             return page(current, 200, values, banners=[("notice", NOTHING)])
-        if not os.access(path, os.W_OK):
-            return refuse(READ_ONLY, 403)
-        try:
-            save(path, text)
-        except OSError as exc:
-            return refuse(f"Cannot save: {exc.strerror}.", 500)
-        if take_live is not None and mode == "form" and changed and set(changed) <= live:
-            take_live(text)
+        if out.state == "live":
             if wants_json:
                 return jsonify(saved=True, restarted=False)
             return redirect(f"{url}?saved=1", 303)
-        restart()
         if wants_json:
             return jsonify(saved=True, restarted=True)
         return _no_store(_restarting_page(url, styles, title))

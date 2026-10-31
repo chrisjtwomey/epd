@@ -5,7 +5,7 @@ from flask import Flask
 
 from epd_server.login import Login, SignInSite, guard
 from epd_server.settings_form import Field, Form, Group, Tab
-from epd_server.settings_page import READ_ONLY, settings_blueprint
+from epd_server.settings_page import READ_ONLY, save, save_flow, settings_blueprint
 
 TEXT = """\
 ---
@@ -288,3 +288,42 @@ def test_with_no_password_the_page_says_anyone_can_change_it(path, tmp_path):
     site = Site(path, login=Login("", str(tmp_path / "login.json")))
     page = soup(site.client.get("/settings"))
     assert "anyone on the network" in page.text and page.find(id="access-token") is None
+
+
+# ── The save flow, as another page uses it ───────────────────────────
+
+def flow(path, **fields):
+    from werkzeug.datastructures import MultiDict
+    return save_flow(FORM, str(path), MultiDict(fields), lambda t: None, restart=lambda: None)
+
+
+def test_the_flow_says_what_it_did(path):
+    assert flow(path, action="review", **{"server.port": "9090"}).state == "review"
+    assert flow(path, action="check", **{"server.port": "8080"}).same
+    assert flow(path, action="save", **{"server.port": "8080"}).state == "same"
+    out = flow(path, action="save", **{"server.port": "9090"})
+    assert out.state == "restarted" and "9090" in out.written
+
+
+def test_the_flow_refuses_a_mode_it_does_not_know(path, site):
+    with pytest.raises(ValueError):
+        flow(path, mode="other")
+    assert site.client.post("/settings", data={"mode": "other"}).status_code == 400
+
+
+def test_the_flow_says_why_a_write_failed(path, monkeypatch):
+    def refused(*_args, **_kwargs):
+        raise PermissionError(13, "Permission denied")
+    monkeypatch.setattr("epd_server.settings_page.shutil.copy", refused)
+    out = flow(path, action="save", **{"server.port": "9090"})
+    assert (out.state, out.status, out.problem) == ("refused", 500, "Save failed: Permission denied.")
+
+
+def test_a_saved_file_ends_in_a_newline(path):
+    assert save(str(path), "a: 1") == "a: 1\n" and path.read_text() == "a: 1\n"
+
+
+def test_the_backup_keeps_the_files_permissions(path):
+    path.chmod(0o600)
+    save(str(path), "a: 1\n")
+    assert (path.parent / "config.yaml.bak").stat().st_mode & 0o777 == 0o600

@@ -64,7 +64,7 @@ fails a test before it reaches a project.
 | `epd_server.compat` | Whether a board's version and the server's work together, by the rule in [docs/protocol.md](../docs/protocol.md) |
 | `epd_server.posix_tz` | The server's time zone as a POSIX TZ string, for `EPD-Server-Timezone` |
 | `epd_server.config_file` | `Doc` — `config.yaml` as text, edited with its comments kept; `read`, `twice` — read it as a server does, and find a key written twice; `lookup`, `same`, `flat`, `changed_paths`, `reads_as` — check what an edit did; `MISSING`, `FormError`, and the words a page shows for a file it cannot edit: `NOT_YAML`, `NOT_A_MAPPING`, `EDIT_ON_SERVER`, `ON_SERVER` |
-| `epd_server.settings_page` | `settings_blueprint(form, path, check, …)` — `config.yaml` in the browser; `restart_soon`, `save`, `READ_ONLY` |
+| `epd_server.settings_page` | `settings_blueprint(form, path, check, …)` — `config.yaml` in the browser; `save_flow`, `Outcome` — the same post for a page a project draws itself; `restart_soon`, `save`, `READ_ONLY`, `NOTHING`, `NO_BACKUP` |
 | `epd_server.settings_form` | `Form` — a project's settings as one form: what it shows, what a post does to `config.yaml`, and the changes in words; `Tab`, `Group`, `Field` — the settings; `Kind`, `Writer`, `write_value` — a project's own kind of field; `Pools`, `Times`, `Secret` — `display.pools`, a `times` schedule, and an API key or password that never leaves the server, which every form has; `Edit`, `FieldError`; `default_of`, `scaled`, `as_input`, `input_text`, `initial`, `words_of`, `clock_time`, `host_zone` |
 | `epd_server.login` | `Login` — the password, its cookies and the access token; `SignInSite` — what a project chooses; `guard` — puts them in front of the routes; `board_route` — the routes a board uses; `sign_in_html` — a plain sign-in page |
 | `epd_server.logs` | `LogStore` — what each board logs over MQTT, kept on disk and read back in order; `LEVELS`, the levels a line can carry; `LogsQuery` — the lines a `/logs` query route asks for, paged and filtered, at most `MAX_LINES` |
@@ -468,6 +468,8 @@ server.app.register_blueprint(settings_blueprint(FORM, "config.yaml", check_conf
   custom properties are the place to start. The page works without its script.
 - **A field of your own:** subclass `Kind`, and pass it to `Form` by name. `columns`
   gives a row kind its inputs.
+- **A page of your own:** call `save_flow` from your own route, and draw the `Outcome`.
+  It runs the same check, save and restart.
 
 ## The sign-in
 
